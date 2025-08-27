@@ -7,7 +7,6 @@ import Text from "@/ui/Text";
 import { Product } from "@/lib/shopify/types";
 import { isOptionAvailable } from "@/lib/utils/shopify";
 import { cn } from "@/lib/utils";
-import { useCartStore } from "@/stores/useCartStore";
 import useShoppingCart from "@/hooks/useShoppingCart";
 
 // import ToastProductItem from "./ToastProductItem";
@@ -23,47 +22,40 @@ const Sizes = (props: PropTypes) => {
   const { product, sizes } = props;
 
   const [selectedSize, setSelectedSize] = useState<string | undefined>();
-  const selectedColors = useCartStore((state) => state.selectedColors);
 
   const { addCartQuantity, onCartOpen } = useShoppingCart();
 
   const onAddToCart = () => {
-    if (!selectedSize && sizes.length > 1) return;
-
     onCartOpen();
 
-    const selectedColor = selectedColors[product.id];
-    if (!selectedColor) {
-      toast.error("Please select color before adding to cart.");
+    // Determine size to use
+    let sizeToUse: string | undefined = selectedSize;
+    if (sizes.length === 1) {
+      sizeToUse = sizes[0];
+    }
 
+    // If multiple sizes exist and none selected, block add
+    if (sizes.length > 1 && !sizeToUse) {
+      toast.warning("Please select a size before adding to cart.");
       return;
     }
 
-    // Find the variant ID based on selected color and size
-    const variant = product.variants.find((v) => {
-      return (
+    // Resolve variant by size only; if no size option exists, pick the first variant
+    const variant =
+      product.variants.find((v) =>
         v.selectedOptions.some(
-          (option) => option.name === "Color" && option.value === selectedColor,
-        ) &&
-        v.selectedOptions.some(
-          (option) => option.name === "Size" && option.value === selectedSize,
+          (option) =>
+            option.name.toLowerCase() === "size" &&
+            option.value === (sizeToUse as string)
         )
-      );
-    });
+      ) || product.variants[0];
 
     if (!variant) {
-      console.error("Variant not found for selected color and size");
-      toast.error("Sorry, this combination is not available.");
+      toast.error("No available variant found.");
       return;
     }
 
-    addCartQuantity(
-      product?.id as string,
-      1,
-      selectedColor,
-      selectedSize as string,
-      variant.id,
-    );
+    addCartQuantity(product?.id as string, 1, "", sizeToUse || "", variant.id);
 
     // toast.custom(
     //   () => (
@@ -86,6 +78,10 @@ const Sizes = (props: PropTypes) => {
     }
   }, [sizes]);
 
+  const hasSizeOption =
+    Array.isArray(product?.options) &&
+    product.options.some((o) => o?.name?.toLowerCase() === "size");
+
   return (
     <div
       className="absolute bottom-[20px] left-[50%] flex -translate-x-[50%] items-center"
@@ -94,7 +90,12 @@ const Sizes = (props: PropTypes) => {
         e.stopPropagation();
       }}
     >
-      <div className="flex min-h-[40px] items-center justify-center gap-4 rounded-[20px] bg-white px-4 py-1">
+      <div
+        className={cn(
+          " min-h-[40px] items-center justify-center gap-4 rounded-[20px] bg-white px-4 py-1",
+          hasSizeOption ? "flex" : "hidden"
+        )}
+      >
         {sizes.map((size) => {
           const isAvailable = isOptionAvailable(product, "size", size);
 
@@ -116,7 +117,7 @@ const Sizes = (props: PropTypes) => {
                   "flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#161616] text-white",
                 isSelected && isSmallCircle && "h-[24px] w-[24px]",
 
-                !isAvailable && "text-caption cursor-not-allowed line-through",
+                !isAvailable && "text-caption cursor-not-allowed line-through"
               )}
             >
               {size}

@@ -15,8 +15,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Grounds Shop",
-  description: "Grounds Shop market place",
+  title: "AlBarakah Shop",
+  description: "AlBarakah Shop market place",
 };
 
 export default function RootLayout({

@@ -7,7 +7,6 @@ import { formatPrice } from "@/lib/utils/shopify";
 import { Product } from "@/lib/shopify/types";
 
 import Sizes from "./Sizes";
-import Colors from "./Colors";
 
 interface PropTypes {
   products: Product[];
@@ -46,9 +45,6 @@ const ProductCard = ({ product }: { product: Product }) => {
   const sizes =
     product.options.find((option) => option.name.toLowerCase() === "size")
       ?.values || [];
-  const colors =
-    product.options.find((option) => option.name.toLowerCase() === "color")
-      ?.values || [];
 
   return (
     <div className="w-full md:w-[384px]">
@@ -65,17 +61,17 @@ const ProductCard = ({ product }: { product: Product }) => {
       </div>
 
       <div className="my-2 flex items-start justify-between">
-        <Text className="text-primary-foreground text-[22px] font-semibold">
+        <Text className="text-primary-foreground text-[19px] font-semibold">
           {name}
         </Text>
-        <Text className="text-primary-foreground text-[22px] font-semibold">
+        <Text className="text-primary-foreground text-[19px] font-semibold">
           {formatPrice(price)}
         </Text>
       </div>
 
       {/* <Text className="text-caption line-clamp-4">{description}</Text> */}
 
-      <Colors product={product} colors={colors} showColorName />
+      {/* Color selection removed */}
     </div>
   );
 };

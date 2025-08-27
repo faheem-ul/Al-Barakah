@@ -10,7 +10,7 @@ import useShoppingCart from "@/hooks/useShoppingCart";
 import { cn } from "@/lib/utils";
 import CartDrawer from "@/ui/CartDrawer";
 
-// import Cart from "@/components/Cart";
+import Cart from "@/components/Cart";
 
 import logo from "@/public/logo.png";
 
@@ -18,13 +18,15 @@ import MobileNav from "./MobileNav";
 
 const Navbar = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { cartQuantity, onCartOpen, onCartClose, isCartOpen } =
+  const { cartItemCount, onCartOpen, onCartClose, isCartOpen } =
     useShoppingCart();
 
   return (
-    <nav className="relative z-10 mx-auto max-w-7xl py-[22px] sm:py-10">
+    <nav className="relative z-10 mx-auto max-w-7xl py-[22px] sm:py-10 ">
       <div className="sm:bg-primary flex w-full items-center justify-between rounded-[40px] px-5 sm:h-[78px] sm:px-8">
-        <Image src={logo} alt="logo" className="w-[150px]" />
+        <Link href="/">
+          <Image src={logo} alt="logo" className="w-[150px]" />
+        </Link>
 
         <div className="max-mob:hidden nav-items flex items-center gap-9">
           {NAV_ITEMS.map((item) => (
@@ -44,7 +46,7 @@ const Navbar = () => {
         <div className="flex items-center gap-7">
           <button onClick={onCartOpen} className="relative cursor-pointer">
             <span className="bg-foreground absolute top-[-5px] right-[-5px] flex h-[15px] w-[15px] items-center justify-center rounded-full text-[10px] font-normal text-white">
-              {cartQuantity}
+              {cartItemCount}
             </span>
 
             <CartIcon />
@@ -60,9 +62,9 @@ const Navbar = () => {
 
       <MobileNav isOpen={isOpen} onClose={onClose} />
 
-      {/* <CartDrawer isOpen={isCartOpen} onClose={onCartClose}>
+      <CartDrawer isOpen={isCartOpen} onClose={onCartClose}>
         <Cart onCartClose={onCartClose} />
-      </CartDrawer> */}
+      </CartDrawer>
     </nav>
   );
 };

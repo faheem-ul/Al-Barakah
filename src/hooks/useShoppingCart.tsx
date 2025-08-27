@@ -22,10 +22,13 @@ const useShoppingCart = () => {
     () =>
       cartItems?.reduce(
         (quantity: number, item: CartItem) => item.quantity + quantity,
-        0,
+        0
       ),
-    [cartItems],
+    [cartItems]
   );
+
+  // Distinct item count (number of unique cart lines), independent of quantities
+  const cartItemCount = useMemo(() => cartItems?.length || 0, [cartItems]);
 
   const getItemQuantity = (id: number | string) => {
     return cartItems.find((item: CartItem) => item.id === id)?.quantity || 1;
@@ -41,7 +44,7 @@ const useShoppingCart = () => {
   const findCartItem = (
     items: CartItem[],
     id: string | number,
-    variantId?: string | number,
+    variantId?: string | number
   ): CartItem | undefined => {
     if (variantId) {
       return items.find((item) => item.variantId === variantId);
@@ -54,18 +57,18 @@ const useShoppingCart = () => {
     quantity: number = 1,
     color: string,
     size: string,
-    variantId: string,
+    variantId: string
   ) => {
     setCartItems((currentItems) => {
       const existingItem = currentItems.find(
-        (item) => item.variantId === variantId,
+        (item) => item.variantId === variantId
       );
 
       if (existingItem) {
         return currentItems.map((item) =>
           item.variantId === variantId
             ? { ...item, quantity: item.quantity + quantity }
-            : item,
+            : item
         );
       } else {
         return [...currentItems, { id, quantity, color, size, variantId }];
@@ -78,13 +81,13 @@ const useShoppingCart = () => {
     quantity: number = 1,
     color: string,
     size: string,
-    variantId: string,
+    variantId: string
   ) => {
     setCartItems((currentItems) => {
       const existingItem = findCartItem(currentItems, id, variantId);
       if (existingItem) {
         return currentItems.map((item) =>
-          item.variantId === variantId ? { ...item, quantity: quantity } : item,
+          item.variantId === variantId ? { ...item, quantity: quantity } : item
         );
       } else {
         return [...currentItems, { id, quantity, color, size, variantId }];
@@ -94,7 +97,7 @@ const useShoppingCart = () => {
 
   const decreaseCartQuantity = (
     variantId: number | string,
-    quantity: number = 1,
+    quantity: number = 1
   ) => {
     setCartItems((currItems: CartItem[]) => {
       const existingItem = findCartItem(currItems, "", variantId);
@@ -105,13 +108,13 @@ const useShoppingCart = () => {
 
       if (existingItem.quantity <= quantity) {
         return currItems.filter(
-          (item: CartItem) => item.variantId !== variantId,
+          (item: CartItem) => item.variantId !== variantId
         );
       } else {
         return currItems.map((item: CartItem) =>
           item.variantId === variantId
             ? { ...item, quantity: item.quantity - quantity }
-            : item,
+            : item
         );
       }
     });
@@ -120,7 +123,7 @@ const useShoppingCart = () => {
   const removeFromCart = (variantIdToRemove: number | string) => {
     setCartItems((currItems: CartItem[]) => {
       return currItems.filter(
-        (item: CartItem) => item.variantId !== variantIdToRemove,
+        (item: CartItem) => item.variantId !== variantIdToRemove
       );
     });
   };
@@ -129,6 +132,7 @@ const useShoppingCart = () => {
     getItemQuantity,
     getItemQuantityByVariantId,
     cartQuantity,
+    cartItemCount,
     increaseCartQuantity,
     decreaseCartQuantity,
     removeFromCart,

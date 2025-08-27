@@ -1,7 +1,6 @@
 export const NAV_ITEMS = [
-  { title: "Home", path: "https://www.groundsapp.co/" },
-  { title: "Pricing", path: "https://www.groundsapp.co/#pricing" },
-  { title: "Merch", path: "/" },
+  { title: "Home", path: "/" },
+  { title: "Pricing", path: "/" },
 ];
 
 export const GOOGLE_PLAY_STORE =

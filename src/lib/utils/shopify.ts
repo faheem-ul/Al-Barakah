@@ -38,11 +38,11 @@ import {
 // };
 
 export const reshapeCollection = (
-  data: ShopifyCollection,
+  data: ShopifyCollection
   // filterHiddenProducts: boolean = false,
 ) => {
   const reshapedPrdoucts = data.collections.nodes.map((node) =>
-    reshapeProducts(removeEdgesAndNodes(node.products)),
+    reshapeProducts(removeEdgesAndNodes(node.products))
   );
 
   return _flatten(reshapedPrdoucts);
@@ -55,7 +55,7 @@ export const removeEdgesAndNodes = (array: Connection<any>) => {
 
 export const reshapeImages = (
   images: Connection<Image>,
-  productTitle: string,
+  productTitle: string
 ) => {
   const flattened = removeEdgesAndNodes(images);
 
@@ -70,7 +70,7 @@ export const reshapeImages = (
 
 export const reshapeProduct = (
   product: ShopifyProduct,
-  filterHiddenProducts: boolean = false,
+  filterHiddenProducts: boolean = false
 ) => {
   if (!product || filterHiddenProducts) {
     return undefined;
@@ -118,7 +118,7 @@ export const reshadeCustomerOrders = (orders: any): CustomerOrder[] => {
         amount: lineItemEdge.node.originalTotalPrice.amount,
         currencyCode: lineItemEdge.node.originalTotalPrice.currencyCode,
       },
-    })),
+    }))
   );
 };
 
@@ -134,7 +134,7 @@ export const reshadeCustomerOrders = (orders: any): CustomerOrder[] => {
 export const isOptionAvailable = (
   product: Product,
   optionName: "size" | "color",
-  optionValue: string,
+  optionValue: string
 ): boolean => {
   // Ensure product and variants data exist
   if (!product || !product.variants || product.variants.length === 0) {
@@ -150,7 +150,7 @@ export const isOptionAvailable = (
       variant.selectedOptions.some(
         (option) =>
           option.name.toLowerCase() === normalizedOptionName &&
-          option.value === optionValue,
+          option.value === optionValue
       )
     );
   });
@@ -165,7 +165,7 @@ export const isOptionAvailable = (
  */
 export const isCombinationAvailable = (
   product: Product,
-  selectedOptions: { name: string; value: string }[],
+  selectedOptions: { name: string; value: string }[]
 ): boolean => {
   // Ensure product and variants data exist
   if (!product || !product.variants || product.variants.length === 0) {
@@ -180,7 +180,7 @@ export const isCombinationAvailable = (
       return v.selectedOptions.some(
         (variantOpt) =>
           variantOpt.name.toLowerCase() === normalizedSelectedOptName &&
-          variantOpt.value === selectedOpt.value,
+          variantOpt.value === selectedOpt.value
       );
     });
   });
@@ -199,20 +199,20 @@ export const isCombinationAvailable = (
  */
 export function formatPrice(
   value: number | string,
-  options?: PriceFormatOptions,
+  options?: PriceFormatOptions
 ): string {
   // Ensure the value is a number
   const numericValue = parseFloat(String(value));
 
   // Handle invalid numbers gracefully (e.g., return a default or throw an error)
   if (isNaN(numericValue)) {
-    console.warn(`formatPrice received an invalid number: ${value}`);
+    console.warn(`formatPrice received an invalid number: Rs. {value}`);
     return "$0.00"; // Or throw new Error("Invalid price value");
   }
 
   const defaultOptions: PriceFormatOptions = {
     locale: "en-US", // Default locale
-    currency: "USD", // Default currency for the symbol
+    currency: "PKR", // Default currency for the symbol
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   };
