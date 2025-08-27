@@ -7,6 +7,7 @@ import { Button } from "@/ui/button";
 import { Product } from "@/lib/shopify/types";
 import useShoppingCart from "@/hooks/useShoppingCart";
 import Tag from "@/ui/Tag";
+import { cn } from "@/lib/utils";
 
 import ProductAccordion from "./Accordion";
 
