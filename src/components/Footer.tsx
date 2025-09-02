@@ -77,8 +77,8 @@ const Footer = () => {
               <Image src={logo} alt="logo" className="w-[186px]" />
             </Link>
 
-            <Text className="mx-auto mt-[20px] max-w-[280px] text-center text-[13px] leading-5 font-normal text-[#979797]  md:text-[16px]">
-              Albaraka Honey –
+            <Text className="mx-auto mt-[16px] max-w-[280px] text-center text-[13px] leading-5 font-normal text-[#979797]  md:text-[16px]">
+              Albaraka Honey – <br />
               Pure Blessings in Every Drop
             </Text>
 
@@ -243,8 +243,8 @@ const Footer = () => {
 
       <div className="border-b-caption mt-[24px] border-b-[0.5px] md:hidden" />
 
-      <Text className="text-center py-[24px] text-center text-[20px] leading-6 font-medium md:ml-[75px] md:py-[32px]  md:text-[16px]">
-        © 2025 Albaraka Honey
+      <Text className="text-center text-[#302A25] py-[24px] text-[20px] leading-6 font-bold md:ml-[75px] md:py-[32px]  md:text-[16px]">
+        <span className="font-normal">© 2025</span> Albaraka Honey
       </Text>
 
       {/* <Script

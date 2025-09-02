@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
+import localFont from "next/font/local";
 
 import Navbar from "@/components/Navbar";
 import { Toaster } from "@/ui/sonner";
@@ -14,6 +15,12 @@ const poppins = Poppins({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
+const tintaArabic = localFont({
+  src: "../../public/fonts/TintaArabic-Bold.otf",
+  display: "swap",
+  variable: "--font-tinta-arabic",
+});
+
 export const metadata: Metadata = {
   title: "AlBarakah Shop",
   description: "AlBarakah Shop market place",
@@ -26,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${poppins.variable} font-sans antialiased`}>
+      <body className={`${poppins.variable} ${tintaArabic.variable} font-sans antialiased`}>
         <Providers>
           <Navbar />
           {children}

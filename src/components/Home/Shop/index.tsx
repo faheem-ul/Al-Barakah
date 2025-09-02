@@ -100,7 +100,7 @@ const ProductCard = ({ product }: { product: Product }) => {
       <div className="mb-2 flex items-start justify-between">
         <div className="flex flex-col">
           {urduTitle && (
-            <Text className="text-primary-foreground text-[19px] font-semibold mb-1">
+            <Text className="text-primary-foreground font-arabic text-[19px] font-bold mb-1">
               {urduTitle}
             </Text>
           )}
