@@ -30,7 +30,7 @@ const MealDetailPage = async ({ params }: Props) => {
   }
 
   return (
-    <div className="min-h-screen pb-10">
+    <div className="min-h-[80vh] pb-20">
       <ProductDetails product={product.data as Product} />
     </div>
   );
