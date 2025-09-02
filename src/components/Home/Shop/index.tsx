@@ -3,8 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 import Text from "@/ui/Text";
-import { formatPrice } from "@/lib/utils/shopify";
 import { Product } from "@/lib/shopify/types";
+import { useProductData } from "@/hooks/useProductData";
 
 import Sizes from "./Sizes";
 
@@ -36,18 +36,22 @@ export default Shop;
 
 // ProductCard Component
 const ProductCard = ({ product }: { product: Product }) => {
-  // Extract relevant data from the Shopify Product type
-  const name = product.title;
-  const price = product.priceRange.minVariantPrice.amount;
-
-  // const description = product.description;
-  const image = product.featuredImage?.url || "/images/placeholder.png"; // Use placeholder if no image
-  const sizes =
-    product.options.find((option) => option.name.toLowerCase() === "size")
-      ?.values || [];
+  console.log(product,"ProductCard");
+  
+  const {
+    name,
+    image,
+    sizes,
+    currentPrice,
+    comparePrice,
+    discountPercentage,
+    urduTitle,
+    englishTitle,
+    formatPrice
+  } = useProductData(product);
 
   return (
-    <div className="w-full md:w-[384px]">
+    <div className="w-full md:w-[353px]">
       <div className="relative w-full flex justify-center ">
         <Image
           src={image}
@@ -56,21 +60,34 @@ const ProductCard = ({ product }: { product: Product }) => {
           width={384}
           className="rounded-[24px] object-cover"
         />
-        <div className="w-fit absolute bottom-[6px]">
-          <Text className=" text-[14px] font-semibold bg-white rounded-[24px] px-3 py-1"> Sale 25% Off</Text>
+        <div className="w-fit absolute bottom-7">
+          {discountPercentage > 0 && (
+            <Text className="text-[14px] font-semibold bg-white rounded-[24px] px-3 py-1">
+              Sale {discountPercentage}% Off
+            </Text>
+          )}
         </div>
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <Text className="text-right text-[#302A25]/60 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
-        was:  2,400
+      <Text className="text-right line-through text-[#302A25]/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+        was: {formatPrice(comparePrice)}
       </Text>
       <div className="mb-2 flex items-start justify-between">
+        <div className="flex flex-col">
+          {urduTitle && (
+            <Text className="text-primary-foreground text-[19px] font-semibold mb-1">
+              {urduTitle}
+            </Text>
+          )}
+          {englishTitle && (
+            <Text className="text-[#302A25] text-[16px] font-semibold  mt-2">
+              {englishTitle}
+            </Text>
+          )}
+        </div>
         <Text className="text-primary-foreground text-[19px] font-semibold">
-          {name}
-        </Text>
-        <Text className="text-primary-foreground text-[19px] font-semibold">
-          {formatPrice(price)}
+          Rs. {formatPrice(currentPrice)}
         </Text>
       </div>
 

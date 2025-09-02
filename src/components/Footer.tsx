@@ -13,7 +13,7 @@ import playStore from "@/public/icons/play-store.svg";
 import logo from "@/public/logo.png";
 import instagram from "@/public/icons/social/instagram.svg";
 import facebook from "@/public/icons/social/facebook.svg";
-import youtube from "@/public/icons/social/youtube.svg";
+import tiktok from "@/public/icons/social/tiktok.svg";
 import dot from "@/public/icons/social/dot.svg";
 import { Phone } from "./ui/Icons";
 
@@ -87,11 +87,11 @@ const Footer = () => {
 
           {/* Right */}
           <div className="border-l-caption col-span-1 hidden w-[30%] border-l-[0.5px] pb-[45px] text-center md:block">
-            <div className="flex flex-col items-center gap-3 pt-[50px]">
+            <div className="flex flex-col items-center gap-6 pt-[50px]">
 
               <div className="mt-[22px] flex items-center gap-[15px] md:mt-[42px] md:gap-[11px]">
                 <a
-                  href="https://www.instagram.com/grounds_app/"
+                  href="#"
                   className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
                 >
                   <Image
@@ -108,7 +108,7 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="https://www.facebook.com/profile.php?id=61551930973017"
+                  href="#"
                   className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
                 >
                   <Image
@@ -125,13 +125,13 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="https://www.youtube.com/@grounds_app"
+                  href="#"
                   className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
                 >
                   <Image
-                    src={youtube}
-                    alt="youtube"
-                    className="h-[30px] w-[30px] md:h-[35px] md:w-[35px]"
+                    src={tiktok}
+                    alt="tiktok"
+                    className="h-[25px] w-[25px]"
                   />
                 </a>
               </div>
@@ -168,7 +168,7 @@ const Footer = () => {
 
             <div className=" flex items-center gap-[15px] md:gap-[11px]">
               <a
-                href="https://www.instagram.com/grounds_app/"
+                href="#"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
@@ -185,7 +185,7 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="https://www.facebook.com/profile.php?id=61551930973017"
+                href="#"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
@@ -202,12 +202,12 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="https://www.youtube.com/@grounds_app"
+                href="#"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
-                  src={youtube}
-                  alt="youtube"
+                  src={tiktok}
+                  alt="tiktok"
                   className="h-[30px] w-[30px] md:h-[35px] md:w-[35px]"
                 />
               </a>
