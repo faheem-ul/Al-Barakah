@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Grounds Shop",
-  description: "Grounds Shop market place",
+  title: "Albaraka Honey",
+  description: "Albaraka Honey – Pure Blessings in Every Drop",
 };
 
 export default function RootLayout({

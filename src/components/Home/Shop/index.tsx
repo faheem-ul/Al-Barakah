@@ -48,7 +48,7 @@ const ProductCard = ({ product }: { product: Product }) => {
 
   return (
     <div className="w-full md:w-[384px]">
-      <div className="relative w-full">
+      <div className="relative w-full flex justify-center ">
         <Image
           src={image}
           alt={name}
@@ -56,11 +56,16 @@ const ProductCard = ({ product }: { product: Product }) => {
           width={384}
           className="rounded-[24px] object-cover"
         />
-
+        <div className="w-fit absolute bottom-[6px]">
+          <Text className=" text-[14px] font-semibold bg-white rounded-[24px] px-3 py-1"> Sale 25% Off</Text>
+        </div>
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <div className="my-2 flex items-start justify-between">
+      <Text className="text-right text-[#302A25]/60 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+        was:  2,400
+      </Text>
+      <div className="mb-2 flex items-start justify-between">
         <Text className="text-primary-foreground text-[19px] font-semibold">
           {name}
         </Text>
