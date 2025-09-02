@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 
 // import "react-inner-image-zoom/lib/styles.min.css";
@@ -14,24 +14,52 @@ interface PropTypes {
 
 const ImageGallery = (props: PropTypes) => {
   const { product } = props;
-  const [currentImage, setCurrentImage] = useState(0);
+  const [hoveredImage, setHoveredImage] = useState<number | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Filter images to start from index 2 (skip first two images)
+  const filteredImages = product?.images?.slice(2) || [];
+
+  // Handle smooth image transitions
+  useEffect(() => {
+    if (hoveredImage !== null) {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setCurrentImageIndex(hoveredImage);
+        setIsTransitioning(false);
+      }, 200); // Half of the transition time
+      return () => clearTimeout(timer);
+    } else {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setCurrentImageIndex(0);
+        setIsTransitioning(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [hoveredImage]);
 
   return (
     <div className="w-full overflow-hidden md:w-fit">
       <div className="relative h-[338px] w-full overflow-hidden rounded-[16px] md:h-[550px] md:w-[520px]">
+        {/* Current Image */}
         <Image
-          src={product?.images[currentImage]?.url}
-          alt={product?.images[currentImage]?.altText}
+          src={product?.images[currentImageIndex]?.url}
+          alt={product?.images[currentImageIndex]?.altText}
           fill
-          className="object-cover object-top"
+          className={cn(
+            "object-cover object-top transition-opacity duration-500 ease-in-out",
+            isTransitioning ? "opacity-0" : "opacity-100"
+          )}
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           priority
         />
 
         {/* <InnerImageZoom
           className="object-cover object-top"
-          src={product?.images[currentImage]?.url}
-          zoomSrc={product?.images[currentImage]?.url}
+          src={product?.images[currentImageIndex]?.url}
+          zoomSrc={product?.images[currentImageIndex]?.url}
           zoomPreload={true}
           zoomType="hover"
         /> */}
@@ -39,13 +67,15 @@ const ImageGallery = (props: PropTypes) => {
 
       {/* Products Images */}
       <div className="no-scrollbar mt-4 flex max-w-screen items-center gap-[13px] overflow-x-auto md:max-w-[520px]">
-        {product?.images?.map((image, index) => (
+        {filteredImages?.map((image, index) => (
           <div
-            key={index}
+            key={index + 2} // Use original index + 2 for proper key
             className={cn(
               "relative h-[80px] w-[78px] shrink-0 overflow-hidden rounded-[16px] md:h-[120px] md:w-[120px]",
-              currentImage === index && "border-2 border-[#302A25]",
+              hoveredImage === index + 2 && "border-2 border-[#302A25]",
             )}
+            onMouseEnter={() => setHoveredImage(index + 2)}
+            onMouseLeave={() => setHoveredImage(null)}
           >
             <Image
               src={image?.url}
@@ -53,7 +83,6 @@ const ImageGallery = (props: PropTypes) => {
               fill
               className={cn("object-cover object-top hover:cursor-pointer")}
               sizes="50vw"
-              onClick={() => setCurrentImage(index)}
             />
           </div>
         ))}
