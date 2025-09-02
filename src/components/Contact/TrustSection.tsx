@@ -1,24 +1,25 @@
 import React from "react";
 import Image from "next/image";
+import Text from "../ui/Text";
 
 const TrustSection = () => {
   return (
-    <section className="bg-gray-50 py-20 px-6">
+    <section className=" pt-20 px-6">
       <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="flex mob:flex-wrap gap-8 items-center">
           {/* Left Column - Text & Features */}
-          <div className="space-y-8">
+          <div className="space-y-5 max-w-[550px]">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">
+              <Text className="text-[40px] font-bold text-black mb-2 leading-[50px]">
                 Building Relationships Based On Trust, Integrity.
-              </h2>
-              <p className="text-lg text-gray-700 leading-relaxed">
+              </Text>
+              <Text className="text-[18px] text-black font-light leading-[25px]">
                {`
                 At Al Baraka Honey, We Believe In Honesty And Authenticity. Our Honey Is Harvested Naturally, 
                 Without Artificial Additives, Ensuring Every Drop Is Pure, Safe, And Packed With Nutrition. 
                 From Hive To Home, We Deliver Nature's Sweetness With Integrity And Care.
                `}
-              </p>
+              </Text>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -39,7 +40,6 @@ const TrustSection = () => {
           
           {/* Right Column - Image */}
           <div className="relative">
-            <div className="rounded-2xl overflow-hidden shadow-2xl">
               <Image
                 src="/images/contactus/build relationship.png"
                 alt="Beekeeper with honey"
@@ -47,7 +47,6 @@ const TrustSection = () => {
                 height={800}
                 className="w-full h-auto object-cover"
               />
-            </div>
           </div>
         </div>
       </div>
@@ -67,11 +66,11 @@ const FeatureBox = ({
   description: string; 
 }) => {
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg">
-      <div className="text-4xl mb-4">{icon}</div>
-      <h3 className="text-3xl font-bold text-gray-900 mb-2">{title}</h3>
-      <h4 className="text-lg font-semibold text-gray-800 mb-3">{subtitle}</h4>
-      <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+    <div className="">
+      <div className="bg-[#302A25] w-[76px] h-[67px] rounded-[10px]"></div>
+      <Text className="text-[32px] font-bold text-bold mb-0 mt-4">{title}</Text>
+      <Text className="text-[16px] font-medium text-black mb-3">{subtitle}</Text>
+      <Text className="text-sm text-blsck leading-relaxed">{description}</Text>
     </div>
   );
 };
