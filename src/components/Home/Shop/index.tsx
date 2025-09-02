@@ -86,7 +86,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         
         <div className="w-fit absolute bottom-7">
           {discountPercentage > 0 && (
-            <Text className="text-[14px] font-semibold bg-white rounded-[24px] px-3 py-1">
+            <Text className="text-[14px] font-semibold bg-white rounded-[20px] px-4 py-2">
               Sale {discountPercentage}% Off
             </Text>
           )}
@@ -105,7 +105,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             </Text>
           )}
           {englishTitle && (
-            <Text className="text-[#302A25] text-[16px] font-semibold  mt-2">
+            <Text className="text-[#302A25] text-[16px] capitalize font-semibold  mt-2">
               {englishTitle}
             </Text>
           )}

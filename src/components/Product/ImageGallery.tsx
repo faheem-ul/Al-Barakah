@@ -7,6 +7,7 @@ import Image from "next/image";
 
 import { Product } from "@/lib/shopify/types";
 import { cn } from "@/lib/utils";
+import { useProductData } from "@/hooks/useProductData";
 
 interface PropTypes {
   product: Product;
@@ -15,8 +16,10 @@ interface PropTypes {
 const ImageGallery = (props: PropTypes) => {
   const { product } = props;
   const [hoveredImage, setHoveredImage] = useState<number | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(6); // Start with index 5
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const productData = useProductData(product);
 
   // Filter images to start from index 2 (skip first two images)
   const filteredImages = product?.images?.slice(2) || [];
@@ -33,7 +36,7 @@ const ImageGallery = (props: PropTypes) => {
     } else {
       setIsTransitioning(true);
       const timer = setTimeout(() => {
-        setCurrentImageIndex(0);
+        setCurrentImageIndex(6); // Return to index 5 when not hovering
         setIsTransitioning(false);
       }, 200);
       return () => clearTimeout(timer);
@@ -49,12 +52,21 @@ const ImageGallery = (props: PropTypes) => {
           alt={product?.images[currentImageIndex]?.altText}
           fill
           className={cn(
-            "object-cover object-top transition-opacity duration-500 ease-in-out",
+            "object-center transition-opacity duration-500 ease-in-out w-full",
             isTransitioning ? "opacity-0" : "opacity-100"
           )}
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           priority
         />
+
+        {/* Sale Badge - positioned at bottom center */}
+        {productData.discountPercentage > 0 && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+            <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold">
+              Sale {productData.discountPercentage}% Off
+            </div>
+          </div>
+        )}
 
         {/* <InnerImageZoom
           className="object-cover object-top"
