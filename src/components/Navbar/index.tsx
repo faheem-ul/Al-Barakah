@@ -28,13 +28,13 @@ const Navbar = () => {
           <Image src={logo} alt="logo" className="w-[105px]" />
         </Link>
 
-        <div className="max-mob:hidden nav-items flex items-center gap-9 md:pr-5">
+        <div className=" nav-items flex items-center gap-9 md:pr-5">
           {NAV_ITEMS.map((item) => (
             <Link
               href={item.path}
               key={item.title}
               className={cn(
-                "text-foreground text-[16px] leading-6 font-semibold",
+                "text-foreground text-[16px] leading-6 font-semibold hidden sm:block",
                 item.title === "Merch" && "font-bold"
               )}
             >

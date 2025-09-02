@@ -14,10 +14,10 @@ import { NAV_ITEMS } from "@/lib/constants";
 
 import instagram from "@/public/icons/social/instagram.svg";
 import facebook from "@/public/icons/social/facebook.svg";
-import youtube from "@/public/icons/social/youtube.svg";
+import tiktok from "@/public/icons/social/tiktok.svg";
 import dot from "@/public/icons/social/dot.svg";
-import appStore from "@/public/icons/apple-store-outlined.svg";
-import playStore from "@/public/icons/play-store-outlined.svg";
+// import appStore from "@/public/icons/apple-store-outlined.svg";
+// import playStore from "@/public/icons/play-store-outlined.svg";
 
 interface PropTypes {
   isOpen: boolean;
@@ -59,7 +59,7 @@ const MobileNav = (props: PropTypes) => {
             <hr className="mb-[32px]" />
             <div className="flex items-center justify-center gap-4">
               <a
-                href="https://www.instagram.com/grounds_app/"
+                href="#"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
@@ -76,7 +76,7 @@ const MobileNav = (props: PropTypes) => {
                 />
               </span>
               <a
-                href="https://www.facebook.com/profile.php?id=61551930973017"
+                href="#"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
@@ -93,21 +93,21 @@ const MobileNav = (props: PropTypes) => {
                 />
               </span>
               <a
-                href="https://www.youtube.com/@grounds_app"
+                href="#"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
-                  src={youtube}
-                  alt="youtube"
-                  className="h-[30px] w-[30px] md:h-[35px] md:w-[35px]"
+                  src={tiktok}
+                  alt="tiktok"
+                  className="h-[20px] w-[23px] "
                 />
               </a>
             </div>
 
-            <div className="mt-8 mb-8 flex justify-center gap-4">
+            {/* <div className="mt-8 mb-8 flex justify-center gap-4">
               <Image src={appStore} alt="app-store" />
               <Image src={playStore} alt="app-store" />
-            </div>
+            </div> */}
           </div>
         </div>
       </SheetContent>

@@ -4,6 +4,7 @@ interface ProcessedProductData {
   // Basic info
   name: string;
   image: string;
+  hoverImage: string;
   sizes: string[];
   
   // Prices
@@ -65,6 +66,7 @@ export const useProductData = (product: Product): ProcessedProductData => {
   const currentPrice = product.priceRange.minVariantPrice.amount;
   const comparePrice = product.compareAtPriceRange.maxVariantPrice.amount;
   const image = product.featuredImage?.url || "/images/placeholder.png";
+  const hoverImage = product.images?.[1]?.url || image; // Get second image for hover effect
   const sizes = product.options.find((option) => option.name.toLowerCase() === "size")?.values || [];
   
   const discountPercentage = calculateDiscountPercentage(currentPrice, comparePrice);
@@ -73,6 +75,7 @@ export const useProductData = (product: Product): ProcessedProductData => {
   return {
     name,
     image,
+    hoverImage,
     sizes,
     currentPrice,
     comparePrice,

@@ -1,4 +1,5 @@
-import React from "react";
+"use client";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -21,7 +22,7 @@ const Shop = (props: PropTypes) => {
         Shop
       </Text>
 
-      <div className="mt-5 flex flex-wrap justify-center gap-8 px-5 sm:mt-8 md:px-0">
+      <div className="mt-5 mb-10 flex flex-wrap justify-center gap-8 px-5 sm:mt-8 md:px-0">
         {products?.map((product) => (
           <Link href={`/${product.handle}`} key={product.id}>
             <ProductCard key={product.id} product={product} />
@@ -38,9 +39,12 @@ export default Shop;
 const ProductCard = ({ product }: { product: Product }) => {
   console.log(product,"ProductCard");
   
+  const [isHovered, setIsHovered] = useState(false);
+  
   const {
     name,
     image,
+    hoverImage,
     sizes,
     currentPrice,
     comparePrice,
@@ -52,14 +56,34 @@ const ProductCard = ({ product }: { product: Product }) => {
 
   return (
     <div className="w-full md:w-[353px]">
-      <div className="relative w-full flex justify-center ">
-        <Image
-          src={image}
-          alt={name}
-          height={523}
-          width={384}
-          className="rounded-[24px] object-cover"
-        />
+      <div 
+        className="relative w-full flex justify-center overflow-hidden rounded-[24px]"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Image Container */}
+        <div className="relative w-full h-[523px]">
+          {/* First Image (Default) */}
+          <Image
+            src={image}
+            alt={name}
+            fill
+            className={`object-cover transition-opacity duration-700 ease-in-out ${
+              isHovered ? 'opacity-0' : 'opacity-100'
+            }`}
+          />
+          
+          {/* Hover Image */}
+          <Image
+            src={hoverImage}
+            alt={name}
+            fill
+            className={`object-cover transition-opacity duration-700 ease-in-out ${
+              isHovered ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+        </div>
+        
         <div className="w-fit absolute bottom-7">
           {discountPercentage > 0 && (
             <Text className="text-[14px] font-semibold bg-white rounded-[24px] px-3 py-1">
