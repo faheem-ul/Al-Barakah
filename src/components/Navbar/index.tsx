@@ -22,7 +22,7 @@ const Navbar = () => {
     useShoppingCart();
 
   return (
-    <nav className="relative z-10 mx-auto max-w-7xl py-[22px] sm:py-10 ">
+    <nav className="relative z-10 mx-auto max-w-[1117px] py-[22px] sm:py-10 ">
       <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5  sm:h-[78px] sm:px-8">
         <Link href="/">
           <Image src={logo} alt="logo" className="w-[105px]" />

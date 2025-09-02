@@ -21,8 +21,8 @@ const ImageGallery = (props: PropTypes) => {
 
   const productData = useProductData(product);
 
-  // Filter images to start from index 2 (skip first two images)
-  const filteredImages = product?.images?.slice(2) || [];
+  // Filter images to show only index 2 to 5
+  const filteredImages = product?.images?.slice(2, 6) || [];
 
   // Handle smooth image transitions
   useEffect(() => {

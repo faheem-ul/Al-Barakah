@@ -289,3 +289,62 @@ export const BagIcon = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
+
+export const PhoneIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    width={20}
+    height={20}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path
+      d="M17.5 14.5c-.226-.037-.451-.07-.673-.112-.915-.175-1.755-.544-2.548-1.031-1.238-.761-2.297-1.736-3.27-2.81-.993-1.098-1.895-2.264-2.604-3.572-.522-.961-.924-1.976-1.078-3.073-.17-1.229-.026-2.408.582-3.505a4.913 4.913 0 0 1 1.251-1.486c.245-.198.474-.415.722-.613.52-.415 1.081-.392 1.548.086.268.273.513.576.726.893.398.593.806 1.186 1.041 1.874.242.712.147 1.344-.424 1.861-.288.26-.578.524-.898.748-.68.475-.778 1.058-.52 1.806.235.688.647 1.278 1.091 1.841.578.738 1.196 1.443 1.921 2.04.402.329.823.625 1.342.747.451.105.837-.013 1.173-.333.333-.316.66-.639 1.01-.939.568-.484 1.198-.5 1.845-.168.212.11.425.228.611.376.666.534 1.352 1.048 1.869 1.746.424.58.392 1.136-.134 1.62-.51.469-.993.973-1.604 1.319-.627.352-1.29.58-2.003.648-.045.004-.091.02-.137.03-.284.007-.562.007-.84.007Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+export const FacebookIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    width={20}
+    height={20}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path
+      d="M18.5 2h-3a5 5 0 0 0-5 5v3H7.5v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3V2Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+export const InstagramIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    width={20}
+    height={20}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <rect x={2} y={2} width={16} height={16} rx={4} stroke="currentColor" strokeWidth={2} />
+    <circle cx={10} cy={10} r={3} stroke="currentColor" strokeWidth={2} />
+    <circle cx={16} cy={6} r={1} fill="currentColor" />
+  </svg>
+);
+
+export const TikTokIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    width={20}
+    height={20}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path
+      d="M16.5 8.5v-1a4.5 4.5 0 0 1-4.5-4.5h-1v1a4.5 4.5 0 0 0 4.5 4.5h1Zm-1 0v-1a3.5 3.5 0 0 1-3.5-3.5h-1v1a4.5 4.5 0 0 0 4.5 4.5h1Zm-1 0v-1a2.5 2.5 0 0 1-2.5-2.5h-1v1a3.5 3.5 0 0 0 3.5 3.5h1Zm-1 0v-1a1.5 1.5 0 0 1-1.5-1.5h-1v1a2.5 2.5 0 0 0 2.5 2.5h1Zm-1 0v-1a.5.5 0 0 1-.5-.5h-1v1a1.5 1.5 0 0 0 1.5 1.5h1Z"
+      fill="currentColor"
+    />
+  </svg>
+);
