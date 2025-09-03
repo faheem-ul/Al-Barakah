@@ -12,7 +12,7 @@ import CartDrawer from "@/ui/CartDrawer";
 
 import Cart from "@/components/Cart";
 
-import logo from "@/public/logo.png";
+import logo from "@/public/logo.svg";
 
 import MobileNav from "./MobileNav";
 
@@ -22,8 +22,8 @@ const Navbar = () => {
     useShoppingCart();
 
   return (
-    <nav className="relative z-10 mx-auto max-w-[1117px] py-[22px] sm:py-10 ">
-      <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5  sm:h-[78px] sm:px-8">
+    <nav className="relative z-10 mx-auto max-w-[1117px] py-[22px] sm:pt-10 sm:pb-[53px] px-4">
+      <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5 md:py-0 py-5 sm:h-[78px] sm:px-8">
         <Link href="/">
           <Image src={logo} alt="logo" className="w-[105px]" />
         </Link>

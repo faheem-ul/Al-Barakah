@@ -18,12 +18,12 @@ const ContactHero = () => {
 
       {/* Content */}
       <div className="w-full relative z-10 max-w-[1117px] mx-auto px-6 text-left mt-16">
-        <h1 className="text-[60px] font-bold mb-2 text-white w-full">
+        <h1 className="md:text-[60px] text-[40px] md:leading-[80px] leading-[45px] font-bold mb-2 text-white w-full">
           Contact Us
         </h1>
         <p className="text-[18px] font-light capitalize leading-relaxed text-white max-w-[661px]">
-          At Al Baraka Honey, we bring you pure and natural honey harvested
-          from trusted hives. From Apis mellifera and Apis florea wild honey to the
+          At Al Baraka Honey, we bring you pure and natural honey harvested from
+          trusted hives. From Apis mellifera and Apis florea wild honey to the
           rare Berry Bee Honey, every jar is filled with nature’s goodness.
         </p>
       </div>

@@ -1,5 +1,5 @@
 "use client";
-import React, { SVGProps, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { BagIcon, MinusIcon, PlusIcon } from "@/ui/Icons";

@@ -45,7 +45,7 @@ const CartDrawer = (props: PropTypes) => {
             </Text>
 
             {cartItems?.length > 0 && (
-              <Text className="text-caption mt-3 text-[16px] font-medium">
+              <Text className="mt-5 md:mt-3 text-[16px] font-normal text-black  ">
                 Items in your bag not reserved - check out now to make them
                 yours.
               </Text>

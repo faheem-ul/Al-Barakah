@@ -30,3 +30,7 @@ body {
 .font-arabic {
   font-family: var(--font-tinta-arabic), sans-serif;
 }
+
+[data-vaul-drawer][data-vaul-drawer-direction="bottom"]::after {
+  height: auto !important;
+}

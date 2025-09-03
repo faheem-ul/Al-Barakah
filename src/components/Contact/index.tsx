@@ -5,16 +5,16 @@ import TrustSection from "./TrustSection";
 import OrderBanner from "./OrderBanner";
 
 const ContactUs = () => {
-    return (
-        <div className="bg-[#FDFBFF]">
-            <ContactHero />
-            <div className="w-full max-w-[1200px] mx-auto">
-                <ContactForm />
-                <TrustSection />
-                <OrderBanner />
-            </div>
-        </div>
-    );
+  return (
+    <div className="bg-[#FDFBFF]">
+      <ContactHero />
+      <div className="w-full max-w-[1200px] mx-auto">
+        <ContactForm />
+        <TrustSection />
+        <OrderBanner />
+      </div>
+    </div>
+  );
 };
 
 export default ContactUs;

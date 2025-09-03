@@ -1,16 +1,10 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import Script from "next/script";
-
 
 import Text from "@/ui/Text";
-import { APPLE_APP_STORE, GOOGLE_PLAY_STORE } from "@/lib/constants";
 
-import appleStore from "@/public/icons/apple-store.svg";
-import playStore from "@/public/icons/play-store.svg";
-
-import logo from "@/public/logo.png";
+import logo from "@/public/logo.svg";
 import instagram from "@/public/icons/social/instagram.svg";
 import facebook from "@/public/icons/social/facebook.svg";
 import tiktok from "@/public/icons/social/tiktok.svg";
@@ -25,32 +19,26 @@ const Footer = () => {
           {/* Left */}
 
           <div className="items-left border-r-caption tab:items-center flex w-[35%] flex-col border-r-[0.5px] md:col-span-1 md:mr-0 md:w-[30%] md:items-center">
-            <div className="nav-items flex flex-col gap-6 py-[30px] transition duration-500 md:pt-[50px] md:pb-[0px]">
-              <Link href="https://www.groundsapp.co">
+            <div className="nav-items flex flex-col gap-6 py-[30px] transition duration-500 ">
+              <Link href="/">
                 <h4 className="text-left text-[18px] leading-6 font-semibold md:text-[20px]">
                   Home
                 </h4>
               </Link>
 
-              <a href="mailto:support@groundsapp.co">
+              <a href="mailto:support@albarakahoney.com">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
                   Support
                 </h4>
               </a>
 
-              <Link
-                href="https://www.groundsapp.co/terms-and-conditions"
-                className="hidden md:block"
-              >
+              <Link href="/terms-and-conditions" className="hidden md:block">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
                   Terms & Conditions
                 </h4>
               </Link>
 
-              <Link
-                href="https://www.groundsapp.co/privacy-policy"
-                className="hidden md:block"
-              >
+              <Link href="/privacy-policy" className="hidden md:block">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
                   Privacy Policy
                 </h4>
@@ -72,7 +60,7 @@ const Footer = () => {
           </div>
 
           {/* Center */}
-          <div className="col-span-4 mb-[18px] flex w-[65%] flex-col items-center pt-[24px] pl-[20px] md:col-span-3 md:mb-[40px] md:w-[40%] md:pt-[50px] md:pl-[0px]">
+          <div className="col-span-4 flex w-[65%] flex-col items-center justify-center md:w-[40%] md:pl-[0px]">
             <Link href="/">
               <Image src={logo} alt="logo" className="w-[186px]" />
             </Link>
@@ -81,17 +69,14 @@ const Footer = () => {
               Albaraka Honey – <br />
               Pure Blessings in Every Drop
             </Text>
-
-
           </div>
 
           {/* Right */}
-          <div className="border-l-caption col-span-1 hidden w-[30%] border-l-[0.5px] pb-[45px] text-center md:block">
-            <div className="flex flex-col items-center gap-6 pt-[50px]">
-
-              <div className="mt-[22px] flex items-center gap-[15px] md:mt-[42px] md:gap-[11px]">
+          <div className="border-l-caption col-span-1 hidden w-[30%] border-l-[0.5px] text-center md:block">
+            <div className="flex flex-col items-center gap-6 justify-center h-full">
+              <div className="flex items-center gap-[15px] md:gap-[11px]">
                 <a
-                  href="#"
+                  href="https://www.instagram.com/thealbarakahoney/"
                   className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
                 >
                   <Image
@@ -108,7 +93,7 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="#"
+                  href="https://www.facebook.com/profile.php?id=61579862667667"
                   className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
                 >
                   <Image
@@ -125,19 +110,25 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="#"
+                  href="https://www.tiktok.com/@albarakahoney713"
                   className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
                 >
                   <Image
                     src={tiktok}
                     alt="tiktok"
-                    className="h-[25px] w-[25px]"
+                    className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
               </div>
 
               <div className="flex">
-                <Text className="text-[#302A25] text-[21px] font-semibold flex items-center gap-1"> <Phone /> +92 304 1980001</Text>
+                <a
+                  href="tel:+923041980001"
+                  className="text-[#302A25] text-[21px] font-semibold flex items-center gap-1"
+                >
+                  {" "}
+                  <Phone /> +92 304 1980001
+                </a>
               </div>
               {/* <a href={APPLE_APP_STORE}>
                 <Image src={appleStore} alt="Apple store" />
@@ -165,10 +156,9 @@ const Footer = () => {
       <div className="container mx-auto max-w-7xl px-[20px] md:px-[64px]">
         <div className="text-center md:hidden">
           <div className="flex flex-col items-center gap-3 pt-[30px]">
-
             <div className=" flex items-center gap-[15px] md:gap-[11px]">
               <a
-                href="#"
+                href="https://www.instagram.com/thealbarakahoney/"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
@@ -185,7 +175,7 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="#"
+                href="https://www.facebook.com/profile.php?id=61579862667667"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
@@ -202,19 +192,25 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="#"
+                href="https://www.tiktok.com/@albarakahoney713"
                 className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
               >
                 <Image
                   src={tiktok}
-                  alt="tiktok"
-                  className="h-[30px] w-[30px] md:h-[35px] md:w-[35px]"
+                  alt="facebook"
+                  className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
             </div>
 
             <div className="flex">
-              <Text className="text-[#302A25] text-[21px] font-semibold flex items-center gap-1"> <Phone /> +92 304 1980001</Text>
+              <a
+                href="tel: +92 304 1980001"
+                className="text-[#302A25] text-[21px] font-semibold flex items-center gap-1"
+              >
+                {" "}
+                <Phone /> +92 304 1980001
+              </a>
             </div>
             {/* <a href={APPLE_APP_STORE}>
   <Image src={appleStore} alt="Apple store" />

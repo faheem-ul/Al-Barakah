@@ -1,13 +1,13 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 
 // import "react-inner-image-zoom/lib/styles.min.css";
 // import InnerImageZoom from "react-inner-image-zoom";
 
 import { Product } from "@/lib/shopify/types";
-import { cn } from "@/lib/utils";
 import { useProductData } from "@/hooks/useProductData";
+import ThumbsCarousel from "./ThumbsCarousel";
 
 interface PropTypes {
   product: Product;
@@ -15,33 +15,13 @@ interface PropTypes {
 
 const ImageGallery = (props: PropTypes) => {
   const { product } = props;
-  const [hoveredImage, setHoveredImage] = useState<number | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(6); // Start with index 5
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const productData = useProductData(product);
 
-  // Filter images to show only index 2 to 5
-  const filteredImages = product?.images?.slice(2, 6) || [];
+  const filteredImages = product?.images;
 
-  // Handle smooth image transitions
-  useEffect(() => {
-    if (hoveredImage !== null) {
-      setIsTransitioning(true);
-      const timer = setTimeout(() => {
-        setCurrentImageIndex(hoveredImage);
-        setIsTransitioning(false);
-      }, 200); // Half of the transition time
-      return () => clearTimeout(timer);
-    } else {
-      setIsTransitioning(true);
-      const timer = setTimeout(() => {
-        setCurrentImageIndex(6); // Return to index 5 when not hovering
-        setIsTransitioning(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [hoveredImage]);
+  // Keep a small fade when the active image changes
 
   return (
     <div className="w-full overflow-hidden md:w-fit">
@@ -51,11 +31,7 @@ const ImageGallery = (props: PropTypes) => {
           src={product?.images[currentImageIndex]?.url}
           alt={product?.images[currentImageIndex]?.altText}
           fill
-          className={cn(
-            "object-center transition-opacity duration-500 ease-in-out w-full",
-            isTransitioning ? "opacity-0" : "opacity-100"
-          )}
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="h-[520px] w-[550px]"
           priority
         />
 
@@ -77,28 +53,12 @@ const ImageGallery = (props: PropTypes) => {
         /> */}
       </div>
 
-      {/* Products Images */}
-      <div className="no-scrollbar mt-4 flex max-w-screen items-center gap-[13px] overflow-x-auto md:max-w-[520px]">
-        {filteredImages?.map((image, index) => (
-          <div
-            key={index + 2} // Use original index + 2 for proper key
-            className={cn(
-              "relative h-[80px] w-[78px] shrink-0 overflow-hidden rounded-[16px] md:h-[120px] md:w-[120px]",
-              hoveredImage === index + 2 && "border-2 border-[#302A25]",
-            )}
-            onMouseEnter={() => setHoveredImage(index + 2)}
-            onMouseLeave={() => setHoveredImage(null)}
-          >
-            <Image
-              src={image?.url}
-              alt={image?.altText}
-              fill
-              className={cn("object-cover object-top hover:cursor-pointer")}
-              sizes="50vw"
-            />
-          </div>
-        ))}
-      </div>
+      {/* Thumbnails Carousel */}
+      <ThumbsCarousel
+        images={filteredImages || []}
+        activeIndex={currentImageIndex}
+        onActiveIndexChange={setCurrentImageIndex}
+      />
     </div>
   );
 };

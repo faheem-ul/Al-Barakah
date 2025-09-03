@@ -6,6 +6,7 @@ import Link from "next/link";
 import Text from "@/ui/Text";
 import { Product } from "@/lib/shopify/types";
 import { useProductData } from "@/hooks/useProductData";
+import { toEnglishSlugFromTitle } from "@/lib/utils";
 
 import Sizes from "./Sizes";
 
@@ -22,9 +23,13 @@ const Shop = (props: PropTypes) => {
         Shop
       </Text>
 
-      <div className="mt-5 mb-10 flex flex-wrap justify-center gap-8 px-5 sm:mt-8 md:px-0">
+      <div className="mt-5 mb-10 flex flex-wrap justify-center gap-8 px-5 sm:mt-[53px] md:px-0">
         {products?.map((product) => (
-          <Link href={`/${product.handle}`} key={product.id}>
+          <Link
+            href={`/${toEnglishSlugFromTitle(product.title) || product.handle}`}
+            key={product.id}
+            className="w-full md:w-auto"
+          >
             <ProductCard key={product.id} product={product} />
           </Link>
         ))}
@@ -37,10 +42,10 @@ export default Shop;
 
 // ProductCard Component
 const ProductCard = ({ product }: { product: Product }) => {
-  console.log(product,"ProductCard");
-  
+  console.log(product, "ProductCard");
+
   const [isHovered, setIsHovered] = useState(false);
-  
+
   const {
     name,
     image,
@@ -51,12 +56,12 @@ const ProductCard = ({ product }: { product: Product }) => {
     discountPercentage,
     urduTitle,
     englishTitle,
-    formatPrice
+    formatPrice,
   } = useProductData(product);
 
   return (
     <div className="w-full md:w-[353px]">
-      <div 
+      <div
         className="relative w-full flex justify-center overflow-hidden rounded-[24px]"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -69,21 +74,21 @@ const ProductCard = ({ product }: { product: Product }) => {
             alt={name}
             fill
             className={`object-cover transition-opacity duration-700 ease-in-out ${
-              isHovered ? 'opacity-0' : 'opacity-100'
+              isHovered ? "opacity-0" : "opacity-100"
             }`}
           />
-          
+
           {/* Hover Image */}
           <Image
             src={hoverImage}
             alt={name}
             fill
             className={`object-cover transition-opacity duration-700 ease-in-out ${
-              isHovered ? 'opacity-100' : 'opacity-0'
+              isHovered ? "opacity-100" : "opacity-0"
             }`}
           />
         </div>
-        
+
         <div className="w-fit absolute bottom-7">
           {discountPercentage > 0 && (
             <Text className="text-[14px] font-semibold bg-white rounded-[20px] px-4 py-2">
