@@ -1,5 +1,5 @@
 "use client";
-import React, { SVGProps, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { BagIcon, MinusIcon, PlusIcon } from "@/ui/Icons";
@@ -114,7 +114,7 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t pt-6">
+      <div className="mt-4 flex items-center justify-between  pt-10">
         <div className="flex w-fit items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[22px] py-[17px]">
           <MinusIcon className="cursor-pointer" onClick={onDecrease} />
           <span>{itemQuantity}</span>
@@ -123,7 +123,7 @@ const ProductVariantSelector = (props: PropTypes) => {
 
         <Button
           onClick={onAddToCart}
-          className="text-[14px] font-medium uppercase bg-black"
+          className="text-[16px] font-semibold capitalize bg-black"
         >
           <BagIcon /> Add to cart
         </Button>

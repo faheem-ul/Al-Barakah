@@ -6,7 +6,8 @@ import Image from "next/image";
 // import InnerImageZoom from "react-inner-image-zoom";
 
 import { Product } from "@/lib/shopify/types";
-import { cn } from "@/lib/utils";
+import { useProductData } from "@/hooks/useProductData";
+import ThumbsCarousel from "./ThumbsCarousel";
 
 interface PropTypes {
   product: Product;
@@ -14,50 +15,50 @@ interface PropTypes {
 
 const ImageGallery = (props: PropTypes) => {
   const { product } = props;
-  const [currentImage, setCurrentImage] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const productData = useProductData(product);
+
+  const filteredImages = product?.images;
+
+  // Keep a small fade when the active image changes
 
   return (
     <div className="w-full overflow-hidden md:w-fit">
       <div className="relative h-[338px] w-full overflow-hidden rounded-[16px] md:h-[550px] md:w-[520px]">
+        {/* Current Image */}
         <Image
-          src={product?.images[currentImage]?.url}
-          alt={product?.images[currentImage]?.altText}
+          src={product?.images[currentImageIndex]?.url}
+          alt={product?.images[currentImageIndex]?.altText}
           fill
-          className="object-cover object-top"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="h-[520px] w-[550px]"
           priority
         />
 
+        {/* Sale Badge - positioned at bottom center */}
+        {productData.discountPercentage > 0 && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+            <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold">
+              Sale {productData.discountPercentage}% Off
+            </div>
+          </div>
+        )}
+
         {/* <InnerImageZoom
           className="object-cover object-top"
-          src={product?.images[currentImage]?.url}
-          zoomSrc={product?.images[currentImage]?.url}
+          src={product?.images[currentImageIndex]?.url}
+          zoomSrc={product?.images[currentImageIndex]?.url}
           zoomPreload={true}
           zoomType="hover"
         /> */}
       </div>
 
-      {/* Products Images */}
-      <div className="no-scrollbar mt-4 flex max-w-screen items-center gap-[13px] overflow-x-auto md:max-w-[520px]">
-        {product?.images?.map((image, index) => (
-          <div
-            key={index}
-            className={cn(
-              "relative h-[80px] w-[78px] shrink-0 overflow-hidden rounded-[16px] md:h-[120px] md:w-[120px]",
-              currentImage === index && "border-2 border-[#302A25]",
-            )}
-          >
-            <Image
-              src={image?.url}
-              alt={image?.altText}
-              fill
-              className={cn("object-cover object-top hover:cursor-pointer")}
-              sizes="50vw"
-              onClick={() => setCurrentImage(index)}
-            />
-          </div>
-        ))}
-      </div>
+      {/* Thumbnails Carousel */}
+      <ThumbsCarousel
+        images={filteredImages || []}
+        activeIndex={currentImageIndex}
+        onActiveIndexChange={setCurrentImageIndex}
+      />
     </div>
   );
 };

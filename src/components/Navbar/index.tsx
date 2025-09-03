@@ -12,7 +12,7 @@ import CartDrawer from "@/ui/CartDrawer";
 
 import Cart from "@/components/Cart";
 
-import logo from "@/public/logo.png";
+import logo from "@/public/logo.svg";
 
 import MobileNav from "./MobileNav";
 
@@ -22,19 +22,19 @@ const Navbar = () => {
     useShoppingCart();
 
   return (
-    <nav className="relative z-10 mx-auto max-w-7xl py-[22px] sm:py-10 ">
-      <div className="sm:bg-primary flex w-full items-center justify-between rounded-[40px] px-5 sm:h-[78px] sm:px-8">
+    <nav className="relative z-10 mx-auto max-w-[1117px] py-[22px] sm:pt-10 sm:pb-[53px] px-4">
+      <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5 md:py-0 py-5 sm:h-[78px] sm:px-8">
         <Link href="/">
-          <Image src={logo} alt="logo" className="w-[150px]" />
+          <Image src={logo} alt="logo" className="w-[105px]" />
         </Link>
 
-        <div className="max-mob:hidden nav-items flex items-center gap-9">
+        <div className=" nav-items flex items-center gap-9 md:pr-5">
           {NAV_ITEMS.map((item) => (
             <Link
               href={item.path}
               key={item.title}
               className={cn(
-                "text-foreground text-[16px] leading-6 font-medium",
+                "text-foreground text-[16px] leading-6 font-semibold hidden sm:block",
                 item.title === "Merch" && "font-bold"
               )}
             >

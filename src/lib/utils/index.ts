@@ -11,7 +11,7 @@ export const stringifyLog = (message: string, data: any) =>
 
 export const calculatePercentageOff = (
   price: string,
-  compareAtPrice: string | null | undefined,
+  compareAtPrice: string | null | undefined
 ): number => {
   if (compareAtPrice && parseFloat(compareAtPrice) > parseFloat(price)) {
     const discount = parseFloat(compareAtPrice) - parseFloat(price);
@@ -22,7 +22,7 @@ export const calculatePercentageOff = (
 };
 
 export const hexToRgb = (
-  hex: string,
+  hex: string
 ): { r: number; g: number; b: number } | null => {
   const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
   hex = hex.replace(shorthandRegex, function (m, r, g, b) {
@@ -53,4 +53,16 @@ export const isColorLight = (hexColor: string): boolean => {
 
   // You can adjust this threshold (0.5) based on what you consider "light" or "dark"
   return luminance > 0.5;
+};
+
+// Extract English portion from a mixed Urdu/English title and slugify it
+export const toEnglishSlugFromTitle = (title: string): string => {
+  if (!title) return "";
+  const urduRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s]+/g;
+  const englishPart = title.replace(urduRegex, " ").trim();
+  const slug = englishPart
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug;
 };

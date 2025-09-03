@@ -8,8 +8,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
+  --font-arabic: var(--font-tinta-arabic);
 }
 
 /* @media (prefers-color-scheme: dark) {
@@ -22,5 +23,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-poppins), sans-serif;
+}
+
+/* Arabic font utility class */
+.font-arabic {
+  font-family: var(--font-tinta-arabic), sans-serif;
+}
+
+[data-vaul-drawer][data-vaul-drawer-direction="bottom"]::after {
+  height: auto !important;
 }

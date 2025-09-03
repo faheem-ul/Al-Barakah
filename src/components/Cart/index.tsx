@@ -1,3 +1,5 @@
+"use client";
+
 import React, { SVGProps, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -15,6 +17,7 @@ import EmptyCart from "@/components/Cart/EmptyCart";
 import { formatPrice } from "@/lib/utils/shopify";
 
 import { CartItem as DefaultCartItem } from "@/types";
+// import { useProductData } from "@/hooks/useProductData";
 
 interface CartProduct extends Product {
   quantity: number;
@@ -41,13 +44,23 @@ const Cart = (props: PropTypes) => {
   const {
     getItemQuantityByVariantId,
     removeFromCart,
-    cartQuantity,
     cartItemCount,
     increaseCartQuantity,
     decreaseCartQuantity,
   } = useShoppingCart();
 
   const cartItems = useCartStore((state) => state.cartItems);
+
+  const separateTitle = (title: string) => {
+    const urduRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s]+/;
+    const match = title.match(urduRegex);
+    if (match) {
+      const urduPart = match[0].trim();
+      const englishPart = title.replace(urduPart, "").trim();
+      return { urdu: urduPart, english: englishPart };
+    }
+    return { urdu: "", english: title };
+  };
 
   const totalPice: number = useMemo(() => {
     const productsInCart: CartProduct[] = [];
@@ -142,6 +155,8 @@ const Cart = (props: PropTypes) => {
     );
   }
 
+  // Titles will be derived per-item using useProductData
+
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex flex-1 flex-col gap-3 rounded-[24px] py-3">
@@ -189,19 +204,23 @@ const Cart = (props: PropTypes) => {
                 </div>
 
                 <div>
-                  <Text className="text-primary-foreground text-[14px] font-semibold md:text-[20px]">
-                    {product?.title}
-                  </Text>
-
-                  <div className="flex items-center gap-2">
-                    <Text className="text-foreground text-[14px] md:text-[16px]">
-                      Size: <span className="text-foreground"> {size}</span>{" "}
-                    </Text>
-
-                    <Text className="text-foreground my-1 flex gap-2 text-[14px] md:text-[16px]">
-                      Color: {color}
-                    </Text>
-                  </div>
+                  {(() => {
+                    const { urdu, english } = separateTitle(product.title);
+                    return (
+                      <>
+                        {urdu && (
+                          <Text className="mb-2 text-[20px] font-bold text-[#302A25] font-arabic">
+                            {urdu}
+                          </Text>
+                        )}
+                        {english && (
+                          <Text className="mb-2 text-[20px] font-bold text-[#302A25] font-arabic">
+                            {english}
+                          </Text>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   <Text className="text-accent text-[20px] font-semibold">
                     {formatPrice(product?.priceRange?.minVariantPrice?.amount)}
@@ -266,7 +285,7 @@ const Cart = (props: PropTypes) => {
       {/* Actions */}
       <div className="flex flex-col-reverse items-center gap-5 pt-8 pb-8 md:flex-row md:pb-0">
         <Button
-          className="flex h-[56px] items-center w-[390px] justify-center border border-[#161616] bg-white text-[14px] font-medium text-[#161616] uppercase"
+          className="flex items-center justify-center text-black border w-full px-6 h-[60px] text-[14px] font-medium uppercase md:w-fit bg-transparent"
           onClick={() => {
             onCartClose();
             router.push("/cart");
@@ -281,7 +300,7 @@ const Cart = (props: PropTypes) => {
               onClick={handleOnCheckout}
               isLoading={isCreatingCheckout}
               fill="#fff"
-              className="flex items-center justify-center w-[390px] px-6 h-[60px] text-[12px] font-medium uppercase md:w-fit bg-black"
+              className="flex items-center justify-center w-full px-6 h-[60px] text-[12px] font-medium uppercase md:w-fit bg-black"
             >
               <Icon /> Proceed to Checkout
             </Button>
@@ -296,18 +315,15 @@ export default Cart;
 
 const TrashIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
-    width={33}
+    xmlns="http://www.w3.org/2000/svg"
+    width={34}
     height={32}
     fill="none"
-    xmlns="http://www.w3.org/2000/svg"
     {...props}
   >
     <path
-      d="m27.91 9-1.792 17.234A2 2 0 0 1 24.132 28H9.689a2 2 0 0 1-1.986-1.766L5.91 9M29.91 4h-26a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h26a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1ZM20.41 15l-7 7m7 0-7-7"
-      stroke="#232321"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="#000"
+      d="M31.603.843H2.838A2.397 2.397 0 0 0 .44 3.241v1.198a2.397 2.397 0 0 0 2.398 2.397h28.765A2.397 2.397 0 0 0 34 4.44V3.241A2.397 2.397 0 0 0 31.603.843ZM3.621 9.233a.6.6 0 0 0-.6.662l1.972 18.919a3.596 3.596 0 0 0 3.572 3.192h17.311a3.596 3.596 0 0 0 3.571-3.175v-.016l1.968-18.92a.598.598 0 0 0-.6-.662H3.622ZM22.263 22.77a1.196 1.196 0 0 1 .012 1.707 1.2 1.2 0 0 1-1.707-.013l-3.347-3.347-3.348 3.347a1.198 1.198 0 0 1-1.695-1.694l3.348-3.348-3.348-3.348a1.198 1.198 0 0 1 1.695-1.694l3.348 3.347 3.347-3.347a1.198 1.198 0 0 1 1.695 1.694l-3.348 3.348 3.348 3.348Z"
     />
   </svg>
 );

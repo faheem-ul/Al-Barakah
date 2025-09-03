@@ -1,6 +1,8 @@
 export const NAV_ITEMS = [
   { title: "Home", path: "/" },
-  { title: "Pricing", path: "/" },
+  { title: "About Us", path: "/about-us" },
+  { title: "Shop", path: "/" },
+  { title: "Contact Us", path: "/contact-us" },
 ];
 
 export const GOOGLE_PLAY_STORE =
