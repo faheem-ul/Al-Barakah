@@ -285,7 +285,7 @@ const Cart = (props: PropTypes) => {
       {/* Actions */}
       <div className="flex flex-col-reverse items-center gap-5 pt-8 pb-8 md:flex-row md:pb-0">
         <Button
-          className="flex items-center justify-center text-black border w-full px-6 h-[60px] text-[14px] font-medium uppercase md:w-fit bg-transparent"
+          className="flex items-center justify-center text-black border w-full px-6 h-[60px] text-[14px] font-medium uppercase md:w-[352px] bg-transparent"
           onClick={() => {
             onCartClose();
             router.push("/cart");

@@ -12,7 +12,7 @@ export async function shopifyFetch<T>({
   const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env
     .SHOPIFY_STOREFRONT_ACCESS_TOKEN as string;
   debugger;
-  console.log("🔥 Query variables inside shopify Fetch", variables);
+  // console.log("🔥 Query variables inside shopify Fetch", variables);
   // stringifyLog("🔥 Query variables inside shopify Fetch", variables);
 
   try {
