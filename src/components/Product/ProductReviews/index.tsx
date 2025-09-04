@@ -5,6 +5,7 @@ import Text from "@/components/ui/Text";
 import { getReviews, Review } from "@/lib/reviews";
 
 import reviewBg from "@/public/images/reviewsbg.png";
+import { cn } from "@/lib/utils";
 
 type Props = {
   productId?: string;
@@ -35,7 +36,7 @@ const ProductReviews: React.FC<Props> = ({ productId }) => {
 
   return (
     <div
-      className="relative w-full py-[62px] bg-white/90 bg-blend-overlay"
+      className="relative w-full bg-white/90 bg-blend-overlay"
       style={{
         backgroundImage: `url(${reviewBg.src})`,
         backgroundSize: "contain",
@@ -44,21 +45,22 @@ const ProductReviews: React.FC<Props> = ({ productId }) => {
       }}
     >
       <div className="relative z-10 w-full max-w-[1118px] mx-auto px-4">
-        {items.map((r: Review) => (
-          <div
-            key={r.id}
-            className="pt-4 pb-10 flex items-start justify-between gap-4"
-          >
-            <div className="flex w-full md:flex-row flex-col justify-center max-w-[680px] md:justify-between">
+        {items.map((r: Review, index) => (
+          <>
+            <div
+              key={r.id}
+              className="py-10 flex justify-start md:justify-between gap-4 items-center flex-wrap"
+            >
+              {/* <div className=" w-full md:flex-row flex-col items-center justify-center max-w-[680px] md:justify-between"> */}
               <div className="flex items-start gap-3">
                 <div className="h-10 w-10 rounded-full bg-black text-white flex items-center justify-center font-semibold">
                   {r.name?.[0]?.toUpperCase() || "N"}
                 </div>
                 <div>
-                  <Text className="text-[24px] font-semibold">
+                  <Text className="text-[24px] font-semibold capitalize">
                     {r.name || "Anonymous"}
                   </Text>
-                  <Text className="text-[12px] ">Verified Buyer</Text>
+                  <Text className="text-[14px] ">Verified Buyer</Text>
                 </div>
               </div>
               <div className="md:pl-0 pl-[50px]">
@@ -68,25 +70,33 @@ const ProductReviews: React.FC<Props> = ({ productId }) => {
                       key={s}
                       className={
                         s <= (r.rating || 0)
-                          ? "text-yellow-400"
-                          : "text-gray-300"
+                          ? "text-yellow-400 text-[20px]"
+                          : "text-gray-300 text-[20px]"
                       }
                     >
                       ★
                     </span>
                   ))}
+                  <span className="text-[12px] font-medium text-black">
+                    ({r.rating || 0}/5)
+                  </span>
                 </div>
-                <Text className="mt-1 text-[12px]">Recommended</Text>
+                <Text className="mt-1 text-[14px] font-medium">
+                  Recommended
+                </Text>
               </div>
-              <Text className="mt-1 text-[12px] md:pl-0 pl-[50px]">
+              <Text className="mt-1 text-[15px] w-full max-w-[227px] text-black capitalize font-medium">
                 {r.message}
               </Text>
-            </div>
+              {/* </div> */}
 
-            <Text className="text-[12px] ">
-              {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}
-            </Text>
-          </div>
+              <Text className="text-[14px] font-medium">
+                {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}
+              </Text>
+            </div>
+            {/* <div className="w-full bg-[#000000]/20"></div> */}
+            {index !== items.length - 1 && <hr className="opacity-30" />}
+          </>
         ))}
         {items.length === 0 && (
           <div className="py-6 text-center mx-auto w-full">
@@ -95,7 +105,6 @@ const ProductReviews: React.FC<Props> = ({ productId }) => {
             </Text>
           </div>
         )}
-        <div className="w-full border-1 border-[#000000]"></div>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import Text from "@/ui/Text";
 
-import logo from "@/public/logo.svg";
+import logo from "@/public/logo.png";
 import instagram from "@/public/icons/social/instagram.svg";
 import facebook from "@/public/icons/social/facebook.svg";
 import tiktok from "@/public/icons/social/tiktok.svg";
@@ -18,7 +18,7 @@ const Footer = () => {
         <div className="flex w-full">
           {/* Left */}
 
-          <div className="items-left border-r-caption tab:items-center flex w-[35%] flex-col border-r-[0.5px] md:col-span-1 md:mr-0 md:w-[30%] md:items-center">
+          <div className="items-left border-r-[#000]/30 tab:items-center flex w-[35%] flex-col border-r-[0.5px] md:col-span-1 md:mr-0 md:w-[30%] md:items-center">
             <div className="nav-items flex flex-col gap-6 py-[30px] transition duration-500 ">
               <Link href="/">
                 <h4 className="text-left text-[18px] leading-6 font-semibold md:text-[20px]">
@@ -72,12 +72,12 @@ const Footer = () => {
           </div>
 
           {/* Right */}
-          <div className="border-l-caption col-span-1 hidden w-[30%] border-l-[0.5px] text-center md:block">
+          <div className="border-l-[#000]/30 col-span-1 hidden w-[30%] border-l-[0.5px] text-center md:block">
             <div className="flex flex-col items-center gap-6 justify-center h-full">
               <div className="flex items-center gap-[15px] md:gap-[11px]">
                 <a
                   href="https://www.instagram.com/thealbarakahoney/"
-                  className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
+                  className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
                     src={instagram}
@@ -85,7 +85,7 @@ const Footer = () => {
                     className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
-                <span className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]">
+                <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                   <Image
                     src={dot}
                     alt="dot"
@@ -94,7 +94,7 @@ const Footer = () => {
                 </span>
                 <a
                   href="https://www.facebook.com/profile.php?id=61579862667667"
-                  className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
+                  className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
                     src={facebook}
@@ -102,7 +102,7 @@ const Footer = () => {
                     className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
-                <span className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]">
+                <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                   <Image
                     src={dot}
                     alt="dot"
@@ -111,7 +111,7 @@ const Footer = () => {
                 </span>
                 <a
                   href="https://www.tiktok.com/@albarakahoney713"
-                  className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
+                  className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
                     src={tiktok}
@@ -124,7 +124,7 @@ const Footer = () => {
               <div className="flex">
                 <a
                   href="tel:+923041980001"
-                  className="text-[#302A25] text-[21px] font-semibold flex items-center gap-1"
+                  className="text-black text-[21px] font-semibold flex items-center gap-1"
                 >
                   {" "}
                   <Phone /> +92 304 1980001
@@ -150,7 +150,7 @@ const Footer = () => {
         </div>
       </div>
 
-      <div className="border-t-caption border-t-[0.5px]" />
+      <div className="border-t-[#000]/30 border-t-[0.5px]" />
 
       {/* Mobile  */}
       <div className="container mx-auto max-w-7xl px-[20px] md:px-[64px]">
@@ -159,7 +159,7 @@ const Footer = () => {
             <div className=" flex items-center gap-[15px] md:gap-[11px]">
               <a
                 href="https://www.instagram.com/thealbarakahoney/"
-                className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
+                className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={instagram}
@@ -167,7 +167,7 @@ const Footer = () => {
                   className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
-              <span className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]">
+              <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                 <Image
                   src={dot}
                   alt="dot"
@@ -176,7 +176,7 @@ const Footer = () => {
               </span>
               <a
                 href="https://www.facebook.com/profile.php?id=61579862667667"
-                className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
+                className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={facebook}
@@ -184,7 +184,7 @@ const Footer = () => {
                   className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
-              <span className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]">
+              <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                 <Image
                   src={dot}
                   alt="dot"
@@ -193,7 +193,7 @@ const Footer = () => {
               </span>
               <a
                 href="https://www.tiktok.com/@albarakahoney713"
-                className="text-[14px] leading-6 font-medium text-[#302A25] md:text-[16px]"
+                className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={tiktok}
@@ -206,7 +206,7 @@ const Footer = () => {
             <div className="flex">
               <a
                 href="tel: +92 304 1980001"
-                className="text-[#302A25] text-[21px] font-semibold flex items-center gap-1"
+                className="text-black text-[21px] font-semibold flex items-center gap-1"
               >
                 {" "}
                 <Phone /> +92 304 1980001
@@ -239,8 +239,10 @@ const Footer = () => {
 
       <div className="border-b-caption mt-[24px] border-b-[0.5px] md:hidden" />
 
-      <Text className="text-center text-[#302A25] py-[24px] text-[20px] leading-6 font-bold md:ml-[75px] md:py-[32px]  md:text-[16px]">
-        <span className="font-normal">© 2025</span> Albaraka Honey
+      <Text className="text-center text-black py-[16px] text-[20px] leading-6 font-bold md:ml-[75px] md:py-[16px]  md:text-[16px]">
+        <Link href="/">
+          <span className="font-normal">© 2025</span> Albaraka Honey
+        </Link>
       </Text>
 
       {/* <Script

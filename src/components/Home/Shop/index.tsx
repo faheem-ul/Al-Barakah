@@ -99,7 +99,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <Text className="text-right line-through text-[#302A25]/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+      <Text className="text-right line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
         was: {formatPrice(comparePrice)}
       </Text>
       <div className="mb-2 flex items-start justify-between">
@@ -110,7 +110,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             </Text>
           )}
           {englishTitle && (
-            <Text className="text-[#302A25] text-[16px] capitalize font-semibold  mt-2">
+            <Text className="text-black text-[16px] capitalize font-semibold  mt-2">
               {englishTitle}
             </Text>
           )}

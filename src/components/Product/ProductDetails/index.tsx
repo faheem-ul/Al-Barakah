@@ -29,34 +29,36 @@ const ProductDescription = (props: PropTypes) => {
   return (
     <div>
       {/* 100% Purity Guaranteed and Rating on same line */}
-      <div className="flex items-center justify-between mb-1 mt-16">
+      <div className="flex items-center justify-between mb-1 md:mt-16">
         <Text className="text-sm text-black">100% Purity Guaranteed</Text>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 md:flex-row felx-col">
           <div className="flex text-[14px] items-center gap-1">
             {Array(5)
               .fill(0)
               .map((_, index) => (
-                <RatingStarIcon key={index} />
+                <RatingStarIcon
+                  key={index}
+                  width={20}
+                  height={20}
+                  className="flex flex-shrink"
+                />
               ))}
           </div>
           <ReviewsSummary productId={product.id} />
         </div>
       </div>
-
       {/* Urdu Title */}
       {productData.urduTitle && (
-        <Text className="mb-2 text-[20px] font-bold text-[#302A25] font-arabic md:mt-0 mt-7">
+        <Text className="mb-2 text-[28px] md:text-[35px] font-bold text-black font-arabic md:mt-0 mt-7">
           {productData.urduTitle}
         </Text>
       )}
-
       {/* English Title */}
       {productData.englishTitle && (
-        <Text className="mb-2 text-[20px] font-bold text-[#302A25] font-arabic">
+        <Text className="mb-2 text-[16px] md:text-[20px] font-semibold text-black">
           {productData.englishTitle}
         </Text>
       )}
-
       {/* Price */}
       <div className="mb-4 pt-4">
         <div className="flex items-end gap-3 mb-2">
@@ -80,25 +82,23 @@ const ProductDescription = (props: PropTypes) => {
         </div>
       </div>
       {/* Price */}
-
       {/* Weight */}
       <div className="mb-4">
         <div className="flex items-center gap-3">
           <Text className="text-[18px] text-black font-semibold w-[75px]">
             Weight:
           </Text>
-          <div className="bg-gray-800 text-white px-5 py-1 rounded-[20px] text-sm font-medium">
+          <div className="bg-black text-white px-5 py-1 rounded-[20px] text-sm font-medium">
             1 Kg
           </div>
         </div>
       </div>
       {/* Weight */}
-
       <ProductVariantSelector product={product} />
-
-      <div className="md:w-[570px] w-full bg-[#302A25] gap-2 h-[50px] flex justify-start items-center rounded-[8px] pl-[17px] mt-[42px]">
-        <WarningIcon />
-        <Text className="text-white text-[14px]">
+      <div className="md:w-[527px] w-full bg-[#000] gap-2 h-[50px] flex justify-start items-center rounded-[8px] pl-[17px] mt-[42px]">
+        {/* <WarningIcon /> */}
+        <span className="text-[25px] font-semibold text-white">!</span>
+        <Text className="text-white text-[12px] md:text-[14px]">
           Note: Free Home Delivery is applied to only Orders above 3000 PKR
         </Text>
       </div>

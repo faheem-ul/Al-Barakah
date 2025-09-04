@@ -25,7 +25,7 @@ const ProductTabs: React.FC<ProductTabsProps> = ({ product }) => {
         <h3 className="text-[20px] font-medium text-white">
           Healing Power Of Honey
         </h3>
-        <Text className="max-w-[1117px] w-full mx-auto text-[18px] text-white/80 font-light leading-relaxed">
+        <Text className="max-w-[1117px] w-full mx-auto text-[14px] md:text-[18px] text-white/80 font-light leading-relaxed">
           {` Honey Is One Of Nature's Most Precious Gifts, Packed With Essential Minerals, 
                     Vitamins, And Antioxidants. It Strengthens The Immune System, Improves Liver Function, 
                     Sharpens Memory, Boosts Vitality, And Even Helps Prevent Major Illnesses. From Relieving
@@ -38,7 +38,7 @@ const ProductTabs: React.FC<ProductTabsProps> = ({ product }) => {
         <h3 className="text-[20px] font-medium text-white">
           Daily Health Benefits
         </h3>
-        <Text className="max-w-[1117px] w-full mx-auto text-[18px] text-white/80 font-light leading-relaxed">
+        <Text className="max-w-[1117px] w-full mx-auto text-[14px] md:text-[18px] text-white/80 font-light leading-relaxed">
           {`Regular Use Of Honey Not Only Enhances Energy And Vision But Also Protects The Heart, Controls Harmful Cholesterol, And Supports Overall Wellness. Especially Beneficial For Children, The Elderly, And Even Diabetic Patients (With Berry Honey Being Most Effective), Honey Is Truly A Complete Tonic For A Healthy Life.`}
         </Text>
       </div>

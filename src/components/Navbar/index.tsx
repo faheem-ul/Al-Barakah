@@ -12,7 +12,7 @@ import CartDrawer from "@/ui/CartDrawer";
 
 import Cart from "@/components/Cart";
 
-import logo from "@/public/logo.svg";
+import logo from "@/public/logo.png";
 
 import MobileNav from "./MobileNav";
 
