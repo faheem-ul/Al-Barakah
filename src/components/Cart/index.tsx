@@ -17,6 +17,7 @@ import EmptyCart from "@/components/Cart/EmptyCart";
 import { formatPrice } from "@/lib/utils/shopify";
 
 import { CartItem as DefaultCartItem } from "@/types";
+import { useProductData } from "@/hooks/useProductData";
 // import { useProductData } from "@/hooks/useProductData";
 
 interface CartProduct extends Product {
@@ -157,6 +158,8 @@ const Cart = (props: PropTypes) => {
 
   // Titles will be derived per-item using useProductData
 
+  // const { formatPrice } = useProductData(product);
+
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex flex-1 flex-col gap-3 rounded-[24px] py-3">
@@ -209,12 +212,12 @@ const Cart = (props: PropTypes) => {
                     return (
                       <>
                         {urdu && (
-                          <Text className="mb-2 text-[20px] font-bold text-[#302A25] font-arabic">
+                          <Text className="mb-2 text-[20px] md:text-[30px] font-bold text-black font-arabic">
                             {urdu}
                           </Text>
                         )}
                         {english && (
-                          <Text className="mb-2 text-[20px] font-bold text-[#302A25] font-arabic">
+                          <Text className="mb-2 text-[16px] font-semibold text-black">
                             {english}
                           </Text>
                         )}
@@ -222,15 +225,19 @@ const Cart = (props: PropTypes) => {
                     );
                   })()}
 
+                  <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+                    was:{" "}
+                    {formatPrice(
+                      product?.compareAtPriceRange?.maxVariantPrice?.amount
+                    )}
+                  </Text>
+
                   <Text className="text-accent text-[20px] font-semibold">
                     {formatPrice(product?.priceRange?.minVariantPrice?.amount)}
                   </Text>
 
-                  {/* <div className="text-foreground font-poppins mt-4 text-[14px] font-medium md:text-[16px]">
-                    Quantity {getItemQuantityByVariantId(variant?.id as string)}
-                  </div> */}
-
-                  <div className="mt-4 flex w-fit items-center gap-[20px] rounded-[62px] bg-[#F0F0F0] px-[12px]">
+                  {/* <div className="mt-4 flex w-fit items-center gap-[20px] rounded-[62px] bg-[#F0F0F0] px-[12px]"> */}
+                  <div className="flex w-fit items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[22px] py-[17px] mt-6">
                     <MinusIcon
                       className="cursor-pointer"
                       onClick={() =>
@@ -256,9 +263,9 @@ const Cart = (props: PropTypes) => {
                 </div>
               </div>
 
-              <div className="absolute right-0 md:block">
+              <div className="absolute right-0 top-[80px] md:block">
                 <TrashIcon
-                  className="cursor-pointer"
+                  className="cursor-pointers"
                   onClick={() => removeFromCart(variant?.id as string)}
                 />
               </div>

@@ -40,12 +40,12 @@ const CartDrawer = (props: PropTypes) => {
 
         <div className="flex w-full items-start justify-between border-b pb-4">
           <div>
-            <Text className="text-[28px] leading-7 font-semibold text-[#302A25]">
+            <Text className="text-[28px] leading-7 font-semibold text-black">
               Shopping Cart
             </Text>
 
             {cartItems?.length > 0 && (
-              <Text className="mt-5 md:mt-3 text-[16px] font-normal text-black  ">
+              <Text className="mt-5 md:mt-3 text-[14px] font-normal text-black  ">
                 Items in your bag not reserved - check out now to make them
                 yours.
               </Text>

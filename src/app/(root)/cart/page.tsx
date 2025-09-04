@@ -121,19 +121,25 @@ const CartPage = () => {
   }
 
   return (
-    <div className="mx-auto min-h-[70vh] max-w-full px-5 md:max-w-7xl md:px-0">
-      <Text as="h1" className="my-4 md:my-2">
+    <div className="mx-auto min-h-[70vh] max-w-full px-5 md:max-w-[1117px] md:px-5">
+      <Text as="h1" className="my-4 md:my-2 capitalize">
         My cart
       </Text>
 
       <div className="flex flex-col gap-1 md:flex-row md:gap-10">
         {/* Left Side */}
-        <div className="mt-6 flex flex-1 flex-col gap-3 rounded-[24px] bg-[#F7F7F7] py-3">
+        <div className="mt-6 flex flex-1 flex-col gap-8 md:gap-3 rounded-[24px] py-3">
           {cartItems?.map((cartItem, index) => {
             const isLastItem = index === cartItems?.length - 1;
 
             // Find the corresponding product from the fetched data
             const product = products?.data?.find((p) => p?.id === cartItem?.id);
+
+            // if (product) {
+            //   const { urdu, english } = separateTitle(product.title);
+            // }
+
+            // console.log(urdu)
 
             // Find the specific variant within the product's variants
             const variant = product?.variants?.find(
@@ -161,8 +167,8 @@ const CartPage = () => {
                   isLastItem ? "border-none" : "border-b pb-3"
                 )}
               >
-                <div className="flex flex-col gap-4 pl-3 md:flex-row md:items-center">
-                  <div className="relative h-[80px] w-[80px] overflow-hidden rounded-[20px] md:h-[172px] md:w-[162px]">
+                <div className="flex gap-4 items-center md:items-start">
+                  <div className="relative overflow-hidden rounded-[20px] w-[100px] h-[100px] md:h-[172px] md:w-[162px]">
                     <Image
                       src={product?.images[0]?.url}
                       alt={product?.images[0]?.altText}
@@ -172,34 +178,53 @@ const CartPage = () => {
                     />
                   </div>
 
-                  <div>
+                  {/* <div>
                     <Text className="text-primary-foreground text-[20px] font-semibold">
                       {product?.title}
                     </Text>
+                  </div> */}
 
-                    <Text className="my-4 flex gap-2 text-[#6B6B6B]">
-                      COLOR:{" "}
-                      <span
-                        style={{
-                          backgroundColor: SWATCH_COLORS[color] || "#fff",
-                        }}
-                        className="h-[20px] w-[20px] shrink-0 cursor-pointer rounded-full border border-[#DDDDDD]"
-                      ></span>{" "}
-                      {color}{" "}
-                    </Text>
-
-                    <Text className="text-[#6B6B6B]">
-                      Size: <span className="text-foreground"> {size}</span>{" "}
-                    </Text>
+                  <div>
+                    {(() => {
+                      const { urdu, english } = separateTitle(product.title);
+                      return (
+                        <>
+                          {urdu && (
+                            <Text className="mb-2 text-[18px] font-bold text-black font-arabic">
+                              {urdu}
+                            </Text>
+                          )}
+                          {english && (
+                            <Text className="mb-2 text-[14px] font-semibold text-black">
+                              {english}
+                            </Text>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 <div className="flex h-full items-center justify-between gap-[30px] px-5 md:flex-col md:justify-center md:pr-3">
-                  <Text className="text-primary-foreground tet text-[22px] font-normal">
+                  {/* <Text className="text-primary-foreground tet text-[22px] font-normal">
                     {formatPrice(product?.priceRange?.minVariantPrice?.amount)}
-                  </Text>
+                  </Text> */}
+                  <div>
+                    <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+                      was:{" "}
+                      {formatPrice(
+                        product?.compareAtPriceRange?.maxVariantPrice?.amount
+                      )}
+                    </Text>
 
-                  <div className="flex items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[22px] py-[17px]">
+                    <Text className="text-accent text-[20px] font-semibold">
+                      {formatPrice(
+                        product?.priceRange?.minVariantPrice?.amount
+                      )}
+                    </Text>
+                  </div>
+
+                  <div className="flex items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[18px] md:px-[22px] py-[11px] md:py-[17px]">
                     <MinusIcon
                       className="cursor-pointer"
                       onClick={() => {
@@ -232,7 +257,7 @@ const CartPage = () => {
 
         {/* Right Side */}
         <div className="w-full md:w-[40%]">
-          <div className="mt-6 flex flex-1 flex-col gap-3 rounded-[24px] bg-[#F7F7F7] px-4 pt-8 pb-5">
+          <div className="mt-6 flex flex-1 flex-col rounded-[24px] bg-[#F7F7F7] p-8">
             {/* Discount Code */}
             {/* <div className="flex flex-col items-center justify-between gap-[10px] border-b pb-5 md:flex-row">
               <Input
@@ -255,31 +280,31 @@ const CartPage = () => {
                 subtotal:
               </Text>
 
-              <Text className="text-foreground text-[18px] leading-[24px] font-semibold">
+              <Text className="text-accent text-[20px] font-semibold">
                 {formatPrice(totalPice)}
               </Text>
             </div>
             {/* Subtotal */}
 
             {/* Shipping */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-5">
               <Text className="text-caption text-[16px] leading-[40px] font-medium uppercase">
                 shipping:
               </Text>
 
-              <Text className="text-caption leading-[24px] font-semibold md:text-[18px]">
+              <Text className="text-[14px] font-semibold text-black">
                 Calculated at next step
               </Text>
             </div>
             {/* Shipping */}
 
             {/* Total */}
-            <div className="flex items-center justify-between border-t">
-              <Text className="text-caption text-[16px] leading-[60px] font-medium uppercase">
+            <div className="flex items-center justify-between border-t pt-5">
+              <Text className="text-caption text-[16px] leading-[20px] font-medium uppercase">
                 total:
               </Text>
 
-              <Text className="text-foreground text-[24px] leading-[24px] font-semibold">
+              <Text className="text-accent text-[20px] font-semibold">
                 {formatPrice(totalPice)}
               </Text>
             </div>
@@ -321,3 +346,13 @@ const Icon = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
+const separateTitle = (title: string) => {
+  const urduRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s]+/;
+  const match = title.match(urduRegex);
+  if (match) {
+    const urduPart = match[0].trim();
+    const englishPart = title.replace(urduPart, "").trim();
+    return { urdu: urduPart, english: englishPart };
+  }
+  return { urdu: "", english: title };
+};

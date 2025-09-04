@@ -24,14 +24,14 @@ const ImageGallery = (props: PropTypes) => {
   // Keep a small fade when the active image changes
 
   return (
-    <div className="w-full overflow-hidden md:w-fit">
-      <div className="relative h-[338px] w-full overflow-hidden rounded-[16px] md:h-[550px] md:w-[520px]">
+    <div className="w-full md:w-fit">
+      <div className="relative w-full overflow-hidden rounded-[16px] h-[550px] md:w-[520px]">
         {/* Current Image */}
         <Image
           src={product?.images[currentImageIndex]?.url}
           alt={product?.images[currentImageIndex]?.altText}
           fill
-          className="h-[520px] w-[550px]"
+          className="object-cover"
           priority
         />
 

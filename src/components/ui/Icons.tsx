@@ -262,15 +262,15 @@ export const CloseIcon = (props: SVGProps<SVGSVGElement>) => (
 
 export const RatingStarIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
-    width={25}
-    height={23}
-    fill="none"
     xmlns="http://www.w3.org/2000/svg"
+    width={19}
+    height={18}
+    fill="none"
     {...props}
   >
     <path
-      d="m12.356 0 3.5 7.538 8.252 1-6.088 5.659 1.599 8.156-7.263-4.041-7.263 4.04 1.599-8.155-6.087-5.66 8.25-.999L12.357 0Z"
-      fill="#FFC633"
+      fill="#F6C854"
+      d="m9.702.786 2.108 6.216h6.82l-5.518 3.842 2.108 6.217-5.518-3.842-5.518 3.842 2.108-6.217L.774 7.002h6.82L9.702.786Z"
     />
   </svg>
 );

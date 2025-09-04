@@ -27,7 +27,7 @@ const ReviewsSummary: React.FC<Props> = ({ productId }) => {
 
   return (
     <Text className="text-foreground text-sm">
-      5.0 <span className="font-semibold">{count} reviews</span>
+      5.0 (<span className="font-semibold">{count} Reviews</span>)
     </Text>
   );
 };
