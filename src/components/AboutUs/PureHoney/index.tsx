@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 import Text from "@/components/ui/Text";
 import { Button } from "@/components/ui/button";
@@ -39,9 +40,11 @@ const PureHoney = () => {
             </div>
 
             <div className="flex-shrink-0">
-              <Button className="bg-white text-black text-[18px] rounded-[30px] font-semibold py-4 px-8  hover:bg-gray-100 transition-colors cursor-pointer ">
-                Order Now
-              </Button>
+              <Link href="/">
+                <Button className="bg-white text-black text-[18px] rounded-[30px] font-semibold py-4 px-8  hover:bg-gray-100 transition-colors cursor-pointer ">
+                  Order Now
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
