@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useMemo, useState } from "react";
 // import parse from "html-react-parser";
 
 import { Product } from "@/lib/shopify/types";
@@ -11,7 +13,7 @@ import { useProductData } from "@/hooks/useProductData";
 // import ProductAccordion from "./Accordion";
 import ProductVariantSelector from "./ProductVariantSelector";
 // import { formatPrice } from "@/lib/utils/shopify";
-import { WarningIcon } from "@/ui/Icons";
+// import { WarningIcon } from "@/ui/Icons";
 
 interface PropTypes {
   product: Product;
@@ -20,6 +22,18 @@ interface PropTypes {
 const ProductDescription = (props: PropTypes) => {
   const { product } = props;
   const productData = useProductData(product);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    null
+  );
+  const selectedVariant = useMemo(() => {
+    if (!selectedVariantId) return null;
+    return product.variants.find((v) => v.id === selectedVariantId) || null;
+  }, [product.variants, selectedVariantId]);
+  const currentPriceAmount =
+    selectedVariant?.price?.amount || product.priceRange.minVariantPrice.amount;
+  const comparePriceAmount =
+    selectedVariant?.compareAtPrice?.amount ||
+    product.compareAtPriceRange.maxVariantPrice.amount;
 
   // const percentageOff = calculatePercentageOff(
   //   product?.priceRange?.minVariantPrice?.amount,
@@ -65,17 +79,16 @@ const ProductDescription = (props: PropTypes) => {
           <Text className="text-[18px] text-black font-semibold w-[75px]">
             Price:
           </Text>
-          {Number(product?.compareAtPriceRange?.maxVariantPrice?.amount) >
-            0 && (
+          {Number(comparePriceAmount) > 0 && (
             <div className="">
               <Text className="text-[15px] text-black/50 font-medium">
                 was:{" "}
                 <span className="line-through">
-                  {productData.formatPrice(productData.comparePrice)}
+                  {productData.formatPrice(comparePriceAmount)}
                 </span>
               </Text>
               <Text className="text-black text-[20px] font-semibold">
-                Rs. {productData.formatPrice(productData.currentPrice)}
+                Rs. {productData.formatPrice(currentPriceAmount)}
               </Text>
             </div>
           )}
@@ -83,7 +96,12 @@ const ProductDescription = (props: PropTypes) => {
       </div>
       {/* Price */}
       {/* Weight */}
-      <div className="mb-4">
+
+      <ProductVariantSelector
+        product={product}
+        onVariantChange={setSelectedVariantId}
+      />
+      {/* <div className="mb-4">
         <div className="flex items-center gap-3">
           <Text className="text-[18px] text-black font-semibold w-[75px]">
             Weight:
@@ -92,9 +110,9 @@ const ProductDescription = (props: PropTypes) => {
             1 Kg
           </div>
         </div>
-      </div>
+      </div> */}
       {/* Weight */}
-      <ProductVariantSelector product={product} />
+      {/* <ProductVariantSelector product={product} /> */}
       <div className="md:w-[527px] w-full bg-[#000] gap-2 h-[50px] flex justify-start items-center rounded-[8px] pl-[17px] mt-[42px]">
         {/* <WarningIcon /> */}
         <span className="text-[25px] font-semibold text-white">!</span>

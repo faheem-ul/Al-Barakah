@@ -53,11 +53,48 @@ const ProductCard = ({ product }: { product: Product }) => {
     sizes,
     currentPrice,
     comparePrice,
-    discountPercentage,
+    // discountPercentage,
     urduTitle,
     englishTitle,
     formatPrice,
   } = useProductData(product);
+
+  // Prefer showing 1/2kg variant price on cards when available
+  const weightOptionName = "weight";
+  const halfKgVariant = product.variants.find((v) =>
+    v.selectedOptions.some(
+      (o) =>
+        o.name.toLowerCase() === weightOptionName &&
+        /(^|\s)(1\s*\/\s*2|0\.5)\s*kg?$/i.test(o.value.replace(/\s+/g, " "))
+    )
+  );
+  const cardPriceAmount = halfKgVariant?.price?.amount || currentPrice;
+  const cardCompareAmount =
+    halfKgVariant?.compareAtPrice?.amount || comparePrice;
+  const halfKgLabel = halfKgVariant?.selectedOptions.find(
+    (o) => o.name.toLowerCase() === weightOptionName
+  )?.value;
+
+  // Calculate discount percentage based on the selected variant prices
+  const calculateDiscountPercentage = (
+    currentPrice: string,
+    comparePrice: string
+  ) => {
+    const current = parseFloat(currentPrice);
+    const compare = parseFloat(comparePrice);
+
+    if (compare <= 0 || current >= compare) {
+      return 0; // No discount or invalid prices
+    }
+
+    const discount = ((compare - current) / compare) * 100;
+    return Math.round(discount); // Round to nearest whole number
+  };
+
+  const cardDiscountPercentage = calculateDiscountPercentage(
+    cardPriceAmount,
+    cardCompareAmount
+  );
 
   return (
     <div className="w-full md:w-[353px]">
@@ -90,18 +127,20 @@ const ProductCard = ({ product }: { product: Product }) => {
         </div>
 
         <div className="w-fit absolute bottom-7">
-          {discountPercentage > 0 && (
+          {cardDiscountPercentage > 0 && (
             <Text className="text-[14px] font-semibold bg-white rounded-[20px] px-4 py-2">
-              Sale {discountPercentage}% Off
+              Sale {cardDiscountPercentage}% Off
             </Text>
           )}
         </div>
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <Text className="text-right line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
-        was: {formatPrice(comparePrice)}
-      </Text>
+      {Number(cardCompareAmount) > 0 && (
+        <Text className="text-right line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+          was: {formatPrice(cardCompareAmount)}
+        </Text>
+      )}
       <div className="mb-2 flex items-start justify-between">
         <div className="flex flex-col">
           {urduTitle && (
@@ -115,9 +154,17 @@ const ProductCard = ({ product }: { product: Product }) => {
             </Text>
           )}
         </div>
-        <Text className="text-primary-foreground text-[19px] font-semibold">
-          Rs. {formatPrice(currentPrice)}
-        </Text>
+        <div className=" items-center gap-2">
+          <Text className="text-primary-foreground text-[19px] font-semibold">
+            Rs. {formatPrice(cardPriceAmount)}
+          </Text>
+
+          {halfKgVariant && (
+            <Text className="text-[12px] text-black/60 text-right">
+              ({halfKgLabel})
+            </Text>
+          )}
+        </div>
       </div>
 
       {/* <Text className="text-caption line-clamp-4">{description}</Text> */}
