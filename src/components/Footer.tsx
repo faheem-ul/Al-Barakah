@@ -123,11 +123,11 @@ const Footer = () => {
 
               <div className="flex">
                 <a
-                  href="tel:+923041980001"
+                  href="tel:+92 306 2141972"
                   className="text-black text-[21px] font-semibold flex items-center gap-1"
                 >
                   {" "}
-                  <Phone /> +92 304 1980001
+                  <Phone /> +92 306 2141972
                 </a>
               </div>
               {/* <a href={APPLE_APP_STORE}>
@@ -205,11 +205,11 @@ const Footer = () => {
 
             <div className="flex">
               <a
-                href="tel: +92 304 1980001"
+                href="tel:+92 306 2141972"
                 className="text-black text-[21px] font-semibold flex items-center gap-1"
               >
                 {" "}
-                <Phone /> +92 304 1980001
+                <Phone /> +92 306 2141972
               </a>
             </div>
             {/* <a href={APPLE_APP_STORE}>

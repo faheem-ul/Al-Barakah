@@ -5,7 +5,7 @@ import Text from "@/components/ui/Text";
 import { getReviews, Review } from "@/lib/reviews";
 
 import reviewBg from "@/public/images/reviewsbg.png";
-import { cn } from "@/lib/utils";
+// import { cn } from "@/lib/utils";
 
 type Props = {
   productId?: string;

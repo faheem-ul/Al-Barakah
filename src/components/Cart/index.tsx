@@ -12,22 +12,22 @@ import useShoppingCart from "@/hooks/useShoppingCart";
 import { useCartStore } from "@/stores/useCartStore";
 import { Button } from "@/ui/button";
 import { MinusIcon, PlusIcon } from "@/ui/Icons";
-import { Product } from "@/lib/shopify/types";
+// import { Product } from "@/lib/shopify/types";
 import EmptyCart from "@/components/Cart/EmptyCart";
 import { formatPrice } from "@/lib/utils/shopify";
 
 import { CartItem as DefaultCartItem } from "@/types";
-import { useProductData } from "@/hooks/useProductData";
+// import { useProductData } from "@/hooks/useProductData";
 // import { useProductData } from "@/hooks/useProductData";
 
-interface CartProduct extends Product {
-  quantity: number;
-}
+// interface CartProduct extends Product {
+//   quantity: number;
+// }
 
-interface CartItem {
-  id: string | number;
-  quantity: number;
-}
+// interface CartItem {
+//   id: string | number;
+//   quantity: number;
+// }
 
 interface PropTypes {
   onCartClose: () => void;
@@ -64,25 +64,14 @@ const Cart = (props: PropTypes) => {
   };
 
   const totalPice: number = useMemo(() => {
-    const productsInCart: CartProduct[] = [];
-
-    cartItems?.map((item: CartItem) => {
-      const found = products?.data?.find((product) => product.id === item.id);
-
-      if (found) {
-        productsInCart.push({ ...item, ...found });
-      }
-    });
-
-    const totalPice = productsInCart?.reduce(
-      (totalPrice: number, product: CartProduct) =>
-        (totalPrice +=
-          Number(product?.priceRange?.maxVariantPrice?.amount || 0) *
-          product.quantity),
-      0
-    );
-
-    return totalPice;
+    if (!products?.data) return 0;
+    return cartItems?.reduce((total: number, item: DefaultCartItem) => {
+      const product = products.data?.find((p) => p.id === item.id);
+      if (!product) return total;
+      const variant = product.variants?.find((v) => v.id === item.variantId);
+      const unitPrice = Number(variant?.price?.amount || 0);
+      return total + unitPrice * item.quantity;
+    }, 0);
   }, [cartItems, products]);
 
   // Function to generate the checkout URL
@@ -182,6 +171,10 @@ const Cart = (props: PropTypes) => {
           const size =
             variant?.selectedOptions?.find((option) => option?.name === "Size")
               ?.value || "";
+          const weight =
+            variant?.selectedOptions?.find(
+              (option) => option?.name?.toLowerCase() === "weight"
+            )?.value || "";
 
           if (!product) {
             return null;
@@ -221,19 +214,24 @@ const Cart = (props: PropTypes) => {
                             {english}
                           </Text>
                         )}
+                        {weight && (
+                          <Text className="text-[12px] text-black/60">
+                            ({weight})
+                          </Text>
+                        )}
                       </>
                     );
                   })()}
 
-                  <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
-                    was:{" "}
-                    {formatPrice(
-                      product?.compareAtPriceRange?.maxVariantPrice?.amount
-                    )}
-                  </Text>
+                  {Number(variant?.compareAtPrice?.amount || 0) > 0 && (
+                    <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+                      was:{" "}
+                      {formatPrice(variant?.compareAtPrice?.amount as string)}
+                    </Text>
+                  )}
 
                   <Text className="text-accent text-[20px] font-semibold">
-                    {formatPrice(product?.priceRange?.minVariantPrice?.amount)}
+                    {formatPrice(variant?.price?.amount as string)}
                   </Text>
 
                   {/* <div className="mt-4 flex w-fit items-center gap-[20px] rounded-[62px] bg-[#F0F0F0] px-[12px]"> */}

@@ -96,11 +96,11 @@ const ContactForm = () => {
 
               <div className="">
                 <ContactItem
-                  href="tel:+92 304 1980001"
+                  href="tel:+92 306 2141972"
                   icon={
                     <Image src={Phone} alt="Phone" width={24} height={24} />
                   }
-                  text="+92 304 1980001"
+                  text="+92 306 2141972"
                 />
                 <ContactItem
                   href="https://www.facebook.com/profile.php?id=61579862667667"

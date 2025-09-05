@@ -13,10 +13,11 @@ import ProductAccordion from "./Accordion";
 
 interface PropTypes {
   product: Product;
+  onVariantChange?: (variantId: string) => void;
 }
 
 const ProductVariantSelector = (props: PropTypes) => {
-  const { product } = props;
+  const { product, onVariantChange } = props;
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [selectedSize, setSelectedSize] = useState<string | undefined>();
   const { getItemQuantity, addCartQuantity, onCartOpen } = useShoppingCart();
@@ -24,7 +25,7 @@ const ProductVariantSelector = (props: PropTypes) => {
   const quantity = getItemQuantity(product?.id as string);
   const sizes = useMemo(
     () =>
-      product.options.find((option) => option.name.toLowerCase() === "size")
+      product.options.find((option) => option.name.toLowerCase() === "weight")
         ?.values || [],
     [product]
   );
@@ -39,6 +40,20 @@ const ProductVariantSelector = (props: PropTypes) => {
       setSelectedSize(sizes[0]);
     }
   }, [sizes]);
+
+  // Notify parent when selected size changes
+  useEffect(() => {
+    if (!selectedSize) return;
+    const variant =
+      product.variants.find((v) =>
+        v.selectedOptions.some(
+          (option) =>
+            option.name.toLowerCase() === "weight" &&
+            option.value === selectedSize
+        )
+      ) || product.variants[0];
+    if (variant && onVariantChange) onVariantChange(variant.id);
+  }, [selectedSize, product, onVariantChange]);
 
   const onIncrease = () => setItemQuantity((prev) => prev + 1);
   const onDecrease = () => {
@@ -68,7 +83,7 @@ const ProductVariantSelector = (props: PropTypes) => {
       product.variants.find((v) =>
         v.selectedOptions.some(
           (option) =>
-            option.name.toLowerCase() === "size" &&
+            option.name.toLowerCase() === "weight" &&
             option.value === (sizeToUse as string)
         )
       ) || product.variants[0];
@@ -94,7 +109,7 @@ const ProductVariantSelector = (props: PropTypes) => {
         {/* Color selection removed */}
 
         {sizes.length > 1 && (
-          <ProductAccordion title="Choose Size">
+          <ProductAccordion title="Choose Weight">
             <div className="mt-2 -mb-3 flex items-center gap-1">
               {sizes.map((size) => (
                 <Tag
@@ -104,7 +119,7 @@ const ProductVariantSelector = (props: PropTypes) => {
                   className={cn(
                     "cursor-pointer",
                     selectedSize === size
-                      ? "border-[#272728]"
+                      ? "bg-black text-white"
                       : "border-[#DDDDDD]"
                   )}
                 />
