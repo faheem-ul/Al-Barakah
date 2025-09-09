@@ -21,6 +21,46 @@ const ImageGallery = (props: PropTypes) => {
 
   const filteredImages = product?.images;
 
+  // Determine preferred variant (1/2kg) for discount consistency with cards
+  const weightOptionName = "weight";
+  const halfKgVariant = product.variants.find((v) =>
+    v.selectedOptions.some(
+      (o) =>
+        o.name.toLowerCase() === weightOptionName &&
+        /(^|\s)(1\s*\/\s*2|0\.5)\s*kg?$/i.test(o.value.replace(/\s+/g, " "))
+    )
+  );
+
+  const currentAmount =
+    halfKgVariant?.price?.amount || productData.currentPrice;
+  const compareAmount =
+    halfKgVariant?.compareAtPrice?.amount || productData.comparePrice;
+
+  const calculateDiscountPercentage = (
+    currentPrice: string,
+    comparePrice: string
+  ) => {
+    const current = parseFloat(currentPrice);
+    const compare = parseFloat(comparePrice);
+
+    if (
+      isNaN(current) ||
+      isNaN(compare) ||
+      compare <= 0 ||
+      current >= compare
+    ) {
+      return 0;
+    }
+
+    const discount = ((compare - current) / compare) * 100;
+    return Math.round(discount);
+  };
+
+  const displayDiscountPercentage = calculateDiscountPercentage(
+    currentAmount,
+    compareAmount
+  );
+
   // Keep a small fade when the active image changes
 
   return (
@@ -36,10 +76,10 @@ const ImageGallery = (props: PropTypes) => {
         />
 
         {/* Sale Badge - positioned at bottom center */}
-        {productData.discountPercentage > 0 && (
+        {displayDiscountPercentage > 0 && (
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
             <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold">
-              Sale {productData.discountPercentage}% Off
+              Sale {displayDiscountPercentage}% Off
             </div>
           </div>
         )}
