@@ -1,10 +1,16 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
-import Phone from "@/public/images/contactus/phone.png";
-import fb from "@/public/images/contactus/fb.png";
-import insta from "@/public/images/contactus/insta.png";
-import tiktok from "@/public/images/contactus/tiktok.png";
+import { BsTwitterX } from "react-icons/bs";
+import {
+  FaLinkedinIn,
+  FaPinterestP,
+  FaFacebookF,
+  FaInstagram,
+} from "react-icons/fa";
+import { FaTiktok } from "react-icons/fa6";
+import { AiOutlineYoutube } from "react-icons/ai";
+import { AiOutlinePhone } from "react-icons/ai";
 
 const ContactForm = () => {
   const [formData, setFormData] = useState({
@@ -97,31 +103,51 @@ const ContactForm = () => {
               <div className="">
                 <ContactItem
                   href="tel:+92 306 2141972"
-                  icon={
-                    <Image src={Phone} alt="Phone" width={24} height={24} />
-                  }
+                  icon={<AiOutlinePhone className="text-black" size={18} />}
+                  boxed
                   text="+92 306 2141972"
                 />
                 <ContactItem
                   href="https://www.facebook.com/profile.php?id=61579862667667"
-                  icon={
-                    <Image src={fb} alt="Facebook" width={24} height={24} />
-                  }
+                  icon={<FaFacebookF className="text-black" size={16} />}
                   text="Albaraka Honey"
+                  boxed
                 />
                 <ContactItem
                   href="https://www.instagram.com/thealbarakahoney/"
-                  icon={
-                    <Image src={insta} alt="Instagram" width={24} height={24} />
-                  }
+                  icon={<FaInstagram className="text-black" size={16} />}
                   text="The AlBaraka honey "
+                  boxed
                 />
                 <ContactItem
                   href="https://www.tiktok.com/@albarakahoney713"
-                  icon={
-                    <Image src={tiktok} alt="TikTok" width={24} height={24} />
-                  }
+                  icon={<FaTiktok className="text-black" size={16} />}
                   text="Albaraka Honey 713"
+                  boxed
+                />
+                <ContactItem
+                  href="https://x.com/thalbarakahoney"
+                  icon={<BsTwitterX className="text-black" size={16} />}
+                  text="Albaraka Honey X (Twitter)"
+                  boxed
+                />
+                <ContactItem
+                  href="https://www.linkedin.com/feed/update/urn:li:activity:7370850743056150528/"
+                  icon={<FaLinkedinIn className="text-black" />}
+                  text="LinkedIn"
+                  boxed
+                />
+                <ContactItem
+                  href="https://www.youtube.com/shorts/D_9vJoxm26s"
+                  icon={<AiOutlineYoutube className="text-black" />}
+                  text="YouTube"
+                  boxed
+                />
+                <ContactItem
+                  href="https://www.tiktok.com/@albarakahoney713"
+                  icon={<FaPinterestP className="text-black" />}
+                  text="Pinterest"
+                  boxed
                 />
               </div>
             </div>
@@ -136,15 +162,25 @@ const ContactItem = ({
   icon,
   text,
   href,
+  boxed = false,
 }: {
   icon: React.ReactNode;
   text: string;
   href: string;
+  boxed?: boolean;
 }) => {
   return (
     <a href={href} className="">
       <div className="flex items-center space-x-3 mb-4">
-        <div className="">{icon}</div>
+        <div
+          className={
+            boxed
+              ? "bg-white rounded-[6px] w-[30px] h-[30px] flex items-center justify-center"
+              : ""
+          }
+        >
+          {icon}
+        </div>
         <span className="text-white text-[18px] font-medium">{text}</span>
       </div>
     </a>
