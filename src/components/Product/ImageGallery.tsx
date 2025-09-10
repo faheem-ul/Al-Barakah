@@ -79,7 +79,7 @@ const ImageGallery = (props: PropTypes) => {
         {displayDiscountPercentage > 0 && (
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
             <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold">
-              Sale {displayDiscountPercentage}% Off
+              Dsicount {displayDiscountPercentage}% Off
             </div>
           </div>
         )}
