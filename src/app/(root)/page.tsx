@@ -19,7 +19,7 @@ const HomePage = async () => {
   });
 
   return (
-    <div className="mx-auto pb-10 md:max-w-7xl md:pb-20">
+    <div className="mx-auto pb-1 md:max-w-7xl md:pb-20">
       <Shop products={products.data as Product[]} />
       {/* <Services /> */}
     </div>
