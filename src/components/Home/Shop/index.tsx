@@ -101,7 +101,7 @@ const ProductCard = ({ product }: { product: Product }) => {
   );
 
   return (
-    <div className="md:w-[353px] w-[186px] relative">
+    <div className="md:w-[353px] w-full relative">
       <div className="w-fit relative bottom-[-4px] left-[17%] z-50 md:hidden block">
         {cardDiscountPercentage > 0 && (
           <Text className="md:text-[14px] text-[12px] font-semibold bg-white border border-[#e7e7e7] rounded-[20px] px-3 py-1">
