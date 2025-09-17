@@ -81,7 +81,7 @@ const Footer = () => {
             <div className="flex flex-col items-center gap-6 justify-center h-full">
               <div className="flex items-center gap-[15px] md:gap-[11px]">
                 <a
-                  href="https://www.instagram.com/p/DOV-cNXiThK/"
+                  href="https://www.instagram.com/thealbarakahoney"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
@@ -98,7 +98,7 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="https://www.facebook.com/reel/834115305815653"
+                  href="https://www.facebook.com/thealbarakahoney/"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
@@ -115,7 +115,7 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="https://www.tiktok.com/@thealbarakahoney?_t=ZS-8zbVt97DT60&_r=1"
+                  href="https://www.tiktok.com/@thealbarakahoney"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
@@ -124,18 +124,6 @@ const Footer = () => {
                     className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
-              </div>
-
-              {/* 2 */}
-              <div className="flex items-center gap-[15px] md:gap-[11px]">
-                <a
-                  href="https://x.com/thalbarakahoney"
-                  className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
-                >
-                  <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
-                    <BsTwitterX className="text-white" />
-                  </div>
-                </a>
 
                 <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                   <Image
@@ -145,44 +133,11 @@ const Footer = () => {
                   />
                 </span>
                 <a
-                  href="https://www.linkedin.com/feed/update/urn:li:activity:7370850743056150528/"
-                  className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
-                >
-                  <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
-                    <FaLinkedinIn className="text-white" />
-                  </div>
-                </a>
-
-                <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
-                  <Image
-                    src={dot}
-                    alt="dot"
-                    className="h-auto w-[6px] md:w-[8px]"
-                  />
-                </span>
-
-                <a
-                  href="https://www.youtube.com/shorts/D_9vJoxm26s"
+                  href="https://www.youtube.com/@thealbarakahoney"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
                 >
                   <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
                     <AiOutlineYoutube className="text-white text-[20px]" />
-                  </div>
-                </a>
-
-                <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
-                  <Image
-                    src={dot}
-                    alt="dot"
-                    className="h-auto w-[6px] md:w-[8px]"
-                  />
-                </span>
-                <a
-                  href="https://www.tiktok.com/@albarakahoney713"
-                  className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
-                >
-                  <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
-                    <FaPinterestP className="text-white text-[20px]" />
                   </div>
                 </a>
               </div>
@@ -207,15 +162,15 @@ const Footer = () => {
       <div className="container mx-auto max-w-7xl px-[20px] md:px-[64px]">
         <div className="text-center md:hidden">
           <div className="flex flex-col items-center gap-3 pt-[30px]">
-            <div className=" flex items-center gap-[15px] md:gap-[11px]">
+            <div className="flex items-center gap-[15px] md:gap-[11px]">
               <a
-                href="https://www.instagram.com/p/DOV-cNXiThK/"
+                href="https://www.instagram.com/thealbarakahoney"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={instagram}
                   alt="instagram"
-                  className="h-[30px] w-[30px] "
+                  className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
               <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
@@ -226,13 +181,13 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="https://www.facebook.com/reel/834115305815653"
+                href="https://www.facebook.com/thealbarakahoney/"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={facebook}
                   alt="facebook"
-                  className="h-[30px] w-[35px]"
+                  className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
               <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
@@ -243,26 +198,14 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="https://www.tiktok.com/@thealbarakahoney?_t=ZS-8zbVt97DT60&_r=1"
+                href="https://www.tiktok.com/@thealbarakahoney"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={tiktok}
                   alt="tiktok"
-                  className="h-[30px] w-[35px]"
+                  className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
-              </a>
-            </div>
-
-            {/* 2 */}
-            <div className="flex items-center gap-[15px] md:gap-[11px] mb-5">
-              <a
-                href="https://x.com/thalbarakahoney"
-                className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
-              >
-                <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
-                  <BsTwitterX className="text-white" />
-                </div>
               </a>
 
               <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
@@ -273,44 +216,11 @@ const Footer = () => {
                 />
               </span>
               <a
-                href="https://www.linkedin.com/feed/update/urn:li:activity:7370850743056150528/"
-                className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
-              >
-                <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
-                  <FaLinkedinIn className="text-white" />
-                </div>
-              </a>
-
-              <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
-                <Image
-                  src={dot}
-                  alt="dot"
-                  className="h-auto w-[6px] md:w-[8px]"
-                />
-              </span>
-
-              <a
-                href="https://www.youtube.com/shorts/D_9vJoxm26s"
+                href="https://www.youtube.com/@thealbarakahoney"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
               >
                 <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
                   <AiOutlineYoutube className="text-white text-[20px]" />
-                </div>
-              </a>
-
-              <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
-                <Image
-                  src={dot}
-                  alt="dot"
-                  className="h-auto w-[6px] md:w-[8px]"
-                />
-              </span>
-              <a
-                href="https://www.tiktok.com/@albarakahoney713"
-                className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
-              >
-                <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
-                  <FaPinterestP className="text-white text-[20px]" />
                 </div>
               </a>
             </div>
