@@ -23,21 +23,15 @@ const Shop = (props: PropTypes) => {
         Shop
       </Text>
 
-      <div className="mt-5 mb-10 grid grid-cols-2 justify-items-center gap-3 md:flex md:justify-center md:gap-8 px-5 sm:mt-[53px] md:px-0">
-        {products?.map((product, index) => {
-          const isLastOdd =
-            products.length % 2 !== 0 && index === products.length - 1;
+      <div className="mt-5 mb-10 grid grid-cols-2 justify-start gap-3 md:flex md:justify-center md:gap-8 px-5 sm:mt-[53px] md:px-0">
+        {products?.map((product) => {
           return (
             <Link
               href={`/${
                 toEnglishSlugFromTitle(product.title) || product.handle
               }`}
               key={product.id}
-              className={
-                isLastOdd
-                  ? "col-span-2 justify-self-center flex justify-center md:w-auto"
-                  : "w-full md:w-auto"
-              }
+              className={"w-full md:w-auto"}
             >
               <ProductCard key={product.id} product={product} />
             </Link>
@@ -107,7 +101,14 @@ const ProductCard = ({ product }: { product: Product }) => {
   );
 
   return (
-    <div className="md:w-[353px] w-[160px]">
+    <div className="md:w-[353px] w-[186px] relative">
+      <div className="w-fit relative bottom-[-4px] left-[17%] z-50 md:hidden block">
+        {cardDiscountPercentage > 0 && (
+          <Text className="md:text-[14px] text-[12px] font-semibold bg-white border border-[#e7e7e7] rounded-[20px] px-3 py-1">
+            Discount {cardDiscountPercentage}% Off
+          </Text>
+        )}
+      </div>
       <div
         className="relative w-full flex justify-center overflow-hidden rounded-[24px]"
         onMouseEnter={() => setIsHovered(true)}
@@ -136,7 +137,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           />
         </div>
 
-        <div className="w-fit absolute bottom-7">
+        <div className="w-fit absolute bottom-7 md:block hidden">
           {cardDiscountPercentage > 0 && (
             <Text className="md:text-[14px] text-[12px] font-semibold bg-white rounded-[20px] px-4 py-2">
               Discount {cardDiscountPercentage}% Off
@@ -146,7 +147,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <div className="flex items-center justify-between md:block mt-3 md:mt-0 mb-3 md:mb-0">
+      <div className="hidden items-center justify-between md:block mt-3 md:mt-0 mb-3 md:mb-0">
         {Number(cardCompareAmount) > 0 && (
           <Text className="text-right line-through text-black/50 text-[13.2px] font-poppins font-semibold md:mb-[-3px] md:mt-4">
             was: {formatPrice(cardCompareAmount)}
@@ -160,25 +161,31 @@ const ProductCard = ({ product }: { product: Product }) => {
         )}
       </div>
       <div className="mb-2 flex items-start justify-between md:flex-row flex-col">
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-3 md:mt-0">
           {urduTitle && (
-            <Text className="text-primary-foreground font-arabic text-[14px] md:text-[19px] font-bold mb-1 md:text-left text-center">
+            <Text className="text-primary-foreground font-arabic text-[14px] md:text-[19px] font-bold mb-1 md:text-left">
               {urduTitle}
             </Text>
           )}
           {englishTitle && (
-            <Text className="text-black text-[12px] md:text-[16px] capitalize font-semibold md:text-left text-center md:mt-2">
+            <Text className="text-black text-[12px] md:text-[16px] capitalize font-semibold md:text-left md:mt-2">
               {englishTitle}
             </Text>
           )}
+
+          {Number(cardCompareAmount) > 0 && (
+            <Text className="text-left md:hidden line-through text-black/50 text-[12px] font-poppins font-semibold md:mb-[-3px] md:mt-4">
+              was: {formatPrice(cardCompareAmount)}
+            </Text>
+          )}
         </div>
-        <div className=" items-center gap-2 mt-1 md:mt-0 md:mx-0 mx-auto">
+        <div className="flex md:block items-center gap-2 mt-1 md:mt-0 justify-between">
           <Text className="text-primary-foreground text-[19px] font-semibold md:text-right text-center">
             Rs. {formatPrice(cardPriceAmount)}
           </Text>
 
           {halfKgVariant && (
-            <Text className="text-[12px] text-black/60 text-right md:block hidden">
+            <Text className="text-[12px] text-black/60 text-right md:block">
               ({halfKgLabel})
             </Text>
           )}

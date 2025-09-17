@@ -38,6 +38,14 @@ const CartPage = () => {
 
   const cartItems = useCartStore((state) => state.cartItems);
 
+  const formatNumberNoCurrency = (value: number | string) => {
+    const num = Number(value) || 0;
+    return new Intl.NumberFormat("en-PK", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  };
+
   const totalPice: number = useMemo(() => {
     if (!products?.data) return 0;
     return cartItems?.reduce(
@@ -186,17 +194,42 @@ const CartPage = () => {
                       return (
                         <>
                           {urdu && (
-                            <Text className="mb-2 text-[18px] font-bold text-black font-arabic">
+                            <Text className="mb-1 text-[18px] font-bold text-black font-arabic">
                               {urdu}
                             </Text>
                           )}
                           {english && (
-                            <Text className="mb-2 text-[14px] font-semibold text-black">
+                            <Text className="mb-1 text-[14px] font-semibold text-black">
                               {english}
                             </Text>
                           )}
+
+                          <div className="md:hidden block">
+                            {Number(variant?.compareAtPrice?.amount || 0) >
+                              0 && (
+                              <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px]">
+                                was:{" "}
+                                {formatNumberNoCurrency(
+                                  variant?.compareAtPrice?.amount as string
+                                )}
+                              </Text>
+                            )}
+                            <div className="flex items-center gap-3 mt-2">
+                              <Text className="text-accent text-[18px] font-semibold ">
+                                Rs.{" "}
+                                {formatNumberNoCurrency(
+                                  variant?.price?.amount as string
+                                )}
+                              </Text>
+                              {weight && (
+                                <Text className="text-[12px] text-black/60 md:hidden block">
+                                  ({weight})
+                                </Text>
+                              )}
+                            </div>
+                          </div>
                           {weight && (
-                            <Text className="text-[12px] text-black/60">
+                            <Text className="text-[12px] text-black/60 md:block hidden">
                               ({weight})
                             </Text>
                           )}
@@ -206,20 +239,23 @@ const CartPage = () => {
                   </div>
                 </div>
 
-                <div className="flex h-full items-center justify-between gap-[30px] px-5 md:flex-col md:justify-center md:pr-3">
+                <div className="flex h-full items-center gap-[30px] px-5 md:flex-col justify-center md:pr-3">
                   {/* <Text className="text-primary-foreground tet text-[22px] font-normal">
                     {formatPrice(product?.priceRange?.minVariantPrice?.amount)}
                   </Text> */}
-                  <div>
+                  <div className="md:block hidden">
                     {Number(variant?.compareAtPrice?.amount || 0) > 0 && (
-                      <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+                      <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4 ">
                         was:{" "}
-                        {formatPrice(variant?.compareAtPrice?.amount as string)}
+                        {formatNumberNoCurrency(
+                          variant?.compareAtPrice?.amount as string
+                        )}
                       </Text>
                     )}
 
                     <Text className="text-accent text-[20px] font-semibold">
-                      {formatPrice(variant?.price?.amount as string)}
+                      Rs.{" "}
+                      {formatNumberNoCurrency(variant?.price?.amount as string)}
                     </Text>
                   </div>
 

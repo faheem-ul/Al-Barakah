@@ -63,6 +63,23 @@ const Cart = (props: PropTypes) => {
     return { urdu: "", english: title };
   };
 
+  // Helpers for price display
+  const formatRs = (amount?: string | number) => {
+    const num = Number(amount || 0);
+    return `Rs. ${new Intl.NumberFormat("en-PK", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num)}`;
+  };
+
+  const formatNumberNoCurrency = (amount?: string | number) => {
+    const num = Number(amount || 0);
+    return new Intl.NumberFormat("en-PK", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num);
+  };
+
   const totalPice: number = useMemo(() => {
     if (!products?.data) return 0;
     return cartItems?.reduce((total: number, item: DefaultCartItem) => {
@@ -155,7 +172,7 @@ const Cart = (props: PropTypes) => {
         {cartItems?.map((cartItem: DefaultCartItem) => {
           // const isLastItem = index === cartItems?.length - 1;
 
-          console.log("cartItem", cartItem);
+          // console.log("cartItem", cartItem);
 
           // Find the corresponding product from the fetched data
           const product = products?.data?.find((p) => p?.id === cartItem?.id);
@@ -205,33 +222,37 @@ const Cart = (props: PropTypes) => {
                     return (
                       <>
                         {urdu && (
-                          <Text className="mb-2 text-[20px] md:text-[30px] font-bold text-black font-arabic">
+                          <Text className="md:mb-2 mb-1 text-[20px] md:text-[30px] font-bold text-black font-arabic">
                             {urdu}
                           </Text>
                         )}
-                        {english && (
-                          <Text className="mb-2 text-[16px] font-semibold text-black">
-                            {english}
-                          </Text>
-                        )}
-                        {weight && (
-                          <Text className="text-[12px] text-black/60">
-                            ({weight})
-                          </Text>
-                        )}
+                        <div className="md:block flex gap-[12px] items-center">
+                          {english && (
+                            <Text className="md:mb-2 text-[16px] font-semibold text-black capitalize">
+                              {english}
+                            </Text>
+                          )}
+                          {weight && (
+                            <Text className="text-[12px] text-black/60">
+                              ({weight})
+                            </Text>
+                          )}
+                        </div>
                       </>
                     );
                   })()}
 
                   {Number(variant?.compareAtPrice?.amount || 0) > 0 && (
-                    <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4">
+                    <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] md:mt-4 mt-2">
                       was:{" "}
-                      {formatPrice(variant?.compareAtPrice?.amount as string)}
+                      {formatNumberNoCurrency(
+                        variant?.compareAtPrice?.amount as string
+                      )}
                     </Text>
                   )}
 
                   <Text className="text-accent text-[20px] font-semibold">
-                    {formatPrice(variant?.price?.amount as string)}
+                    {formatRs(variant?.price?.amount as string)}
                   </Text>
 
                   {/* <div className="mt-4 flex w-fit items-center gap-[20px] rounded-[62px] bg-[#F0F0F0] px-[12px]"> */}
