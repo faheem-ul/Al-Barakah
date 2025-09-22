@@ -65,14 +65,26 @@ const ImageGallery = (props: PropTypes) => {
 
   return (
     <div className="w-full md:w-fit">
-      <div className="relative w-full overflow-hidden rounded-[16px] h-[332px] md:h-[550px] md:w-[520px]">
+      <div className="relative w-full overflow-hidden rounded-[16px] md:h-[550px] md:w-[520px]">
         {/* Current Image */}
         <Image
           src={product?.images[currentImageIndex]?.url}
           alt={product?.images[currentImageIndex]?.altText}
           fill
-          className="object-cover"
+          className="object-cover md:block hidden"
           priority
+          // width={520}
+          // height={520}
+        />
+
+        <Image
+          src={product?.images[currentImageIndex]?.url}
+          alt={product?.images[currentImageIndex]?.altText}
+          // fill
+          className="object-cover block md:hidden"
+          // priority
+          width={520}
+          height={520}
         />
 
         {/* Sale Badge - positioned at bottom center */}
