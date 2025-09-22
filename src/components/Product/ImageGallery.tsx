@@ -65,7 +65,7 @@ const ImageGallery = (props: PropTypes) => {
 
   return (
     <div className="w-full md:w-fit">
-      <div className="relative w-full overflow-hidden rounded-[16px] h-[550px] md:w-[520px]">
+      <div className="relative w-full overflow-hidden rounded-[16px] h-[332px] md:h-[550px] md:w-[520px]">
         {/* Current Image */}
         <Image
           src={product?.images[currentImageIndex]?.url}

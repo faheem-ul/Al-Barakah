@@ -260,7 +260,14 @@ export const CloseIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-export const RatingStarIcon = (props: SVGProps<SVGSVGElement>) => (
+interface RatingStarIconProps extends SVGProps<SVGSVGElement> {
+  color?: string;
+}
+
+export const RatingStarIcon = ({
+  color = "#F6C854",
+  ...props
+}: RatingStarIconProps) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width={19}
@@ -269,7 +276,7 @@ export const RatingStarIcon = (props: SVGProps<SVGSVGElement>) => (
     {...props}
   >
     <path
-      fill="#F6C854"
+      fill={color}
       d="m9.702.786 2.108 6.216h6.82l-5.518 3.842 2.108 6.217-5.518-3.842-5.518 3.842 2.108-6.217L.774 7.002h6.82L9.702.786Z"
     />
   </svg>

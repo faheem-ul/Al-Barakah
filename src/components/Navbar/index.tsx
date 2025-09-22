@@ -2,6 +2,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 import { BurgerMenuIcon, CartIcon } from "@/ui/Icons";
 import useDisclosure from "@/hooks/useDisclosure";
@@ -21,8 +22,23 @@ const Navbar = () => {
   const { cartItemCount, onCartOpen, onCartClose, isCartOpen } =
     useShoppingCart();
 
+  const pathname = usePathname();
+
+  const isProductRoute =
+    pathname !== "/" &&
+    pathname !== "/about-us" &&
+    pathname !== "/contact-us" &&
+    pathname !== "/cart" &&
+    pathname !== "/privacy-policy" &&
+    pathname !== "/terms-and-conditions";
+
   return (
-    <nav className="relative z-10 mx-auto max-w-[1117px] py-[22px] sm:pt-10 sm:pb-[53px] px-4">
+    <nav
+      className={cn(
+        "relative z-10 mx-auto max-w-[1117px] py-[22px] sm:pt-10 sm:pb-[53px] px-4",
+        isProductRoute && "sm:pt-3 pt-3"
+      )}
+    >
       <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5 md:py-0 py-5 sm:h-[78px] sm:px-8">
         <Link href="/">
           <Image src={logo} alt="logo" className="w-[105px]" />

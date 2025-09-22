@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 // import parse from "html-react-parser";
 
 import { Product } from "@/lib/shopify/types";
@@ -9,6 +9,7 @@ import Text from "@/ui/Text";
 import ReviewsSummary from "@/components/Product/ProductReviews/ReviewsSummary";
 // import { calculatePercentageOff } from "@/lib/utils";
 import { useProductData } from "@/hooks/useProductData";
+import { getReviews } from "@/lib/reviews";
 
 // import ProductAccordion from "./Accordion";
 import ProductVariantSelector from "./ProductVariantSelector";
@@ -25,6 +26,23 @@ const ProductDescription = (props: PropTypes) => {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
   );
+  const [reviewCount, setReviewCount] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await getReviews(product.id);
+        if (mounted) setReviewCount(rows.length || 0);
+      } catch {
+        if (mounted) setReviewCount(0);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [product.id]);
+
   const selectedVariant = useMemo(() => {
     if (!selectedVariantId) return null;
     return product.variants.find((v) => v.id === selectedVariantId) || null;
@@ -43,9 +61,9 @@ const ProductDescription = (props: PropTypes) => {
   return (
     <div>
       {/* 100% Purity Guaranteed and Rating on same line */}
-      <div className="flex items-center justify-between mb-1 md:mt-16">
+      <div className="flex items-start md:items-center justify-between mb-1 md:mt-16">
         <Text className="text-sm text-black">100% Purity Guaranteed</Text>
-        <div className="flex items-center gap-2 md:flex-row felx-col">
+        <div className="flex items-center gap-2 md:flex-row flex-col-reverse">
           <div className="flex text-[14px] items-center gap-1">
             {Array(5)
               .fill(0)
@@ -54,6 +72,7 @@ const ProductDescription = (props: PropTypes) => {
                   key={index}
                   width={20}
                   height={20}
+                  color={reviewCount === 0 ? "#D1D5DB" : "#F6C854"}
                   className="flex flex-shrink"
                 />
               ))}
@@ -113,13 +132,12 @@ const ProductDescription = (props: PropTypes) => {
       </div> */}
       {/* Weight */}
       {/* <ProductVariantSelector product={product} /> */}
-      <div className="md:w-[527px] w-full bg-[#000] gap-2 h-[50px] flex justify-start items-center rounded-[8px] pl-[17px] mt-[42px]">
-        {/* <WarningIcon /> */}
+      {/* <div className="md:w-[527px] w-full bg-[#000] gap-2 h-[50px] flex justify-start items-center rounded-[8px] pl-[17px] mt-[42px]">
         <span className="text-[25px] font-semibold text-white">!</span>
         <Text className="text-white text-[12px] md:text-[14px]">
           Note: Free Home Delivery is applied to only Orders above 3000 PKR
         </Text>
-      </div>
+      </div> */}
     </div>
   );
 };

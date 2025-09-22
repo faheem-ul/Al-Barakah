@@ -129,8 +129,8 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between  pt-10">
-        <div className="flex w-fit items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[22px] py-[17px]">
+      <div className="mt-4 flex items-center justify-between md:flex-row flex-col pt-10 gap-4">
+        <div className="flex w-full md:w-fit items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[22px] py-[17px] justify-center">
           <MinusIcon className="cursor-pointer" onClick={onDecrease} />
           <span>{itemQuantity}</span>
           <PlusIcon className="cursor-pointer" onClick={onIncrease} />
@@ -138,7 +138,7 @@ const ProductVariantSelector = (props: PropTypes) => {
 
         <Button
           onClick={onAddToCart}
-          className="text-[16px] font-semibold capitalize bg-black"
+          className="text-[16px] font-semibold capitalize bg-black md:w-fit w-full flex justify-center items-center"
         >
           <BagIcon /> Add to cart
         </Button>

@@ -167,8 +167,8 @@ const Cart = (props: PropTypes) => {
   // const { formatPrice } = useProductData(product);
 
   return (
-    <div className="flex h-full w-full flex-col">
-      <div className="flex flex-1 flex-col gap-3 rounded-[24px] py-3">
+    <div className="flex w-full flex-col">
+      <div className="flex flex-col gap-3 rounded-[24px] py-3">
         {cartItems?.map((cartItem: DefaultCartItem) => {
           // const isLastItem = index === cartItems?.length - 1;
 

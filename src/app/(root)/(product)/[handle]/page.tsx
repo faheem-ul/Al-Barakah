@@ -51,12 +51,14 @@ const MealDetailPage = async ({ params }: Props) => {
   }
 
   return (
-    <div className="min-h-[80vh] ">
-      <ProductDetails product={product.data as Product} />
+    <div className="">
+      <div className="min-h-[80vh] ">
+        <ProductDetails product={product.data as Product} />
 
-      {/* Product description and reviews tabs */}
-      <ProductTabs product={product.data as Product} />
-      <ProductReviews productId={product.data?.id} />
+        {/* Product description and reviews tabs */}
+        <ProductTabs product={product.data as Product} />
+        <ProductReviews productId={product.data?.id} />
+      </div>
     </div>
   );
 };
