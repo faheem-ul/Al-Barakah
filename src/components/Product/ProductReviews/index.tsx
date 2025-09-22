@@ -35,15 +35,18 @@ const ProductReviews: React.FC<Props> = ({ productId }) => {
   if (loading) return null;
 
   return (
-    <div
-      className="relative w-full bg-white/90 bg-blend-overlay"
-      style={{
-        backgroundImage: `url(${reviewBg.src})`,
-        backgroundSize: "contain",
-        backgroundPosition: "center",
-        backgroundRepeat: "repeat",
-      }}
-    >
+    <div className="relative w-full bg-white/90">
+      {/* Background Image Layer */}
+      <div
+        className="absolute inset-0 opacity-15"
+        style={{
+          backgroundImage: `url(${reviewBg.src})`,
+          backgroundSize: "contain",
+          backgroundPosition: "center",
+          backgroundRepeat: "repeat",
+        }}
+      />
+      {/* Content Layer */}
       <div className="relative z-10 w-full max-w-[1118px] mx-auto px-4">
         {items.map((r: Review, index) => (
           <>
