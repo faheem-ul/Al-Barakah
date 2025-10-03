@@ -25,6 +25,9 @@ const tintaArabic = localFont({
 export const metadata: Metadata = {
   title: "AlBarakah Shop",
   description: "AlBarakah Shop market place",
+  other: {
+    "facebook-domain-verification": "lax2o1fgryftao561theo2v2e2zwk4",
+  },
 };
 
 export default function RootLayout({
