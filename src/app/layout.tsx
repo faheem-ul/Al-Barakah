@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   description: "AlBarakah Shop market place",
   other: {
     "facebook-domain-verification": "lax2o1fgryftao561theo2v2e2zwk4",
+    "facebook-domain-verification-second": "1t5hwn4myerzsv17t2ny710umrnuey",
   },
 };
 
