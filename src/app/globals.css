@@ -44,6 +44,30 @@ body {
   display: none; /* Safari and Chrome */
 }
 
+/* Subtle light scrollbar — stable gutter prevents layout shift when scrollbar appears/disappears */
+.scrollbar-light {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #dcdcdc transparent;
+}
+
+.scrollbar-light::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-light::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background-color: #dcdcdc;
+  border-radius: 9999px;
+}
+
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background-color: #cfcfcf;
+}
+
 @keyframes slide {
   0%,
   100% {

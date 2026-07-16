@@ -54,6 +54,9 @@ const productFragment = /* GraphQL */ `
             amount
             currencyCode
           }
+          image {
+            ...image
+          }
         }
       }
     }

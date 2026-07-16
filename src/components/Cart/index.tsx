@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Spinner from "@/ui/Spinner";
 import Text from "@/ui/Text";
 import useGetCartProducts from "@/hooks/useGetCartProducts";
+import useMediaQuery from "@/hooks/useMedia";
 import { cn } from "@/lib/utils";
 import useShoppingCart from "@/hooks/useShoppingCart";
 import { useCartStore } from "@/stores/useCartStore";
@@ -51,6 +52,7 @@ const Cart = (props: PropTypes) => {
   } = useShoppingCart();
 
   const cartItems = useCartStore((state) => state.cartItems);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const separateTitle = (title: string) => {
     const urduRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s]+/;
@@ -167,9 +169,17 @@ const Cart = (props: PropTypes) => {
   // const { formatPrice } = useProductData(product);
 
   return (
-    <div className="flex w-full flex-col">
-      <div className="flex flex-col gap-3 rounded-[24px] py-3">
-        {cartItems?.map((cartItem: DefaultCartItem) => {
+    <div
+      className={cn(
+        "flex w-full flex-col",
+        !isMobile && "flex-1 min-h-0"
+      )}
+    >
+      <div
+        className={cn(!isMobile && "scrollbar-light flex-1 min-h-0 overflow-y-auto")}
+      >
+        <div className="flex flex-col gap-3 rounded-[24px] py-3">
+          {cartItems?.map((cartItem: DefaultCartItem) => {
           // const isLastItem = index === cartItems?.length - 1;
 
           // console.log("cartItem", cartItem);
@@ -197,6 +207,10 @@ const Cart = (props: PropTypes) => {
             return null;
           }
 
+          const imageUrl = variant?.image?.url || product.images[0]?.url;
+          const imageAlt =
+            variant?.image?.altText || product.images[0]?.altText;
+
           return (
             <div
               key={cartItem?.variantId}
@@ -208,8 +222,8 @@ const Cart = (props: PropTypes) => {
               <div className="flex gap-4 md:flex-row">
                 <div className="relative h-[80px] w-[80px] overflow-hidden rounded-[24px] md:h-[140px] md:w-[140px]">
                   <Image
-                    src={product?.images[0]?.url}
-                    alt={product?.images[0]?.altText}
+                    src={imageUrl}
+                    alt={imageAlt}
                     fill
                     className="object-cover"
                     sizes="50%"
@@ -282,19 +296,24 @@ const Cart = (props: PropTypes) => {
                 </div>
               </div>
 
-              <div className="absolute right-0 top-[80px] md:block">
+              <div className="absolute right-[10px] top-[80px] md:block">
                 <TrashIcon
-                  className="cursor-pointers"
+                  className="cursor-pointer"
                   onClick={() => removeFromCart(variant?.id as string)}
                 />
               </div>
             </div>
           );
-        })}
+          })}
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-[60px] md:mt-0">
+      <div
+        className={cn(
+          isMobile ? "mt-[60px]" : "mt-4",
+          !isMobile && "flex-shrink-0"
+        )}
+      >
         {/* Subtotal */}
         <div className="flex items-center justify-between border-b pb-3">
           <Text className="text-[16px] font-semibold text-[#161616] md:text-[20px]">
@@ -305,11 +324,8 @@ const Cart = (props: PropTypes) => {
             {formatPrice(totalPice)}
           </Text>
         </div>
-        {/* Subtotal */}
-      </div>
 
-      {/* Actions */}
-      <div className="flex flex-col-reverse items-center gap-5 pt-8 pb-8 md:flex-row md:pb-0">
+        <div className="flex flex-col-reverse items-center gap-5 pt-8 pb-8 md:flex-row md:pb-0">
         <Button
           className="flex items-center justify-center text-black border w-full px-6 h-[60px] text-[14px] font-medium uppercase md:w-[352px] bg-transparent"
           onClick={() => {
@@ -332,6 +348,7 @@ const Cart = (props: PropTypes) => {
             </Button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
