@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 
 // import "react-inner-image-zoom/lib/styles.min.css";
@@ -11,15 +11,47 @@ import ThumbsCarousel from "./ThumbsCarousel";
 
 interface PropTypes {
   product: Product;
+  selectedVariantId?: string | null;
 }
 
 const ImageGallery = (props: PropTypes) => {
-  const { product } = props;
+  const { product, selectedVariantId } = props;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fallbackVariantImage, setFallbackVariantImage] = useState<{
+    url: string;
+    altText: string;
+  } | null>(null);
 
   const productData = useProductData(product);
 
   const filteredImages = product?.images;
+
+  const selectedVariant = useMemo(() => {
+    if (!selectedVariantId) return null;
+    return product.variants.find((v) => v.id === selectedVariantId) || null;
+  }, [product.variants, selectedVariantId]);
+
+  useEffect(() => {
+    const variantImage = selectedVariant?.image;
+    if (!variantImage?.url) {
+      setFallbackVariantImage(null);
+      return;
+    }
+
+    const matchIndex = product.images.findIndex(
+      (img) => img.url === variantImage.url
+    );
+
+    if (matchIndex >= 0) {
+      setCurrentImageIndex(matchIndex);
+      setFallbackVariantImage(null);
+    } else {
+      setFallbackVariantImage({
+        url: variantImage.url,
+        altText: variantImage.altText || product.title,
+      });
+    }
+  }, [selectedVariant, product.images, product.title]);
 
   // Determine preferred variant (1/2kg) for discount consistency with cards
   const weightOptionName = "weight";
@@ -61,6 +93,11 @@ const ImageGallery = (props: PropTypes) => {
     compareAmount
   );
 
+  const previewImage = fallbackVariantImage || {
+    url: product?.images[currentImageIndex]?.url,
+    altText: product?.images[currentImageIndex]?.altText,
+  };
+
   // Keep a small fade when the active image changes
 
   return (
@@ -68,8 +105,8 @@ const ImageGallery = (props: PropTypes) => {
       <div className="relative w-full overflow-hidden rounded-[16px] md:h-[550px] md:w-[520px]">
         {/* Current Image */}
         <Image
-          src={product?.images[currentImageIndex]?.url}
-          alt={product?.images[currentImageIndex]?.altText}
+          src={previewImage.url}
+          alt={previewImage.altText}
           fill
           className="object-cover md:block hidden"
           priority
@@ -78,8 +115,8 @@ const ImageGallery = (props: PropTypes) => {
         />
 
         <Image
-          src={product?.images[currentImageIndex]?.url}
-          alt={product?.images[currentImageIndex]?.altText}
+          src={previewImage.url}
+          alt={previewImage.altText}
           // fill
           className="object-cover block md:hidden"
           // priority
@@ -109,7 +146,10 @@ const ImageGallery = (props: PropTypes) => {
       <ThumbsCarousel
         images={filteredImages || []}
         activeIndex={currentImageIndex}
-        onActiveIndexChange={setCurrentImageIndex}
+        onActiveIndexChange={(index) => {
+          setFallbackVariantImage(null);
+          setCurrentImageIndex(index);
+        }}
       />
     </div>
   );

@@ -163,6 +163,10 @@ const CartPage = () => {
               return null;
             }
 
+            const imageUrl = variant?.image?.url || product.images[0]?.url;
+            const imageAlt =
+              variant?.image?.altText || product.images[0]?.altText;
+
             return (
               <div
                 key={cartItem?.variantId}
@@ -174,8 +178,8 @@ const CartPage = () => {
                 <div className="flex gap-4 items-center md:items-start">
                   <div className="relative overflow-hidden rounded-[20px] w-[100px] h-[100px] md:h-[172px] md:w-[162px]">
                     <Image
-                      src={product?.images[0]?.url}
-                      alt={product?.images[0]?.altText}
+                      src={imageUrl}
+                      alt={imageAlt}
                       fill
                       className="object-cover"
                       sizes="50%"

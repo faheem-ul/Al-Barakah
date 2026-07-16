@@ -30,7 +30,7 @@ const CartDrawer = (props: PropTypes) => {
       open={isOpen}
       onClose={onClose}
     >
-      <DrawerContent className="no-scrollbar md:rounded-b-0 w-full !max-w-[605px] items-start bg-[#FAFAFA] px-6 md:!max-h-screen md:rounded-l-[20px] md:py-[32px]">
+      <DrawerContent className="flex flex-col overflow-hidden md:rounded-b-0 w-full !max-w-[605px] bg-[#FAFAFA] px-6 md:!max-h-screen md:h-screen md:rounded-l-[20px] md:py-[32px]">
         {/* Screen Reader Only */}
         <DrawerHeader className="sr-only">
           <DrawerTitle>Are you absolutely sure?</DrawerTitle>
@@ -61,12 +61,11 @@ const CartDrawer = (props: PropTypes) => {
         </div>
 
         {isMobile ? (
-          <div className="flex-1 overflow-y-auto w-full min-h-0 scrollbar-hide">
+          <div className="scrollbar-hide flex-1 min-h-0 w-full overflow-y-auto">
             {children}
           </div>
         ) : (
-          <div className="!mb-0 flex h-full w-full items-start justify-center md:mb-10">
-            {" "}
+          <div className="flex flex-1 flex-col min-h-0 w-full overflow-hidden">
             {children}
           </div>
         )}

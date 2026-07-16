@@ -18,14 +18,13 @@ import ProductVariantSelector from "./ProductVariantSelector";
 
 interface PropTypes {
   product: Product;
+  selectedVariantId: string | null;
+  onVariantChange: (variantId: string) => void;
 }
 
 const ProductDescription = (props: PropTypes) => {
-  const { product } = props;
+  const { product, selectedVariantId, onVariantChange } = props;
   const productData = useProductData(product);
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    null
-  );
   const [reviewCount, setReviewCount] = useState<number>(0);
 
   useEffect(() => {
@@ -118,7 +117,7 @@ const ProductDescription = (props: PropTypes) => {
 
       <ProductVariantSelector
         product={product}
-        onVariantChange={setSelectedVariantId}
+        onVariantChange={onVariantChange}
       />
       {/* <div className="mb-4">
         <div className="flex items-center gap-3">
