@@ -16,7 +16,7 @@ const Terms = () => {
           <Text className="mb-4 font-poppins font-normal text-[18px] leading-[30px] ">
             These terms and conditions outline the rules and regulations for the
             use of Al Barakah {`Honey's`} Website, located at
-            https://al-barakah-two.vercel.app/.
+            https://www.albarakahoney.com/.
           </Text>
           <Text className="mb-4 font-poppins font-normal text-[18px] leading-[30px] ">
             By accessing this website we assume you accept these terms and
