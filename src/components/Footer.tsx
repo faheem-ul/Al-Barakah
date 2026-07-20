@@ -263,7 +263,7 @@ const Footer = () => {
 
       <Text className="text-center text-black py-[16px] text-[20px] leading-6 font-bold md:ml-[75px] md:py-[16px]  md:text-[16px]">
         <Link href="/">
-          <span className="font-normal">© 2025</span> Albaraka Honey
+          <span className="font-normal">© 2026</span> Albaraka Honey
         </Link>
       </Text>
 
