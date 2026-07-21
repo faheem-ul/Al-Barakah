@@ -51,7 +51,7 @@ const ProductTabs: React.FC<ProductTabsProps> = ({ product }) => {
         <h3 className="text-[20px] font-semibold text-white">{`Be The First To Review Organic Honey`}</h3>
         <Text className="text-[18px] text-white">{`Your e-mail address will not be published. Required field are marked.`}</Text>
       </div>
-      <ReviewsForm productId={product?.id} />
+      <ReviewsForm productId={product?.id} productName={product?.title} />
       {/* <ReviewsList productId={product?.id} /> */}
     </div>
   );

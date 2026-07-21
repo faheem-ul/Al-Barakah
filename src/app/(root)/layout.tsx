@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import TopBar from "@/components/TopBar";
 
 export const metadata: Metadata = {
   title: "Albaraka Honey",
@@ -14,8 +16,8 @@ export default function RootLayout({
 }>) {
   return (
     <>
-      {" "}
-      {/* <Navbar /> */}
+      <TopBar />
+      <Navbar />
       {children}
       <Footer />
     </>

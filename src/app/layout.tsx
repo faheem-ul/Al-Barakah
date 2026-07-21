@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import localFont from "next/font/local";
 
-import Navbar from "@/components/Navbar";
-import TopBar from "@/components/TopBar";
 import { Toaster } from "@/ui/sonner";
 import Providers from "@/providers";
 
@@ -41,12 +39,8 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} ${tintaArabic.variable} font-sans antialiased`}
       >
-        <TopBar />
         <Providers>
-          <Navbar />
           {children}
-          {/* <Footer /> */}
-
           <Toaster position="top-right" />
         </Providers>
       </body>

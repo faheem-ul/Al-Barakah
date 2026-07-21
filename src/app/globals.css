@@ -81,3 +81,29 @@ body {
 .animate-slide {
   animation: slide 4s ease-in-out infinite;
 }
+
+@keyframes sheet-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes sheet-out-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.sheet-slide-left[data-state="open"] {
+  animation: sheet-in-left 0.3s ease-out;
+}
+
+.sheet-slide-left[data-state="closed"] {
+  animation: sheet-out-left 0.3s ease-out;
+}
