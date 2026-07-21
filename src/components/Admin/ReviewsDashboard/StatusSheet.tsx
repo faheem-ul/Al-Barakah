@@ -32,7 +32,7 @@ const StatusSheet: React.FC<StatusSheetProps> = ({
   <Sheet open={open} onOpenChange={onOpenChange}>
     <SheetContent
       side="bottom"
-      className="rounded-t-2xl border-0 p-0 gap-0 bg-transparent shadow-none [&>button]:hidden"
+      className="sheet-slide-bottom rounded-t-2xl border-0 p-0 gap-0 bg-transparent shadow-none [&>button]:hidden"
     >
       <div className="flex flex-col items-center">
         <SheetClose asChild>

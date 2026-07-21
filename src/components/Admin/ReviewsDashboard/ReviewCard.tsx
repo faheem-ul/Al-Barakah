@@ -88,7 +88,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({
             type="button"
             disabled={busy}
             onClick={onApprove}
-            className="w-full sm:w-auto px-4 py-2.5 text-[13px] font-medium rounded-full bg-[#302A25] text-white hover:opacity-80 disabled:opacity-50 transition-opacity"
+            className="w-full sm:w-auto px-4 py-2.5 text-[13px] font-medium rounded-full bg-[#302A25] text-white hover:opacity-80 disabled:opacity-50 transition-opacity cursor-pointer"
           >
             Approve
           </button>
@@ -98,7 +98,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({
             type="button"
             disabled={busy}
             onClick={onReject}
-            className="w-full sm:w-auto px-4 py-2.5 text-[13px] font-medium rounded-full bg-[#F2EEE6] text-[#302A25] border border-[#302A25]/20 hover:opacity-80 disabled:opacity-50 transition-opacity"
+            className="w-full sm:w-auto px-4 py-2.5 text-[13px] font-medium rounded-full bg-[#F2EEE6] text-[#302A25] border border-[#302A25]/20 hover:opacity-80 disabled:opacity-50 transition-opacity cursor-pointer"
           >
             Reject
           </button>
@@ -107,7 +107,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({
           type="button"
           disabled={busy}
           onClick={onDelete}
-          className="w-full sm:w-auto px-4 py-2.5 text-[13px] font-medium rounded-full border border-[#302A25]/25 text-[#302A25] bg-white hover:bg-[#F2EEE6] disabled:opacity-50 transition-colors"
+          className="w-full sm:w-auto px-4 py-2.5 text-[13px] font-medium rounded-full border border-[#302A25]/25 text-[#302A25] bg-white hover:bg-[#F2EEE6] disabled:opacity-50 transition-colors cursor-pointer"
         >
           Delete
         </button>

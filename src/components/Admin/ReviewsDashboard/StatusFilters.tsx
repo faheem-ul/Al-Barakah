@@ -23,7 +23,7 @@ const StatusFilters: React.FC<StatusFiltersProps> = ({
 
   return (
     <>
-      <div className="md:hidden mb-6">
+      <div className="md:hidden text-center mb-6">
         <button
           type="button"
           aria-label="Filter by status"
@@ -47,7 +47,7 @@ const StatusFilters: React.FC<StatusFiltersProps> = ({
             type="button"
             onClick={() => onFilterChange(tab.id)}
             className={cn(
-              "px-4 py-2 text-[14px] font-medium rounded-md border transition-colors",
+              "px-4 py-2 text-[14px] font-medium rounded-md border transition-colors cursor-pointer",
               filter === tab.id
                 ? "bg-black text-white border-black"
                 : "bg-white text-black border-black/15 hover:border-black/40",

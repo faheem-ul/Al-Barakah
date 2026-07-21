@@ -67,7 +67,7 @@ body {
 .scrollbar-light::-webkit-scrollbar-thumb:hover {
   background-color: #cfcfcf;
 }
-
+/* Slide animation */
 @keyframes slide {
   0%,
   100% {
@@ -106,4 +106,31 @@ body {
 
 .sheet-slide-left[data-state="closed"] {
   animation: sheet-out-left 0.3s ease-out;
+}
+
+/* Sheet slide bottom */
+@keyframes sheet-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-out-bottom {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.sheet-slide-bottom[data-state="open"] {
+  animation: sheet-in-bottom 0.3s ease-out;
+}
+
+.sheet-slide-bottom[data-state="closed"] {
+  animation: sheet-out-bottom 0.3s ease-out;
 }
