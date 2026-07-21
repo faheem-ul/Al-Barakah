@@ -24,7 +24,7 @@ const ProductNav: React.FC<ProductNavProps> = ({
       type="button"
       onClick={() => onSelect("all")}
       className={cn(
-        "w-full text-left px-3 py-2.5 text-[13px] font-medium rounded-md transition-colors",
+        "w-full text-left px-3 py-2.5 text-[13px] font-medium rounded-md transition-colors cursor-pointer",
         productFilter === "all"
           ? "bg-black text-white"
           : "text-black hover:bg-black/5",
@@ -38,7 +38,7 @@ const ProductNav: React.FC<ProductNavProps> = ({
         type="button"
         onClick={() => onSelect(p.id)}
         className={cn(
-          "w-full text-left px-3 py-2.5 text-[13px] font-medium rounded-md transition-colors",
+          "w-full text-left px-3 py-2.5 text-[13px] font-medium rounded-md transition-colors cursor-pointer",
           productFilter === p.id
             ? "bg-black text-white"
             : "text-black hover:bg-black/5",
