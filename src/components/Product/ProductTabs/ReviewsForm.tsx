@@ -6,11 +6,13 @@ import { createReview } from "@/lib/reviews";
 
 type ReviewsFormProps = {
   productId?: string;
+  productName?: string;
   onSubmitted?: () => void;
 };
 
 const ReviewsForm: React.FC<ReviewsFormProps> = ({
   productId,
+  productName,
   onSubmitted,
 }) => {
   const [rating, setRating] = useState(3);
@@ -37,6 +39,7 @@ const ReviewsForm: React.FC<ReviewsFormProps> = ({
         message: formData.message,
         rating,
         productId,
+        productName,
       });
       setSubmitted(true);
       onSubmitted?.();

@@ -1,7 +1,11 @@
-// testing file is this works or noyt
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 import {
   getFirestore,
   collection,
@@ -13,10 +17,10 @@ import {
   where,
   orderBy,
   Timestamp,
-} from "firebase/firestore"; // Import Firestore functions
+  updateDoc,
+  deleteDoc,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -31,9 +35,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore
-export const db = getFirestore(app); // Firestore instance
-export const auth = getAuth(app); // Authentication instance
-export const storage = getStorage(app); // Storage instance
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 // Export Firestore methods that will be used in other components
 export {
@@ -46,4 +50,9 @@ export {
   where,
   orderBy,
   Timestamp,
+  updateDoc,
+  deleteDoc,
 };
+
+// Export Auth methods
+export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
