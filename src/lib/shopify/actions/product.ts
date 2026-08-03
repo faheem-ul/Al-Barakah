@@ -14,6 +14,7 @@ import {
   getCartProductsQuery,
   getProductsByProductTypeQuery,
   getProductsByHandlesQuery,
+  getCollectionProductsQuery,
   getMetaObjectValuesQuery,
   getProductByIdQuery,
 } from "../queries/product";
@@ -64,6 +65,39 @@ export const getProducts = async ({
   }
 };
 
+export const getCollectionProducts = async ({
+  handle,
+  first = 200,
+}: {
+  handle: string;
+  first?: number;
+}): Promise<ApiResponse<Product[]>> => {
+  try {
+    const res = await shopifyFetch<ShopifyProductsByCollectionOperation>({
+      query: getCollectionProductsQuery,
+      cache: "no-cache",
+      variables: {
+        handle,
+        first,
+      },
+    });
+
+    const collection = res.body.data.collection;
+    if (!collection) {
+      return { data: [], success: true, error: null };
+    }
+
+    return {
+      data: reshapeProducts(removeEdgesAndNodes(collection.products)),
+      success: true,
+      error: null,
+    };
+  } catch (err) {
+    console.log("Collection products fetch error", err);
+    return { success: false, data: null, error: err };
+  }
+};
+
 export const getProductsByMetafield = async ({
   query,
   reverse,
@@ -86,10 +120,13 @@ export const getProductsByMetafield = async ({
       },
     });
 
+    const collection = res.body.data.collection;
+    if (!collection) {
+      return { data: [], success: true, error: null };
+    }
+
     return {
-      data: reshapeProducts(
-        removeEdgesAndNodes(res.body.data.collection.products),
-      ),
+      data: reshapeProducts(removeEdgesAndNodes(collection.products)),
       success: true,
       error: null,
     };

@@ -53,7 +53,9 @@ const MobileNav = (props: PropTypes) => {
               <Link
                 href={item.path}
                 key={item.title}
-                className="text-foreground text-[24px] leading-6 font-semibold"
+                className={`text-[24px] leading-6 font-semibold ${
+                  item.blink ? "animate-azadi-blink" : "text-foreground"
+                }`}
                 onClick={onClose}
               >
                 {item.title}

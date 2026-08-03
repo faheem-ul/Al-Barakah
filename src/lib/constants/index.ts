@@ -3,6 +3,7 @@ export const NAV_ITEMS = [
   { title: "About Us", path: "/about-us" },
   { title: "Shop", path: "/" },
   { title: "Contact Us", path: "/contact-us" },
+  { title: "Azadi Sale", path: "/azadi-sale", blink: true },
 ];
 
 export const GOOGLE_PLAY_STORE =

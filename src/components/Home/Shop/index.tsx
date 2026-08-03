@@ -7,36 +7,57 @@ import Text from "@/ui/Text";
 import { Product } from "@/lib/shopify/types";
 import { useProductData } from "@/hooks/useProductData";
 import { toEnglishSlugFromTitle } from "@/lib/utils";
+import ProductTitle from "@/ui/ProductTitle";
 
 import Sizes from "./Sizes";
 
 interface PropTypes {
   products: Product[];
+  title?: string;
+  productNameMaxWidth?: number;
+  /** When true, link with Shopify handle (e.g. /deal1). Default uses title slug like Shop. */
+  useShopifyHandle?: boolean;
+  imageObjectFit?: "cover" | "fill";
 }
 
 const Shop = (props: PropTypes) => {
-  const { products } = props;
+  const {
+    products,
+    title = "Shop",
+    productNameMaxWidth,
+    useShopifyHandle = false,
+    imageObjectFit = "cover",
+  } = props;
 
   return (
     <div>
       <Text as="h1" className="text-center text-[40px]">
-        Shop
+        {title}
       </Text>
 
-      <div className="mt-5 mb-10 grid grid-cols-2 justify-start gap-3 md:flex md:justify-center md:gap-8 px-5 sm:mt-[53px] md:px-0">
-        {products?.map((product) => {
-          return (
-            <Link
-              href={`/${
-                toEnglishSlugFromTitle(product.title) || product.handle
-              }`}
-              key={product.id}
-              className={"w-full md:w-auto"}
-            >
-              <ProductCard key={product.id} product={product} />
-            </Link>
-          );
-        })}
+      <div className="mt-5 mb-10 grid grid-cols-2 justify-items-center gap-3 px-5 sm:mt-[53px] md:flex md:justify-center md:px-0">
+        <div className="contents md:flex md:w-full md:max-w-[calc(353px*3+2*2rem)] md:flex-wrap md:justify-start md:gap-8">
+          {products?.map((product) => {
+            const href = useShopifyHandle
+              ? `/${product.handle}`
+              : `/${toEnglishSlugFromTitle(product.title) || product.handle}`;
+
+            return (
+              <Link
+                href={href}
+                key={product.id}
+                className="w-full max-w-[353px] md:w-[353px]"
+              >
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  productNameMaxWidth={productNameMaxWidth}
+                  imageObjectFit={imageObjectFit}
+                />
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -45,7 +66,15 @@ const Shop = (props: PropTypes) => {
 export default Shop;
 
 // ProductCard Component
-const ProductCard = ({ product }: { product: Product }) => {
+const ProductCard = ({
+  product,
+  productNameMaxWidth,
+  imageObjectFit = "cover",
+}: {
+  product: Product;
+  productNameMaxWidth?: number;
+  imageObjectFit?: "cover" | "fill";
+}) => {
   console.log(product, "ProductCard");
 
   const [isHovered, setIsHovered] = useState(false);
@@ -60,6 +89,8 @@ const ProductCard = ({ product }: { product: Product }) => {
     // discountPercentage,
     urduTitle,
     englishTitle,
+    isInterleavedTitle,
+    titleSegments,
     formatPrice,
   } = useProductData(product);
 
@@ -100,11 +131,14 @@ const ProductCard = ({ product }: { product: Product }) => {
     cardCompareAmount
   );
 
+  const objectFitClass =
+    imageObjectFit === "fill" ? "object-fill" : "object-cover";
+
   return (
-    <div className="md:w-[353px] w-full relative">
-      <div className="w-fit relative bottom-[-4px] left-[17%] z-50 md:hidden block">
+    <div className="w-full relative">
+      <div className="w-fit absolute left-1/2 top-0 z-50 -translate-x-1/2 -translate-y-1/2 md:hidden">
         {cardDiscountPercentage > 0 && (
-          <Text className="md:text-[14px] text-[12px] font-semibold bg-white border border-[#e7e7e7] rounded-[20px] px-3 py-1">
+          <Text className="md:text-[14px] text-[12px] font-semibold bg-white border border-[#e7e7e7] rounded-[20px] px-3 py-1 text-center whitespace-nowrap">
             Discount {cardDiscountPercentage}% Off
           </Text>
         )}
@@ -121,7 +155,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             src={image}
             alt={name}
             fill
-            className={`object-cover transition-opacity duration-700 ease-in-out ${
+            className={`${objectFitClass} transition-opacity duration-700 ease-in-out ${
               isHovered ? "opacity-0" : "opacity-100"
             }`}
           />
@@ -131,15 +165,15 @@ const ProductCard = ({ product }: { product: Product }) => {
             src={hoverImage}
             alt={name}
             fill
-            className={`object-cover transition-opacity duration-700 ease-in-out ${
+            className={`${objectFitClass} transition-opacity duration-700 ease-in-out ${
               isHovered ? "opacity-100" : "opacity-0"
             }`}
           />
         </div>
 
-        <div className="w-fit absolute bottom-7 md:block hidden">
+        <div className="absolute bottom-7 left-1/2 hidden w-fit -translate-x-1/2 md:block">
           {cardDiscountPercentage > 0 && (
-            <Text className="md:text-[14px] text-[12px] font-semibold bg-white rounded-[20px] px-4 py-2">
+            <Text className="md:text-[14px] text-[12px] font-semibold bg-white rounded-[20px] px-4 py-2 text-center whitespace-nowrap">
               Discount {cardDiscountPercentage}% Off
             </Text>
           )}
@@ -162,16 +196,23 @@ const ProductCard = ({ product }: { product: Product }) => {
       </div>
       <div className="mb-2 flex items-start justify-between md:flex-row flex-col">
         <div className="flex flex-col mt-3 md:mt-0">
-          {urduTitle && (
-            <Text className="text-primary-foreground font-arabic text-[14px] md:text-[19px] font-bold mb-1 md:text-left">
-              {urduTitle}
-            </Text>
-          )}
-          {englishTitle && (
-            <Text className="text-black text-[12px] md:text-[16px] capitalize font-semibold md:text-left md:mt-2">
-              {englishTitle}
-            </Text>
-          )}
+          <div
+            style={
+              productNameMaxWidth
+                ? { maxWidth: productNameMaxWidth }
+                : undefined
+            }
+          >
+            <ProductTitle
+              urduTitle={urduTitle}
+              englishTitle={englishTitle}
+              isInterleavedTitle={isInterleavedTitle}
+              titleSegments={titleSegments}
+              urduClassName="text-primary-foreground font-arabic text-[14px] md:text-[19px] font-bold mb-1 md:text-left"
+              englishClassName="text-black text-[12px] md:text-[16px] capitalize font-semibold md:text-left md:mt-2"
+              mixedClassName="text-primary-foreground text-[14px] md:text-[19px] font-bold mb-1 md:text-left"
+            />
+          </div>
 
           {Number(cardCompareAmount) > 0 && (
             <Text className="text-left md:hidden line-through text-black/50 text-[12px] font-poppins font-semibold md:mb-[-3px] md:mt-4">

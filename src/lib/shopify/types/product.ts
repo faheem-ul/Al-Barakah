@@ -73,6 +73,7 @@ export type ShopifyProduct = {
   tags: string[];
   updatedAt: string;
   metafields: MetaField[];
+  collections?: Connection<{ handle: string }>;
 };
 
 export type ProductNutritionFacts = {
@@ -154,13 +155,15 @@ export type ShopifyCartProductsOperation = {
 
 export type ShopifyProductsByCollectionOperation = {
   data: {
-    collection: { products: Connection<ShopifyProduct> };
+    collection: { products: Connection<ShopifyProduct> } | null;
   };
   variables: {
+    handle?: string;
+    first?: number;
     query?: string;
     reverse?: boolean;
     sortKey?: string;
-    category: string;
+    category?: string;
   };
 };
 
@@ -195,9 +198,10 @@ export type ShopifyProductOperation = {
   };
 };
 
-export type Product = Omit<ShopifyProduct, "variants" | "images"> & {
+export type Product = Omit<ShopifyProduct, "variants" | "images" | "collections"> & {
   variants: ProductVariant[];
   images: Image[];
+  collections?: { handle: string }[];
 };
 
 export type ShopifyCollection = {

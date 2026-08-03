@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import AzadiSalePromo from "@/components/AzadiSalePromo";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import TopBar from "@/components/TopBar";
@@ -18,6 +19,7 @@ export default function RootLayout({
     <>
       <TopBar />
       <Navbar />
+      <AzadiSalePromo />
       {children}
       <Footer />
     </>
