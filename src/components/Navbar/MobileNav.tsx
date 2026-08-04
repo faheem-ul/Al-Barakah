@@ -16,6 +16,8 @@ import logo from "@/public/logo.svg";
 // import appStore from "@/public/icons/apple-store-outlined.svg";
 // import playStore from "@/public/icons/play-store-outlined.svg";
 
+const AZADI_FLAG_SRC = "/images/azadi-sale/Pakistan-xl.gif";
+
 interface PropTypes {
   isOpen: boolean;
   onClose: () => void;
@@ -54,11 +56,24 @@ const MobileNav = (props: PropTypes) => {
                 href={item.path}
                 key={item.title}
                 className={`text-[24px] leading-6 font-semibold ${
-                  item.blink ? "animate-azadi-blink" : "text-foreground"
+                  item.blink ? "" : "text-foreground"
                 }`}
                 onClick={onClose}
               >
-                {item.title}
+                {item.blink ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Image
+                      src={AZADI_FLAG_SRC}
+                      alt="Pakistan Flag"
+                      width={26}
+                      height={18}
+                      className="animate-flag-wave h-[18px] w-[26px] shrink-0 object-contain"
+                    />
+                    <span className="animate-azadi-blink">{item.title}</span>
+                  </span>
+                ) : (
+                  item.title
+                )}
               </Link>
             ))}
           </div>
