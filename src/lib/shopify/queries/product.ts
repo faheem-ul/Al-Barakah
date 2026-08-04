@@ -56,6 +56,21 @@ export const getProductsByHandlesQuery = gql`
   ${productFragment}
 `;
 
+export const getCollectionProductsQuery = gql`
+  query getCollectionProducts($handle: String!, $first: Int) {
+    collection(handle: $handle) {
+      products(first: $first) {
+        edges {
+          node {
+            ...product
+          }
+        }
+      }
+    }
+  }
+  ${productFragment}
+`;
+
 export const getCartProductsQuery = gql`
   query cartProducts($productIds: [ID!]!) {
     nodes(ids: $productIds) {

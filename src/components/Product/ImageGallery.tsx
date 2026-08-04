@@ -98,6 +98,11 @@ const ImageGallery = (props: PropTypes) => {
     altText: product?.images[currentImageIndex]?.altText,
   };
 
+  const isAzadiSaleProduct = product.collections?.some(
+    (collection) => collection.handle === "azadi-sale"
+  );
+  const objectFitClass = isAzadiSaleProduct ? "object-fill" : "object-cover";
+
   // Keep a small fade when the active image changes
 
   return (
@@ -108,7 +113,7 @@ const ImageGallery = (props: PropTypes) => {
           src={previewImage.url}
           alt={previewImage.altText}
           fill
-          className="object-cover md:block hidden"
+          className={`${objectFitClass} md:block hidden`}
           priority
           // width={520}
           // height={520}
@@ -118,7 +123,7 @@ const ImageGallery = (props: PropTypes) => {
           src={previewImage.url}
           alt={previewImage.altText}
           // fill
-          className="object-cover block md:hidden"
+          className={`${objectFitClass} block md:hidden`}
           // priority
           width={520}
           height={520}
@@ -127,8 +132,8 @@ const ImageGallery = (props: PropTypes) => {
         {/* Sale Badge - positioned at bottom center */}
         {displayDiscountPercentage > 0 && (
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold">
-              Dsicount {displayDiscountPercentage}% Off
+            <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold text-center whitespace-nowrap">
+              Discount {displayDiscountPercentage}% Off
             </div>
           </div>
         )}

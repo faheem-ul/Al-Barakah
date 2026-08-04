@@ -17,6 +17,8 @@ import logo from "@/public/logo.png";
 
 import MobileNav from "./MobileNav";
 
+const AZADI_FLAG_SRC = "/images/azadi-sale/Pakistan-xl.gif";
+
 const Navbar = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { cartItemCount, onCartOpen, onCartClose, isCartOpen } =
@@ -29,6 +31,7 @@ const Navbar = () => {
     pathname !== "/about-us" &&
     pathname !== "/contact-us" &&
     pathname !== "/cart" &&
+    pathname !== "/azadi-sale" &&
     pathname !== "/privacy-policy" &&
     pathname !== "/terms-and-conditions";
 
@@ -50,11 +53,25 @@ const Navbar = () => {
               href={item.path}
               key={item.title}
               className={cn(
-                "text-foreground text-[16px] leading-6 font-semibold hidden sm:block",
+                "text-[16px] leading-6 font-semibold hidden sm:block",
+                !item.blink && "text-foreground",
                 item.title === "Merch" && "font-bold"
               )}
             >
-              {item.title}
+              {item.blink ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Image
+                    src={AZADI_FLAG_SRC}
+                    alt="Pakistan Flag"
+                    width={20}
+                    height={14}
+                    className="animate-flag-wave h-[14px] w-5 shrink-0 object-contain"
+                  />
+                  <span className="animate-azadi-blink">{item.title}</span>
+                </span>
+              ) : (
+                item.title
+              )}
             </Link>
           ))}
         </div>

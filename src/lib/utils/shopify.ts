@@ -76,12 +76,15 @@ export const reshapeProduct = (
     return undefined;
   }
 
-  const { images, variants, ...rest } = product;
+  const { images, variants, collections, ...rest } = product;
 
   return {
     ...rest,
     images: reshapeImages(images, product.title),
     variants: removeEdgesAndNodes(variants),
+    collections: collections
+      ? removeEdgesAndNodes(collections)
+      : undefined,
   };
 };
 

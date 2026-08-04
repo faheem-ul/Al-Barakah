@@ -10,6 +10,7 @@ import ReviewsSummary from "@/components/Product/ProductReviews/ReviewsSummary";
 // import { calculatePercentageOff } from "@/lib/utils";
 import { useProductData } from "@/hooks/useProductData";
 import { getReviews } from "@/lib/reviews";
+import ProductTitle from "@/ui/ProductTitle";
 
 // import ProductAccordion from "./Accordion";
 import ProductVariantSelector from "./ProductVariantSelector";
@@ -79,18 +80,16 @@ const ProductDescription = (props: PropTypes) => {
           <ReviewsSummary productId={product.id} />
         </div>
       </div>
-      {/* Urdu Title */}
-      {productData.urduTitle && (
-        <Text className="mb-2 text-[28px] md:text-[35px] font-bold text-black font-arabic md:mt-0 mt-7">
-          {productData.urduTitle}
-        </Text>
-      )}
-      {/* English Title */}
-      {productData.englishTitle && (
-        <Text className="mb-2 text-[16px] md:text-[20px] font-semibold text-black">
-          {productData.englishTitle}
-        </Text>
-      )}
+      {/* Product title — Urdu uses font-arabic; interleaved titles keep one mixed line */}
+      <ProductTitle
+        urduTitle={productData.urduTitle}
+        englishTitle={productData.englishTitle}
+        isInterleavedTitle={productData.isInterleavedTitle}
+        titleSegments={productData.titleSegments}
+        urduClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black font-arabic md:mt-0 mt-7"
+        englishClassName="mb-2 text-[16px] md:text-[20px] font-semibold text-black"
+        mixedClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black md:mt-0 mt-7"
+      />
       {/* Price */}
       <div className="mb-4 pt-4">
         <div className="flex items-end gap-3 mb-2">

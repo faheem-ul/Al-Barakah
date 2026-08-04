@@ -75,6 +75,13 @@ const productFragment = /* GraphQL */ `
     }
     tags
     updatedAt
+    collections(first: 20) {
+      edges {
+        node {
+          handle
+        }
+      }
+    }
 
     metafields(
       identifiers: [

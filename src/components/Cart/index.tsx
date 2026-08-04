@@ -16,6 +16,12 @@ import { MinusIcon, PlusIcon } from "@/ui/Icons";
 // import { Product } from "@/lib/shopify/types";
 import EmptyCart from "@/components/Cart/EmptyCart";
 import { formatPrice } from "@/lib/utils/shopify";
+import {
+  separateTitle,
+  isInterleavedProductTitle,
+  splitTitleSegments,
+} from "@/hooks/useProductData";
+import ProductTitle from "@/ui/ProductTitle";
 
 import { CartItem as DefaultCartItem } from "@/types";
 // import { useProductData } from "@/hooks/useProductData";
@@ -53,17 +59,6 @@ const Cart = (props: PropTypes) => {
 
   const cartItems = useCartStore((state) => state.cartItems);
   const isMobile = useMediaQuery("(max-width: 768px)");
-
-  const separateTitle = (title: string) => {
-    const urduRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s]+/;
-    const match = title.match(urduRegex);
-    if (match) {
-      const urduPart = match[0].trim();
-      const englishPart = title.replace(urduPart, "").trim();
-      return { urdu: urduPart, english: englishPart };
-    }
-    return { urdu: "", english: title };
-  };
 
   // Helpers for price display
   const formatRs = (amount?: string | number) => {
@@ -233,25 +228,25 @@ const Cart = (props: PropTypes) => {
                 <div>
                   {(() => {
                     const { urdu, english } = separateTitle(product.title);
+                    const interleaved = isInterleavedProductTitle(
+                      product.title
+                    );
                     return (
                       <>
-                        {urdu && (
-                          <Text className="md:mb-2 mb-1 text-[20px] md:text-[30px] font-bold text-black font-arabic">
-                            {urdu}
+                        <ProductTitle
+                          urduTitle={urdu}
+                          englishTitle={english}
+                          isInterleavedTitle={interleaved}
+                          titleSegments={splitTitleSegments(product.title)}
+                          urduClassName="md:mb-2 mb-1 text-[20px] md:text-[30px] font-bold text-black font-arabic"
+                          englishClassName="md:mb-2 text-[16px] font-semibold text-black capitalize"
+                          mixedClassName="md:mb-2 mb-1 text-[20px] md:text-[30px] font-bold text-black"
+                        />
+                        {weight && (
+                          <Text className="text-[12px] text-black/60">
+                            ({weight})
                           </Text>
                         )}
-                        <div className="md:block flex gap-[12px] items-center">
-                          {english && (
-                            <Text className="md:mb-2 text-[16px] font-semibold text-black capitalize">
-                              {english}
-                            </Text>
-                          )}
-                          {weight && (
-                            <Text className="text-[12px] text-black/60">
-                              ({weight})
-                            </Text>
-                          )}
-                        </div>
                       </>
                     );
                   })()}
