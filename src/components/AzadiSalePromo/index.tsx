@@ -7,25 +7,21 @@ import { Volume2, VolumeX } from "lucide-react";
 
 import { SlimCrossIcon } from "@/components/ui/Icons";
 
-const STORAGE_KEY = "azadi-sale-popup-dismissed";
 const MUTE_STORAGE_KEY = "azadi-sale-music-muted";
 const AUDIO_VOLUME = 0.75;
 
 const AzadiSalePromo = () => {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // check if popup should be shown
+  // restore mute preference
   useEffect(() => {
     try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setIsOpen(true);
-      }
       setIsMuted(localStorage.getItem(MUTE_STORAGE_KEY) === "1");
     } catch {
-      setIsOpen(true);
+      // ignore
     }
   }, []);
 
@@ -75,11 +71,6 @@ const AzadiSalePromo = () => {
   }, [isMuted]);
 
   const handleClose = () => {
-    try {
-      localStorage.setItem(STORAGE_KEY, "1");
-    } catch {
-      // ignore storage errors
-    }
     setIsOpen(false);
   };
 
