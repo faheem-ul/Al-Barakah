@@ -19,26 +19,27 @@ import ReviewCard, { Stars } from "./ReviewCard";
 import "swiper/css";
 import "swiper/css/a11y";
 
-// Google reviews props type
-type GoogleReviewsProps = {
+type GoogleReviewsClientProps = {
   snapshot: GoogleReviewsSnapshot | null;
 };
 
-// Google reviews section component
-const GoogleReviews = ({ snapshot }: GoogleReviewsProps) => {
+const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
   const [swiper, setSwiper] = useState<SwiperType | null>(null);
   const data = snapshot?.reviews.length ? snapshot : FALLBACK_SNAPSHOT;
 
   return (
-    // Google reviews section
     <section
       className="px-4 pt-6 pb-14 sm:px-5 md:pt-10 md:pb-20"
       aria-labelledby="google-reviews-heading"
     >
+      <h2
+        id="google-reviews-heading"
+        className="mb-6 text-center text-[28px] font-bold text-[#302A25] md:mb-8 md:text-[40px]"
+      >
+        {data.rating.toFixed(1)}★ Rated — See What They&apos;re Saying
+      </h2>
 
-      {/* Google reviews header */}
       <div className="rounded-[8px] bg-[#F5F5F5] px-5 py-5 md:flex md:items-center md:justify-between md:px-6">
-        {/* Google reviews rating and review count */}
         <div>
           <div className="flex items-center gap-1.5">
             <GoogleWordmarkIcon
@@ -75,7 +76,6 @@ const GoogleReviews = ({ snapshot }: GoogleReviewsProps) => {
         </a>
       </div>
 
-      {/* Google reviews swiper */}
       <div className="relative mt-4">
         <Swiper
           modules={[A11y]}
@@ -92,7 +92,6 @@ const GoogleReviews = ({ snapshot }: GoogleReviewsProps) => {
           }}
           className="w-full"
         >
-          {/* Google reviews slides */}
           {data.reviews.map((review) => (
             <SwiperSlide key={review.id} className="h-auto">
               <ReviewCard review={review} />
@@ -100,7 +99,6 @@ const GoogleReviews = ({ snapshot }: GoogleReviewsProps) => {
           ))}
         </Swiper>
 
-        {/* Previous reviews button */}
         <button
           type="button"
           onClick={() => swiper?.slidePrev()}
@@ -111,7 +109,6 @@ const GoogleReviews = ({ snapshot }: GoogleReviewsProps) => {
           <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
 
-        {/* Next reviews button */}
         <button
           type="button"
           onClick={() => swiper?.slideNext()}
@@ -126,4 +123,4 @@ const GoogleReviews = ({ snapshot }: GoogleReviewsProps) => {
   );
 };
 
-export default GoogleReviews;
+export default GoogleReviewsClient;

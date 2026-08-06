@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -282,8 +283,8 @@ const readGoogleReviewsSnapshot = unstable_cache(
   }
 );
 
-// Get the Google reviews snapshot from the cache
-export const getGoogleReviewsSnapshot =
+// Get the Google reviews snapshot from the cache (deduped per request)
+export const getGoogleReviewsSnapshot = cache(
   async (): Promise<GoogleReviewsSnapshot | null> => {
     const hasFirebaseAdminConfig = [
       "FIREBASE_PROJECT_ID",
@@ -322,4 +323,5 @@ export const getGoogleReviewsSnapshot =
       );
       return null;
     }
-  };
+  }
+);
