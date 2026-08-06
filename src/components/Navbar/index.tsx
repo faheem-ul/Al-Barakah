@@ -65,6 +65,7 @@ const Navbar = () => {
                     alt="Pakistan Flag"
                     width={20}
                     height={14}
+                    unoptimized
                     className="animate-flag-wave h-[14px] w-5 shrink-0 object-contain"
                   />
                   <span className="animate-azadi-blink">{item.title}</span>

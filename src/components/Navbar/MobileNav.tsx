@@ -67,6 +67,7 @@ const MobileNav = (props: PropTypes) => {
                       alt="Pakistan Flag"
                       width={26}
                       height={18}
+                      unoptimized
                       className="animate-flag-wave h-[18px] w-[26px] shrink-0 object-contain"
                     />
                     <span className="animate-azadi-blink">{item.title}</span>
