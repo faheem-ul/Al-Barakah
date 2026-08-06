@@ -23,9 +23,33 @@ type GoogleReviewsClientProps = {
   snapshot: GoogleReviewsSnapshot | null;
 };
 
+/** Largest slidesPerView breakpoint — Swiper loop needs at least 2x this many slides. */
+const MAX_SLIDES_PER_VIEW = 4;
+const MIN_LOOP_SLIDES = MAX_SLIDES_PER_VIEW * 2;
+
+const buildLoopSlides = (reviews: GoogleReviewsSnapshot["reviews"]) => {
+  if (!reviews.length) return [];
+
+  const slides = [...reviews];
+
+  while (slides.length < MIN_LOOP_SLIDES) {
+    const offset = slides.length;
+    slides.push(
+      ...reviews.map((review, index) => ({
+        ...review,
+        id: `${review.id}-loop-${offset + index}`,
+      }))
+    );
+  }
+
+  return slides;
+};
+
 const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
   const [swiper, setSwiper] = useState<SwiperType | null>(null);
   const data = snapshot?.reviews.length ? snapshot : FALLBACK_SNAPSHOT;
+  const slides = buildLoopSlides(data.reviews);
+  const canLoop = slides.length >= MIN_LOOP_SLIDES;
 
   return (
     <section
@@ -82,8 +106,8 @@ const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
           onSwiper={setSwiper}
           slidesPerView={1.08}
           spaceBetween={12}
-          loop={data.reviews.length > 4}
-          loopAdditionalSlides={1}
+          loop={canLoop}
+          loopAdditionalSlides={canLoop ? 1 : 0}
           watchOverflow
           breakpoints={{
             640: { slidesPerView: 2, spaceBetween: 14 },
@@ -92,7 +116,7 @@ const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
           }}
           className="w-full"
         >
-          {data.reviews.map((review) => (
+          {slides.map((review) => (
             <SwiperSlide key={review.id} className="h-auto">
               <ReviewCard review={review} />
             </SwiperSlide>
