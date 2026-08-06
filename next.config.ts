@@ -10,7 +10,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  /* config options here */
+  // Dev Tunnel / reverse proxies send x-forwarded-host that can differ from Origin
+  experimental: {
+    serverActions: {
+      allowedOrigins: [
+        "localhost:3000",
+        "tjz15zfl-3000.asse.devtunnels.ms",
+        "*.asse.devtunnels.ms",
+      ],
+    },
+  },
 };
 
 export default nextConfig;
