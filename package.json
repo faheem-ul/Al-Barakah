@@ -16,6 +16,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^12.2.1",
+    "firebase-admin": "^14.2.0",
     "html-react-parser": "^5.2.6",
     "immer": "^10.1.1",
     "lodash": "^4.17.21",
