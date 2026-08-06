@@ -99,25 +99,27 @@ const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
           ))}
         </Swiper>
 
-        <button
-          type="button"
-          onClick={() => swiper?.slidePrev()}
-          aria-label="Previous reviews"
-          className="absolute top-1/2 left-1 z-10 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[#302A25] text-white shadow-md transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 md:-left-4"
-          disabled={!swiper}
-        >
-          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-        </button>
+        <div className="mt-4 flex justify-center gap-2 md:mt-0">
+          <button
+            type="button"
+            onClick={() => swiper?.slidePrev()}
+            aria-label="Previous reviews"
+            className="z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#302A25] text-white shadow-md transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 md:absolute md:top-1/2 md:-left-4 md:-translate-y-1/2"
+            disabled={!swiper}
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => swiper?.slideNext()}
-          aria-label="Next reviews"
-          className="absolute top-1/2 right-1 z-10 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[#302A25] text-white shadow-md transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 md:-right-4"
-          disabled={!swiper}
-        >
-          <ChevronRight className="h-5 w-5" aria-hidden="true" />
-        </button>
+          <button
+            type="button"
+            onClick={() => swiper?.slideNext()}
+            aria-label="Next reviews"
+            className="z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#302A25] text-white shadow-md transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 md:absolute md:top-1/2 md:-right-4 md:-translate-y-1/2"
+            disabled={!swiper}
+          >
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </section>
   );
