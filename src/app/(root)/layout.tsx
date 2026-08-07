@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import AzadiSalePromo from "@/components/AzadiSalePromo";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
+import SalesPopup from "@/components/SalesPopup";
 import TopBar from "@/components/TopBar";
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({
       <AzadiSalePromo />
       {children}
       <Footer />
+      <SalesPopup />
     </>
   );
 }
