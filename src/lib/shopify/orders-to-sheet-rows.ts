@@ -5,53 +5,31 @@ import type {
 
 /** Column headers — keep in sync with buildOrderSheetRows */
 export const ORDER_SHEET_HEADERS = [
-  "Order Name",
   "Order Number",
-  "Order ID",
-  "Created At",
-  "Processed At",
-  "Financial Status",
-  "Fulfillment Status",
-  "Currency",
-  "Subtotal",
-  "Shipping Total",
-  "Tax Total",
-  "Discount Total",
-  "Order Total",
-  "Discount Codes",
-  "Payment Gateways",
-  "Customer First Name",
-  "Customer Last Name",
-  "Customer Email",
-  "Customer Phone",
-  "Shipping Name",
-  "Shipping Address1",
-  "Shipping Address2",
-  "Shipping City",
-  "Shipping Province",
-  "Shipping Zip",
-  "Shipping Country",
-  "Shipping Phone",
-  "Shipping Method",
-  "Billing Name",
-  "Billing Address1",
-  "Billing Address2",
-  "Billing City",
-  "Billing Province",
-  "Billing Zip",
-  "Billing Country",
-  "Billing Phone",
-  "Line Item Title",
-  "Variant Title",
-  "SKU",
+  "Email",
+  "Phone",
+  "Name of User",
+  "Address",
+  "Product Name",
   "Quantity",
-  "Line Item Price",
-  "Product ID",
-  "Variant ID",
-  "Vendor",
-  "Note",
-  "Tags",
-  "Order Status URL",
+  "Price",
+  "Financial Status",
+  // M&P tracking — paste Tracking Number; Apps Script fills the rest
+  "Tracking Number",
+  "Tracking URL",
+  "Tracking Status",
+  "Tracking Location",
+  "Tracking Detail",
+  "Tracking Checked At",
+] as const;
+
+export const TRACKING_SHEET_HEADERS = [
+  "Tracking Number",
+  "Tracking URL",
+  "Tracking Status",
+  "Tracking Location",
+  "Tracking Detail",
+  "Tracking Checked At",
 ] as const;
 
 function str(value: string | number | null | undefined): string {
@@ -65,116 +43,88 @@ function addressName(address?: ShopifyWebhookAddress | null): string {
   return [address.first_name, address.last_name].filter(Boolean).join(" ");
 }
 
-function formatDiscountCodes(order: ShopifyWebhookOrder): string {
-  const codes = order.discount_codes ?? [];
-  if (!codes.length) return "";
-  return codes
-    .map((d) => {
-      const parts = [d.code, d.amount, d.type].filter(Boolean);
-      return parts.join(" ");
-    })
-    .join("; ");
-}
-
-function shippingMethod(order: ShopifyWebhookOrder): string {
-  const lines = order.shipping_lines ?? [];
-  if (!lines.length) return "";
-  return lines
-    .map((l) => l.title || l.code || "")
+function customerName(order: ShopifyWebhookOrder): string {
+  const customer = order.customer;
+  const fromCustomer = [customer?.first_name, customer?.last_name]
     .filter(Boolean)
-    .join("; ");
+    .join(" ")
+    .trim();
+  if (fromCustomer) return fromCustomer;
+  return (
+    addressName(order.shipping_address) ||
+    addressName(order.billing_address) ||
+    ""
+  );
 }
 
-function shippingTotal(order: ShopifyWebhookOrder): string {
-  const amount = order.total_shipping_price_set?.shop_money?.amount;
-  if (amount != null) return str(amount);
-  const lines = order.shipping_lines ?? [];
-  if (!lines.length) return "";
-  const sum = lines.reduce((acc, l) => acc + Number(l.price || 0), 0);
-  return Number.isFinite(sum) ? String(sum) : "";
+function formatAddress(address?: ShopifyWebhookAddress | null): string {
+  if (!address) return "";
+  return [
+    address.address1,
+    address.address2,
+    address.city,
+    address.province,
+    address.zip,
+    address.country,
+  ]
+    .map((part) => str(part).trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
-function paymentGateways(order: ShopifyWebhookOrder): string {
-  if (order.payment_gateway_names?.length) {
-    return order.payment_gateway_names.join("; ");
+function formatPrice(order: ShopifyWebhookOrder): string {
+  const amount = str(order.total_price);
+  const currency = str(order.currency ?? order.presentment_currency);
+  if (!amount) return "";
+  return currency ? `${amount} ${currency}` : amount;
+}
+
+function productName(item: {
+  title?: string | null;
+  name?: string | null;
+  variant_title?: string | null;
+}): string {
+  const title = str(item.title ?? item.name);
+  const variant = str(item.variant_title);
+  if (variant && variant.toLowerCase() !== "default title") {
+    return title ? `${title} — ${variant}` : variant;
   }
-  return str(order.gateway);
+  return title;
 }
 
 /**
- * Maps a Shopify order webhook payload to one spreadsheet row per line item.
- * Order / customer / shipping fields are repeated on each product row.
+ * One sheet row per line item (order fields repeated).
  */
 export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
   const lineItems = order.line_items?.length
     ? order.line_items
-    : [
-        {
-          title: "(no line items)",
-          quantity: 0,
-          price: "",
-        },
-      ];
+    : [{ title: "(no line items)", quantity: 0 }];
 
   const customer = order.customer;
   const shipping = order.shipping_address;
   const billing = order.billing_address;
 
-  const shared = [
-    str(order.name),
-    str(order.order_number),
-    str(order.id),
-    str(order.created_at),
-    str(order.processed_at),
-    str(order.financial_status),
-    str(order.fulfillment_status),
-    str(order.currency ?? order.presentment_currency),
-    str(order.subtotal_price),
-    shippingTotal(order),
-    str(order.total_tax),
-    str(order.total_discounts),
-    str(order.total_price),
-    formatDiscountCodes(order),
-    paymentGateways(order),
-    str(customer?.first_name),
-    str(customer?.last_name),
-    str(customer?.email ?? order.email),
-    str(customer?.phone ?? order.phone),
-    addressName(shipping),
-    str(shipping?.address1),
-    str(shipping?.address2),
-    str(shipping?.city),
-    str(shipping?.province),
-    str(shipping?.zip),
-    str(shipping?.country),
-    str(shipping?.phone),
-    shippingMethod(order),
-    addressName(billing),
-    str(billing?.address1),
-    str(billing?.address2),
-    str(billing?.city),
-    str(billing?.province),
-    str(billing?.zip),
-    str(billing?.country),
-    str(billing?.phone),
-  ];
-
-  const note = str(order.note);
-  const tags = str(order.tags);
-  const statusUrl = str(order.order_status_url);
+  const orderNumber = str(order.order_number ?? order.name);
+  const email = str(customer?.email ?? order.email);
+  const phone = str(
+    customer?.phone ?? order.phone ?? shipping?.phone ?? billing?.phone
+  );
+  const name = customerName(order);
+  const address = formatAddress(shipping) || formatAddress(billing);
+  const price = formatPrice(order);
+  const financialStatus = str(order.financial_status);
+  const trackingPlaceholder = ["", "", "", "", "", ""];
 
   return lineItems.map((item) => [
-    ...shared,
-    str(item.title ?? item.name),
-    str(item.variant_title),
-    str(item.sku),
+    orderNumber,
+    email,
+    phone,
+    name,
+    address,
+    productName(item),
     str(item.quantity),
-    str(item.price),
-    str(item.product_id),
-    str(item.variant_id),
-    str(item.vendor),
-    note,
-    tags,
-    statusUrl,
+    price,
+    financialStatus,
+    ...trackingPlaceholder,
   ]);
 }

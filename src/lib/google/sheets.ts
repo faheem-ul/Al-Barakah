@@ -145,32 +145,82 @@ async function ensureHeaderRow(
     range,
   });
 
-  const firstRow = existing.data.values?.[0];
-  if (firstRow?.length) {
-    console.log(
-      `${LOG} Header already present (${firstRow.length} columns) — skip write`
-    );
+  const firstRow = existing.data.values?.[0] ?? [];
+  const headers = ORDER_SHEET_HEADERS as unknown as string[];
+
+  if (!firstRow.length) {
+    console.log(`${LOG} No header found — writing header row`);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: sheetRange(tabName, "A1"),
+      valueInputOption: "RAW",
+      requestBody: { values: [headers] },
+    });
+    console.log(`${LOG} Header row written (${headers.length} columns)`);
     return;
   }
 
-  console.log(`${LOG} No header found — writing header row`);
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: sheetRange(tabName, "A1"),
-    valueInputOption: "RAW",
-    requestBody: {
-      values: [ORDER_SHEET_HEADERS as unknown as string[]],
-    },
-  });
+  const isNewLayout =
+    firstRow[0] === "Order Number" &&
+    firstRow.includes("Name of User") &&
+    firstRow.includes("Product Name") &&
+    firstRow.includes("Financial Status");
+
+  if (!isNewLayout) {
+    console.warn(
+      `${LOG} Old/unknown header layout detected (${firstRow[0]}). Replacing row 1 with slim headers. Move old data rows to an Archive tab if you still need them.`
+    );
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: sheetRange(tabName, "A1"),
+      valueInputOption: "RAW",
+      requestBody: { values: [headers] },
+    });
+    console.log(`${LOG} Header row replaced (${headers.length} columns)`);
+    return;
+  }
+
+  if (!firstRow.includes("Tracking Number")) {
+    const startCol = firstRow.length + 1;
+    const trackingHeaders = [
+      "Tracking Number",
+      "Tracking URL",
+      "Tracking Status",
+      "Tracking Location",
+      "Tracking Detail",
+      "Tracking Checked At",
+    ];
+    const colLetter = columnToLetter(startCol);
+    console.log(
+      `${LOG} Appending tracking headers at column ${colLetter}`
+    );
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: sheetRange(tabName, `${colLetter}1`),
+      valueInputOption: "RAW",
+      requestBody: { values: [trackingHeaders] },
+    });
+    return;
+  }
+
   console.log(
-    `${LOG} Header row written (${ORDER_SHEET_HEADERS.length} columns)`
+    `${LOG} Header already present (${firstRow.length} columns) — skip write`
   );
 }
 
+function columnToLetter(column: number): string {
+  let temp = column;
+  let letter = "";
+  while (temp > 0) {
+    const rem = (temp - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    temp = Math.floor((temp - 1) / 26);
+  }
+  return letter;
+}
+
 /**
- * Find next empty row by scanning column A (Order Name).
- * Avoids sheets.values.append, which can write far to the right (e.g. AU6)
- * when it mis-detects the "table" bounds.
+ * Find next empty row by scanning column A (Order Number).
  */
 async function getNextRowInColumnA(
   sheets: sheets_v4.Sheets,
@@ -188,7 +238,7 @@ async function getNextRowInColumnA(
   for (let i = 0; i < values.length; i++) {
     const cell = values[i]?.[0];
     if (cell !== undefined && String(cell).trim() !== "") {
-      lastFilled = i + 1; // 1-based row index
+      lastFilled = i + 1;
     }
   }
 
@@ -196,27 +246,27 @@ async function getNextRowInColumnA(
   console.log(
     `${LOG} Column A last filled row: ${lastFilled}, next write row: ${nextRow}`
   );
-  return Math.max(nextRow, 2); // never overwrite header row 1
+  return Math.max(nextRow, 2);
 }
 
-/** Column C = Order ID (see ORDER_SHEET_HEADERS). */
-async function orderIdAlreadyExists(
+/** Column A = Order Number (dedupe key for new slim sheet layout). */
+async function orderNumberAlreadyExists(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   tabName: string,
-  orderId: string
+  orderNumber: string
 ): Promise<boolean> {
   const result = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: sheetRange(tabName, "C:C"),
+    range: sheetRange(tabName, "A:A"),
     majorDimension: "ROWS",
   });
 
   const values = result.data.values ?? [];
   const exists = values.some(
-    (row) => String(row?.[0] ?? "").trim() === orderId
+    (row) => String(row?.[0] ?? "").trim() === orderNumber
   );
-  console.log(`${LOG} Order ID ${orderId} already in sheet:`, exists);
+  console.log(`${LOG} Order Number ${orderNumber} already in sheet:`, exists);
   return exists;
 }
 
@@ -232,25 +282,25 @@ export type AppendOrderResult = {
 
 /**
  * Appends order rows starting at column A on the next empty row.
- * Skips if this Shopify order id was already written (idempotent).
+ * Skips if this order number was already written (idempotent).
  */
 export async function appendOrderRows(
   rows: string[][],
-  orderId: string | number
+  orderNumber: string | number
 ): Promise<AppendOrderResult> {
   if (!rows.length) {
     console.log(`${LOG} No rows to append — skipping`);
     return { written: false, skipped: true, reason: "no_rows" };
   }
 
-  const orderIdKey = String(orderId).trim();
-  if (!orderIdKey) {
-    throw new Error("orderId is required for idempotent sheet writes");
+  const orderKey = String(orderNumber).trim();
+  if (!orderKey) {
+    throw new Error("orderNumber is required for idempotent sheet writes");
   }
 
-  if (inFlightOrderIds.has(orderIdKey)) {
+  if (inFlightOrderIds.has(orderKey)) {
     console.log(
-      `${LOG} Order ${orderIdKey} already being written — skipping duplicate`
+      `${LOG} Order ${orderKey} already being written — skipping duplicate`
     );
     return {
       written: false,
@@ -259,7 +309,7 @@ export async function appendOrderRows(
     };
   }
 
-  inFlightOrderIds.add(orderIdKey);
+  inFlightOrderIds.add(orderKey);
   console.log(`${LOG} appendOrderRows called with`, rows.length, "row(s)");
 
   try {
@@ -270,10 +320,10 @@ export async function appendOrderRows(
     await ensureHeaderRow(sheets, spreadsheetId, tabName);
 
     if (
-      await orderIdAlreadyExists(sheets, spreadsheetId, tabName, orderIdKey)
+      await orderNumberAlreadyExists(sheets, spreadsheetId, tabName, orderKey)
     ) {
       console.log(
-        `${LOG} Skipping duplicate — order ${orderIdKey} already in sheet`
+        `${LOG} Skipping duplicate — order ${orderKey} already in sheet`
       );
       return {
         written: false,
@@ -307,6 +357,84 @@ export async function appendOrderRows(
       rows: rows.length,
     };
   } finally {
-    inFlightOrderIds.delete(orderIdKey);
+    inFlightOrderIds.delete(orderKey);
   }
+}
+
+export type UpdateOrderStatusResult = {
+  updated: boolean;
+  rowsUpdated: number;
+  reason?: string;
+};
+
+/**
+ * Updates Financial Status on every sheet row matching the order number.
+ */
+export async function updateOrderStatuses(
+  orderNumber: string | number,
+  financialStatus: string
+): Promise<UpdateOrderStatusResult> {
+  const orderKey = String(orderNumber).trim();
+  if (!orderKey) {
+    return { updated: false, rowsUpdated: 0, reason: "missing_order_number" };
+  }
+
+  const sheets = getSheetsClient();
+  const { spreadsheetId, preferredTab } = getSpreadsheetConfig();
+  const tabName = await resolveTabName(sheets, spreadsheetId, preferredTab);
+
+  await ensureHeaderRow(sheets, spreadsheetId, tabName);
+
+  const headerRes = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: sheetRange(tabName, "A1:AZ1"),
+  });
+  const headers = (headerRes.data.values?.[0] ?? []).map((h) =>
+    String(h || "").trim()
+  );
+  const financialCol = headers.indexOf("Financial Status") + 1;
+
+  if (!financialCol) {
+    console.error(`${LOG} Financial Status column missing in header row`);
+    return { updated: false, rowsUpdated: 0, reason: "missing_status_columns" };
+  }
+
+  const colA = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: sheetRange(tabName, "A:A"),
+    majorDimension: "ROWS",
+  });
+  const values = colA.data.values ?? [];
+  const rowIndexes: number[] = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i]?.[0] ?? "").trim() === orderKey) {
+      rowIndexes.push(i + 1);
+    }
+  }
+
+  if (!rowIndexes.length) {
+    console.log(`${LOG} No rows found for order ${orderKey} to update status`);
+    return { updated: false, rowsUpdated: 0, reason: "not_found" };
+  }
+
+  const financialLetter = columnToLetter(financialCol);
+  const data = rowIndexes.map((row) => ({
+    range: sheetRange(tabName, `${financialLetter}${row}`),
+    values: [[financialStatus]],
+  }));
+
+  console.log(
+    `${LOG} Updating Financial Status for order ${orderKey} on ${rowIndexes.length} row(s):`,
+    financialStatus
+  );
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "USER_ENTERED",
+      data,
+    },
+  });
+
+  return { updated: true, rowsUpdated: rowIndexes.length };
 }
