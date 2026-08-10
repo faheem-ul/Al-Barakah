@@ -15,6 +15,7 @@ import { MinusIcon, PlusIcon } from "@/ui/Icons";
 // import { Product } from "@/lib/shopify/types";
 import EmptyCart from "@/components/Cart/EmptyCart";
 import { formatPrice } from "@/lib/utils/shopify";
+import { startCheckoutWithOptionalLocation } from "@/lib/checkout/start-checkout";
 
 // interface CartProduct extends Product {
 //   quantity: number;
@@ -27,6 +28,7 @@ interface CartItem {
 
 const CartPage = () => {
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState("");
 
   const { data: products, isLoading } = useGetCartProducts();
 
@@ -60,46 +62,21 @@ const CartPage = () => {
     );
   }, [cartItems, products]);
 
-  // Function to generate the checkout URL
-  const generateCheckoutUrl = (
-    lineItems: { variantId: string; quantity: number }[]
-  ) => {
-    const storeUrl = process.env.NEXT_PUBLIC_STORE_URL;
-    const previewKey = process.env.NEXT_PUBLIC_THEME_PREVIEW_KEY;
-    const baseUrl = `${storeUrl}/cart`;
-    // Create a query string with all variantId and quantity pairs
-    const cartQuery = lineItems
-      ?.map((item) => `${item?.variantId}:${item?.quantity}`)
-      .join(",");
-    const url = `${baseUrl}/${cartQuery}`;
-    return previewKey ? `${url}?key=${previewKey}` : url;
-  };
-
   const handleOnCheckout = async () => {
     try {
       setIsCreatingCheckout(true);
-      const lineItems = cartItems?.map((item) => ({
-        //   variantId: item.variantId as string,
-        variantId: item?.variantId?.replace(
-          "gid://shopify/ProductVariant/",
-          ""
-        ), // Strip 'gid://' from variantId,
-        quantity: item?.quantity,
-      }));
-
-      console.log("object", { lineItems });
-
-      // Create the checkout URL
-      const checkoutUrl = generateCheckoutUrl(lineItems);
-      console.log("Checkout URL:", checkoutUrl);
-
-      window.location.href = checkoutUrl;
+      setCheckoutStatus("Waiting for location permission…");
+      const checkoutUrl = await startCheckoutWithOptionalLocation(cartItems);
+      setCheckoutStatus("Opening Shopify checkout…");
+      if (checkoutUrl) {
+        window.location.assign(checkoutUrl);
+        return;
+      }
     } catch (error) {
       console.log("Error creating checkout:", error);
     } finally {
-      setTimeout(() => {
-        setIsCreatingCheckout(false);
-      }, 2000);
+      setCheckoutStatus("");
+      setIsCreatingCheckout(false);
     }
   };
 
@@ -353,7 +330,16 @@ const CartPage = () => {
       </div>
 
       {cartItems.length > 0 && (
-        <div className="flex w-full justify-center py-[24px] md:py-[40px]">
+        <div className="flex w-full flex-col items-center gap-3 py-[24px] md:py-[40px]">
+          <p className="max-w-md text-center text-[12px] leading-relaxed text-[#666]">
+            Stay on this page and allow location when prompted — we autofill
+            city and address before opening Shopify checkout.
+          </p>
+          {checkoutStatus ? (
+            <p className="text-center text-[12px] font-medium text-[#161616]">
+              {checkoutStatus}
+            </p>
+          ) : null}
           <Button
             variant={"secondary"}
             onClick={handleOnCheckout}

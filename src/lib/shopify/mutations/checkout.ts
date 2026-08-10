@@ -15,7 +15,6 @@ export const checkoutCreateMutation = gql`
           }
         }
       }
-
       checkoutUserErrors {
         code
         message
