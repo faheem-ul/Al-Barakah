@@ -11,7 +11,11 @@ import { cn } from "@/lib/utils";
 
 import ProductAccordion from "./Accordion";
 
-const STICKY_OFFSET_PX = 50;
+/** Extra scroll past the in-flow ATC before sticky mode starts. */
+const STICKY_OFFSET_PX = 140;
+const COLLAPSE_MS = 320;
+/** Let default ATC start fading before the fixed bar slides in. */
+const FIXED_REVEAL_DELAY_MS = 160;
 
 interface PropTypes {
   product: Product;
@@ -23,8 +27,13 @@ const ProductVariantSelector = (props: PropTypes) => {
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [selectedSize, setSelectedSize] = useState<string | undefined>();
   const [isStuck, setIsStuck] = useState(false);
+  const [showFixedBar, setShowFixedBar] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const collapseRef = useRef<HTMLDivElement>(null);
   const inFlowRef = useRef<HTMLDivElement>(null);
   const stickyBarRef = useRef<HTMLDivElement>(null);
+  const isStuckRef = useRef(false);
+  const wasStickyRef = useRef(false);
   const { getItemQuantity, addCartQuantity, onCartOpen, isCartOpen } =
     useShoppingCart();
 
@@ -42,37 +51,133 @@ const ProductVariantSelector = (props: PropTypes) => {
     setItemQuantity(quantity);
   }, [quantity]);
 
-  // Show fixed bar after in-flow ATC clears the viewport bottom by 50px.
+  // Slide in the bottom bar after in-flow ATC clears the viewport.
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
-    const inFlow = inFlowRef.current;
-    if (!inFlow) return;
+
+    const setStuck = (next: boolean) => {
+      isStuckRef.current = next;
+      setIsStuck(next);
+    };
 
     const update = () => {
-      if (!mediaQuery.matches || isCartOpen) {
-        setIsStuck(false);
+      const sentinel = sentinelRef.current;
+      const inFlow = inFlowRef.current;
+      if (!sentinel || !inFlow || !mediaQuery.matches || isCartOpen) {
+        setStuck(false);
         return;
       }
 
-      const { top, bottom } = inFlow.getBoundingClientRect();
-      setIsStuck(
-        top < window.innerHeight &&
-          bottom < window.innerHeight - STICKY_OFFSET_PX
-      );
+      if (!isStuckRef.current) {
+        const { top, bottom } = inFlow.getBoundingClientRect();
+        setStuck(
+          top < window.innerHeight &&
+            bottom < window.innerHeight - STICKY_OFFSET_PX
+        );
+      } else {
+        // Anchor stays in place after in-flow collapses — unstick when it
+        // returns near the viewport bottom (avoids re-stick flicker).
+        setStuck(
+          sentinel.getBoundingClientRect().top <
+            window.innerHeight - STICKY_OFFSET_PX
+        );
+      }
+    };
+
+    const onViewportChange = () => {
+      if (!mediaQuery.matches) setStuck(false);
+      update();
     };
 
     update();
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
-    mediaQuery.addEventListener("change", update);
+    mediaQuery.addEventListener("change", onViewportChange);
 
     return () => {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
-      mediaQuery.removeEventListener("change", update);
-      setIsStuck(false);
+      mediaQuery.removeEventListener("change", onViewportChange);
+      setStuck(false);
     };
   }, [isCartOpen]);
+
+  // Explicit height/opacity animation so collapse never snaps.
+  useEffect(() => {
+    const wrap = collapseRef.current;
+    const inner = inFlowRef.current;
+    if (!wrap || !inner) return;
+
+    const desktop = window.matchMedia("(min-width: 768px)").matches;
+    if (desktop) {
+      wrap.style.height = "";
+      wrap.style.opacity = "";
+      wrap.style.marginTop = "";
+      wrap.style.overflow = "";
+      wrap.style.transition = "";
+      wasStickyRef.current = false;
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const duration = reduceMotion ? 0 : COLLAPSE_MS;
+
+    if (isStickyActive && !wasStickyRef.current) {
+      const startHeight = wrap.scrollHeight || inner.scrollHeight;
+      wrap.style.overflow = "hidden";
+      wrap.style.height = `${startHeight}px`;
+      wrap.style.opacity = "1";
+      wrap.style.marginTop = "16px";
+      void wrap.offsetHeight;
+      wrap.style.transition = `height ${duration}ms ease-out, opacity ${duration}ms ease-out, margin-top ${duration}ms ease-out`;
+      wrap.style.height = "0px";
+      wrap.style.opacity = "0";
+      wrap.style.marginTop = "0px";
+      wasStickyRef.current = true;
+      return;
+    }
+
+    if (!isStickyActive && wasStickyRef.current) {
+      const target = inner.scrollHeight;
+      wrap.style.overflow = "hidden";
+      wrap.style.height = "0px";
+      wrap.style.opacity = "0";
+      wrap.style.marginTop = "0px";
+      void wrap.offsetHeight;
+      wrap.style.transition = `height ${duration}ms ease-out, opacity ${duration}ms ease-out, margin-top ${duration}ms ease-out`;
+      wrap.style.height = `${target}px`;
+      wrap.style.opacity = "1";
+      wrap.style.marginTop = "16px";
+      wasStickyRef.current = false;
+
+      const onEnd = (event: TransitionEvent) => {
+        if (event.propertyName !== "height") return;
+        wrap.style.height = "auto";
+        wrap.style.overflow = "";
+        wrap.style.transition = "";
+        wrap.removeEventListener("transitionend", onEnd);
+      };
+      wrap.addEventListener("transitionend", onEnd);
+      return () => wrap.removeEventListener("transitionend", onEnd);
+    }
+  }, [isStickyActive]);
+
+  // Reveal fixed bar after default has started fading.
+  useEffect(() => {
+    if (!isStickyActive) {
+      setShowFixedBar(false);
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const delay = reduceMotion ? 0 : FIXED_REVEAL_DELAY_MS;
+    const timer = window.setTimeout(() => setShowFixedBar(true), delay);
+    return () => window.clearTimeout(timer);
+  }, [isStickyActive]);
 
   // Lift mute / SalesPopup using the sticky bar's measured height.
   useEffect(() => {
@@ -81,7 +186,7 @@ const ProductVariantSelector = (props: PropTypes) => {
 
     const applyOffset = () => {
       const bar = stickyBarRef.current;
-      if (mediaQuery.matches && isStickyActive && bar) {
+      if (mediaQuery.matches && showFixedBar && bar) {
         root.style.setProperty("--sticky-cta-offset", `${bar.offsetHeight}px`);
       } else {
         root.style.removeProperty("--sticky-cta-offset");
@@ -106,7 +211,7 @@ const ProductVariantSelector = (props: PropTypes) => {
       observer?.disconnect();
       root.style.removeProperty("--sticky-cta-offset");
     };
-  }, [isStickyActive]);
+  }, [showFixedBar]);
 
   useEffect(() => {
     if (sizes.length > 0) {
@@ -223,26 +328,31 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      {/* In-flow ATC — stacked on mobile; fades out when sticky bar shows */}
-      <div
-        ref={inFlowRef}
-        className={cn(
-          "mt-4 flex flex-col items-stretch gap-3 pt-10 transition-opacity duration-200 md:flex-row md:items-center md:gap-4",
-          isStickyActive &&
-            "pointer-events-none opacity-0 md:pointer-events-auto md:opacity-100"
-        )}
-      >
-        {qtyControl()}
-        {addToCartButton()}
+      {/* Zero-height anchor — stays put for scroll math when in-flow collapses */}
+      <div ref={sentinelRef} className="h-0 w-full" aria-hidden />
+
+      {/* In-flow ATC — JS-driven fade + height collapse (no snap) */}
+      <div ref={collapseRef} className="mt-4 md:mt-4">
+        <div
+          ref={inFlowRef}
+          aria-hidden={isStickyActive || undefined}
+          className={cn(
+            "flex flex-col items-stretch gap-3 pt-10 md:flex-row md:items-center md:gap-4",
+            isStickyActive && "pointer-events-none md:pointer-events-auto"
+          )}
+        >
+          {qtyControl()}
+          {addToCartButton()}
+        </div>
       </div>
 
-      {/* Sticky 50/50 ATC — slides in on mobile only */}
+      {/* Sticky bar — delayed fade + slide up from the bottom on mobile only */}
       <div
         ref={stickyBarRef}
-        aria-hidden={!isStickyActive}
+        aria-hidden={!showFixedBar}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[100] border-t border-[#E5E5E5] bg-white px-4 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out md:hidden pb-[max(12px,env(safe-area-inset-bottom))]",
-          isStickyActive
+          "fixed inset-x-0 bottom-0 z-[100] border-t border-[#E5E5E5] bg-white px-4 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] transition-[transform,opacity] duration-300 ease-out will-change-[transform,opacity] md:hidden pb-[max(12px,env(safe-area-inset-bottom))]",
+          showFixedBar
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-full opacity-0"
         )}
