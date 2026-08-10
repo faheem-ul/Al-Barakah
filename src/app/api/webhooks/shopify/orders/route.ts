@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appendOrderRows, updateOrderStatuses } from "@/lib/google/sheets";
-import { buildOrderSheetRows } from "@/lib/shopify/orders-to-sheet-rows";
+import {
+  buildOrderSheetRows,
+  initialOrderStatus,
+} from "@/lib/shopify/orders-to-sheet-rows";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
 import { verifyShopifyWebhookHmac } from "@/lib/shopify/verify-webhook";
 
@@ -127,12 +130,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, action: "create", ...result });
     }
 
-    // Update path: sync financial status; if order not in sheet yet, insert it
-    console.log(`${LOG} UPDATE — syncing Financial Status for order ${orderNumber}...`);
-    const updated = await updateOrderStatuses(
-      orderNumber,
-      String(order.financial_status ?? "")
+    // Update path: sync Order Status; if order not in sheet yet, insert it
+    const orderStatus = initialOrderStatus(order);
+    console.log(
+      `${LOG} UPDATE — syncing Order Status for order ${orderNumber}:`,
+      orderStatus
     );
+    const updated = await updateOrderStatuses(orderNumber, orderStatus);
 
     if (updated.updated) {
       console.log(`${LOG} UPDATE SUCCESS:`, updated);

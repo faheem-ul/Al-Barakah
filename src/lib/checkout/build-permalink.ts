@@ -43,7 +43,14 @@ export function withShippingPrefillParams(
     };
 
     set("checkout[shipping_address][address1]", shipping.address1);
-    set("checkout[shipping_address][address2]", shipping.address2);
+    // Never send apartment if empty or identical to the street address.
+    const apartment =
+      shipping.address2 &&
+      shipping.address2.trim().toLowerCase() !==
+        shipping.address1.trim().toLowerCase()
+        ? shipping.address2
+        : "";
+    set("checkout[shipping_address][address2]", apartment);
     set("checkout[shipping_address][city]", shipping.city);
     set(
       "checkout[shipping_address][province]",

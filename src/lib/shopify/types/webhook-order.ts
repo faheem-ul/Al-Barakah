@@ -54,6 +54,7 @@ export type ShopifyWebhookOrder = {
   created_at?: string | null;
   updated_at?: string | null;
   processed_at?: string | null;
+  cancelled_at?: string | null;
   financial_status?: string | null;
   fulfillment_status?: string | null;
   currency?: string | null;

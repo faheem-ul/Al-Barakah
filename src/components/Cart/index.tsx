@@ -45,7 +45,7 @@ const Cart = (props: PropTypes) => {
   const { onCartClose } = props;
 
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
-  const [checkoutStatus, setCheckoutStatus] = useState("");
+  // const [checkoutStatus, setCheckoutStatus] = useState(""); // location UX — re-enable with GPS
 
   const { data: products, isLoading } = useGetCartProducts();
 
@@ -93,9 +93,9 @@ const Cart = (props: PropTypes) => {
   const handleOnCheckout = async () => {
     try {
       setIsCreatingCheckout(true);
-      setCheckoutStatus("Waiting for location permission…");
+      // setCheckoutStatus("Waiting for location permission…"); // GPS disabled for now
       const checkoutUrl = await startCheckoutWithOptionalLocation(cartItems);
-      setCheckoutStatus("Opening Shopify checkout…");
+      // setCheckoutStatus("Opening Shopify checkout…");
       if (checkoutUrl) {
         window.location.assign(checkoutUrl);
         return;
@@ -103,7 +103,7 @@ const Cart = (props: PropTypes) => {
     } catch (error) {
       console.log("Error creating checkout:", error);
     } finally {
-      setCheckoutStatus("");
+      // setCheckoutStatus("");
       setIsCreatingCheckout(false);
     }
   };
@@ -297,6 +297,7 @@ const Cart = (props: PropTypes) => {
           </Text>
         </div>
 
+        {/* Location autofill note — re-enable with GPS later
         <p className="pt-4 text-center text-[12px] leading-relaxed text-[#666] md:text-left">
           Stay on this page and allow location when prompted — we autofill city
           and address before opening Shopify checkout.
@@ -306,8 +307,9 @@ const Cart = (props: PropTypes) => {
             {checkoutStatus}
           </p>
         ) : null}
+        */}
 
-        <div className="flex flex-col-reverse items-center gap-5 pt-4 pb-8 md:flex-row md:pb-0">
+        <div className="flex flex-col-reverse items-center gap-5 pt-8 pb-8 md:flex-row md:pb-0">
         <Button
           className="flex items-center justify-center text-black border w-full px-6 h-[60px] text-[14px] font-medium uppercase md:w-[352px] bg-transparent"
           onClick={() => {

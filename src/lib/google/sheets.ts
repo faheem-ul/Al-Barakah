@@ -3,6 +3,94 @@ import { ORDER_SHEET_HEADERS } from "@/lib/shopify/orders-to-sheet-rows";
 
 const LOG = "[Google Sheets]";
 
+/** Light beige / white zebra like the ops screenshot */
+const BANDING_COLORS = {
+  header: { red: 0.93, green: 0.93, blue: 0.93 },
+  firstBand: { red: 1, green: 1, blue: 1 },
+  secondBand: { red: 0.96, green: 0.95, blue: 0.93 },
+};
+
+const STATUS_COL_INDEX = ORDER_SHEET_HEADERS.indexOf("Order Status"); // 0-based
+
+/** RGB fills for Order Status (matches Apps Script styling). */
+function orderStatusFill(status: string): {
+  bg: { red: number; green: number; blue: number } | null;
+  bold: boolean;
+} {
+  const n = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (!n) return { bg: null, bold: false };
+
+  // Green — delivered
+  if (n === "delivered" || n === "deliverd") {
+    return {
+      bg: { red: 52 / 255, green: 168 / 255, blue: 83 / 255 },
+      bold: true,
+    };
+  }
+
+  // Red — return / errors / failed outcomes
+  if (
+    n.startsWith("error:") ||
+    n === "return" ||
+    n.startsWith("return") ||
+    n.includes("unsuccessful") ||
+    n.includes("fail")
+  ) {
+    return {
+      bg: { red: 234 / 255, green: 67 / 255, blue: 53 / 255 },
+      bold: true,
+    };
+  }
+
+  // Yellow — Pending and all other in-progress statuses
+  // (Pending, Booked, In-transit, Re-Attempt, Hold, Reattempt, etc.)
+  return {
+    bg: { red: 251 / 255, green: 188 / 255, blue: 4 / 255 },
+    bold: true,
+  };
+}
+
+async function paintOrderStatusCells(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetId: number,
+  cells: Array<{ rowIndex0: number; status: string }>
+) {
+  if (!cells.length || STATUS_COL_INDEX < 0) return;
+
+  const requests = cells.map(({ rowIndex0, status }) => {
+    const { bg, bold } = orderStatusFill(status);
+    return {
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: rowIndex0,
+          endRowIndex: rowIndex0 + 1,
+          startColumnIndex: STATUS_COL_INDEX,
+          endColumnIndex: STATUS_COL_INDEX + 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: bg || { red: 1, green: 1, blue: 1 },
+            textFormat: { bold },
+            horizontalAlignment: "CENTER",
+          },
+        },
+        fields:
+          "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+      },
+    };
+  });
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests },
+  });
+  console.log(`${LOG} Painted Order Status colour on ${cells.length} cell(s)`);
+}
+
 function normalizePrivateKey(raw: string): string {
   let key = raw.trim();
   if (
@@ -70,15 +158,30 @@ function sheetRange(tabName: string, a1: string): string {
   return `'${escaped}'!${a1}`;
 }
 
+function columnToLetter(column: number): string {
+  let temp = column;
+  let letter = "";
+  while (temp > 0) {
+    const rem = (temp - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    temp = Math.floor((temp - 1) / 26);
+  }
+  return letter;
+}
+
+type TabMeta = {
+  title: string;
+  sheetId: number;
+};
+
 /**
  * Document title (top of browser) is NOT the tab name (bottom tabs).
- * Resolve against actual sheet tabs in the spreadsheet.
  */
-async function resolveTabName(
+async function resolveTab(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   preferredTab: string
-): Promise<string> {
+): Promise<TabMeta> {
   const meta = await sheets.spreadsheets.get({
     spreadsheetId,
     fields: "properties.title,sheets.properties(sheetId,title,index)",
@@ -91,7 +194,7 @@ async function resolveTabName(
       .filter(Boolean)
       .map((p) => ({
         title: p!.title || "",
-        sheetId: p!.sheetId,
+        sheetId: p!.sheetId as number,
         index: p!.index,
       })) ?? [];
 
@@ -104,7 +207,7 @@ async function resolveTabName(
   const exact = tabs.find((t) => t.title === preferredTab);
   if (exact) {
     console.log(`${LOG} Using tab (exact match):`, exact.title);
-    return exact.title;
+    return { title: exact.title, sheetId: exact.sheetId };
   }
 
   const caseInsensitive = tabs.find(
@@ -115,16 +218,18 @@ async function resolveTabName(
       `${LOG} Using tab (case-insensitive match):`,
       caseInsensitive.title
     );
-    return caseInsensitive.title;
+    return {
+      title: caseInsensitive.title,
+      sheetId: caseInsensitive.sheetId,
+    };
   }
 
-  // Preferred name is often the *document* title — fall back to first tab
-  const first = tabs[0]?.title;
+  const first = tabs[0];
   if (first) {
     console.warn(
-      `${LOG} Tab "${preferredTab}" not found. Falling back to first tab: "${first}"`
+      `${LOG} Tab "${preferredTab}" not found. Falling back to first tab: "${first.title}"`
     );
-    return first;
+    return { title: first.title, sheetId: first.sheetId };
   }
 
   throw new Error(
@@ -132,12 +237,26 @@ async function resolveTabName(
   );
 }
 
+function headersMatchOpsLayout(firstRow: string[]): boolean {
+  return (
+    firstRow[0] === "Order Number" &&
+    firstRow.includes("Date") &&
+    firstRow.includes("Product Detail") &&
+    firstRow.includes("Bottle Size") &&
+    firstRow.includes("Retail Price") &&
+    firstRow.includes("COD") &&
+    firstRow.includes("Total Amount") &&
+    firstRow.includes("Order Status") &&
+    firstRow.includes("Tracking Number")
+  );
+}
+
 async function ensureHeaderRow(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
-  tabName: string
+  tab: TabMeta
 ) {
-  const range = sheetRange(tabName, "A1:AZ1");
+  const range = sheetRange(tab.title, "A1:AZ1");
   console.log(`${LOG} Checking header row at`, range);
 
   const existing = await sheets.spreadsheets.values.get({
@@ -145,61 +264,23 @@ async function ensureHeaderRow(
     range,
   });
 
-  const firstRow = existing.data.values?.[0] ?? [];
+  const firstRow = (existing.data.values?.[0] ?? []).map((h) =>
+    String(h || "").trim()
+  );
   const headers = ORDER_SHEET_HEADERS as unknown as string[];
 
-  if (!firstRow.length) {
-    console.log(`${LOG} No header found — writing header row`);
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: sheetRange(tabName, "A1"),
-      valueInputOption: "RAW",
-      requestBody: { values: [headers] },
-    });
-    console.log(`${LOG} Header row written (${headers.length} columns)`);
-    return;
-  }
-
-  const isNewLayout =
-    firstRow[0] === "Order Number" &&
-    firstRow.includes("Name of User") &&
-    firstRow.includes("Product Name") &&
-    firstRow.includes("Financial Status");
-
-  if (!isNewLayout) {
+  if (!firstRow.length || !headersMatchOpsLayout(firstRow)) {
     console.warn(
-      `${LOG} Old/unknown header layout detected (${firstRow[0]}). Replacing row 1 with slim headers. Move old data rows to an Archive tab if you still need them.`
+      `${LOG} Header missing or old layout (A1="${firstRow[0] || ""}"). Writing ops headers.`
     );
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: sheetRange(tabName, "A1"),
+      range: sheetRange(tab.title, "A1"),
       valueInputOption: "RAW",
       requestBody: { values: [headers] },
     });
-    console.log(`${LOG} Header row replaced (${headers.length} columns)`);
-    return;
-  }
-
-  if (!firstRow.includes("Tracking Number")) {
-    const startCol = firstRow.length + 1;
-    const trackingHeaders = [
-      "Tracking Number",
-      "Tracking URL",
-      "Tracking Status",
-      "Tracking Location",
-      "Tracking Detail",
-      "Tracking Checked At",
-    ];
-    const colLetter = columnToLetter(startCol);
-    console.log(
-      `${LOG} Appending tracking headers at column ${colLetter}`
-    );
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: sheetRange(tabName, `${colLetter}1`),
-      valueInputOption: "RAW",
-      requestBody: { values: [trackingHeaders] },
-    });
+    await applySheetPresentation_(sheets, spreadsheetId, tab.sheetId);
+    console.log(`${LOG} Header row written (${headers.length} columns)`);
     return;
   }
 
@@ -208,48 +289,90 @@ async function ensureHeaderRow(
   );
 }
 
-function columnToLetter(column: number): string {
-  let temp = column;
-  let letter = "";
-  while (temp > 0) {
-    const rem = (temp - 1) % 26;
-    letter = String.fromCharCode(65 + rem) + letter;
-    temp = Math.floor((temp - 1) / 26);
-  }
-  return letter;
-}
-
-/**
- * Find next empty row by scanning column A (Order Number).
- */
-async function getNextRowInColumnA(
+/** Freeze header, bold it, apply zebra banding once (ignore if banding already exists). */
+async function applySheetPresentation_(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
-  tabName: string
-): Promise<number> {
-  const result = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: sheetRange(tabName, "A:A"),
-    majorDimension: "ROWS",
-  });
+  sheetId: number
+) {
+  const colCount = ORDER_SHEET_HEADERS.length;
 
-  const values = result.data.values ?? [];
-  let lastFilled = 0;
-  for (let i = 0; i < values.length; i++) {
-    const cell = values[i]?.[0];
-    if (cell !== undefined && String(cell).trim() !== "") {
-      lastFilled = i + 1;
-    }
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId,
+                gridProperties: { frozenRowCount: 1 },
+              },
+              fields: "gridProperties.frozenRowCount",
+            },
+          },
+          {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: 0,
+                endRowIndex: 1,
+                startColumnIndex: 0,
+                endColumnIndex: colCount,
+              },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: { bold: true },
+                  backgroundColor: BANDING_COLORS.header,
+                  horizontalAlignment: "CENTER",
+                },
+              },
+              fields:
+                "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
+            },
+          },
+        ],
+      },
+    });
+  } catch (error) {
+    console.warn(`${LOG} Header freeze/style failed:`, error);
   }
 
-  const nextRow = lastFilled + 1;
-  console.log(
-    `${LOG} Column A last filled row: ${lastFilled}, next write row: ${nextRow}`
-  );
-  return Math.max(nextRow, 2);
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            addBanding: {
+              bandedRange: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  startColumnIndex: 0,
+                  endColumnIndex: colCount,
+                },
+                rowProperties: {
+                  headerColor: BANDING_COLORS.header,
+                  firstBandColor: BANDING_COLORS.firstBand,
+                  secondBandColor: BANDING_COLORS.secondBand,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+    console.log(`${LOG} Applied freeze + header style + zebra banding`);
+  } catch (error) {
+    console.warn(
+      `${LOG} Zebra banding skipped (often already present):`,
+      error instanceof Error ? error.message : error
+    );
+  }
 }
 
-/** Column A = Order Number (dedupe key for new slim sheet layout). */
+/** Column A = Order Number */
 async function orderNumberAlreadyExists(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
@@ -281,8 +404,8 @@ export type AppendOrderResult = {
 };
 
 /**
- * Appends order rows starting at column A on the next empty row.
- * Skips if this order number was already written (idempotent).
+ * Inserts order rows at the top of the sheet (directly under the header).
+ * Newest Shopify orders appear first.
  */
 export async function appendOrderRows(
   rows: string[][],
@@ -315,12 +438,12 @@ export async function appendOrderRows(
   try {
     const sheets = getSheetsClient();
     const { spreadsheetId, preferredTab } = getSpreadsheetConfig();
-    const tabName = await resolveTabName(sheets, spreadsheetId, preferredTab);
+    const tab = await resolveTab(sheets, spreadsheetId, preferredTab);
 
-    await ensureHeaderRow(sheets, spreadsheetId, tabName);
+    await ensureHeaderRow(sheets, spreadsheetId, tab);
 
     if (
-      await orderNumberAlreadyExists(sheets, spreadsheetId, tabName, orderKey)
+      await orderNumberAlreadyExists(sheets, spreadsheetId, tab.title, orderKey)
     ) {
       console.log(
         `${LOG} Skipping duplicate — order ${orderKey} already in sheet`
@@ -332,8 +455,31 @@ export async function appendOrderRows(
       };
     }
 
-    const startRow = await getNextRowInColumnA(sheets, spreadsheetId, tabName);
-    const writeRange = sheetRange(tabName, `A${startRow}`);
+    const insertCount = rows.length;
+    console.log(
+      `${LOG} Inserting ${insertCount} row(s) at top (after header) for order ${orderKey}`
+    );
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: tab.sheetId,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 1 + insertCount,
+              },
+              inheritFromBefore: false,
+            },
+          },
+        ],
+      },
+    });
+
+    const writeRange = sheetRange(tab.title, `A2`);
     console.log(`${LOG} Writing ${rows.length} row(s) at`, writeRange);
 
     const result = await sheets.spreadsheets.values.update({
@@ -350,6 +496,17 @@ export async function appendOrderRows(
       updatedRows: result.data.updatedRows,
       updatedCells: result.data.updatedCells,
     });
+
+    // Colour Order Status for newly inserted rows (Pending → red, etc.)
+    await paintOrderStatusCells(
+      sheets,
+      spreadsheetId,
+      tab.sheetId,
+      rows.map((row, i) => ({
+        rowIndex0: 1 + i, // row 2 onwards
+        status: String(row[STATUS_COL_INDEX] ?? ""),
+      }))
+    );
 
     return {
       written: true,
@@ -368,11 +525,11 @@ export type UpdateOrderStatusResult = {
 };
 
 /**
- * Updates Financial Status on every sheet row matching the order number.
+ * Updates Order Status on every sheet row matching the order number.
  */
 export async function updateOrderStatuses(
   orderNumber: string | number,
-  financialStatus: string
+  orderStatus: string
 ): Promise<UpdateOrderStatusResult> {
   const orderKey = String(orderNumber).trim();
   if (!orderKey) {
@@ -381,27 +538,27 @@ export async function updateOrderStatuses(
 
   const sheets = getSheetsClient();
   const { spreadsheetId, preferredTab } = getSpreadsheetConfig();
-  const tabName = await resolveTabName(sheets, spreadsheetId, preferredTab);
+  const tab = await resolveTab(sheets, spreadsheetId, preferredTab);
 
-  await ensureHeaderRow(sheets, spreadsheetId, tabName);
+  await ensureHeaderRow(sheets, spreadsheetId, tab);
 
   const headerRes = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: sheetRange(tabName, "A1:AZ1"),
+    range: sheetRange(tab.title, "A1:AZ1"),
   });
   const headers = (headerRes.data.values?.[0] ?? []).map((h) =>
     String(h || "").trim()
   );
-  const financialCol = headers.indexOf("Financial Status") + 1;
+  const statusCol = headers.indexOf("Order Status") + 1;
 
-  if (!financialCol) {
-    console.error(`${LOG} Financial Status column missing in header row`);
+  if (!statusCol) {
+    console.error(`${LOG} Order Status column missing in header row`);
     return { updated: false, rowsUpdated: 0, reason: "missing_status_columns" };
   }
 
   const colA = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: sheetRange(tabName, "A:A"),
+    range: sheetRange(tab.title, "A:A"),
     majorDimension: "ROWS",
   });
   const values = colA.data.values ?? [];
@@ -417,15 +574,49 @@ export async function updateOrderStatuses(
     return { updated: false, rowsUpdated: 0, reason: "not_found" };
   }
 
-  const financialLetter = columnToLetter(financialCol);
-  const data = rowIndexes.map((row) => ({
-    range: sheetRange(tabName, `${financialLetter}${row}`),
-    values: [[financialStatus]],
-  }));
+  // Don't overwrite M&P-driven statuses (Delivered / in-transit) with generic Pending
+  const statusLetter = columnToLetter(statusCol);
+  const existingStatusRes = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId,
+    ranges: rowIndexes.map(
+      (row) => sheetRange(tab.title, `${statusLetter}${row}`)
+    ),
+  });
+
+  const protectedStatuses = new Set([
+    "delivered",
+    "deliverd",
+    "in transit",
+    "out for delivery",
+    "re-attempt advice",
+  ]);
+
+  const data: { range: string; values: string[][] }[] = [];
+  for (let i = 0; i < rowIndexes.length; i++) {
+    const current = String(
+      existingStatusRes.data.valueRanges?.[i]?.values?.[0]?.[0] ?? ""
+    )
+      .trim()
+      .toLowerCase();
+    if (protectedStatuses.has(current) || current.startsWith("error:")) {
+      console.log(
+        `${LOG} Skipping Order Status overwrite on row ${rowIndexes[i]} (current: ${current})`
+      );
+      continue;
+    }
+    data.push({
+      range: sheetRange(tab.title, `${statusLetter}${rowIndexes[i]}`),
+      values: [[orderStatus]],
+    });
+  }
+
+  if (!data.length) {
+    return { updated: true, rowsUpdated: 0, reason: "protected_status" };
+  }
 
   console.log(
-    `${LOG} Updating Financial Status for order ${orderKey} on ${rowIndexes.length} row(s):`,
-    financialStatus
+    `${LOG} Updating Order Status for order ${orderKey} on ${data.length} row(s):`,
+    orderStatus
   );
 
   await sheets.spreadsheets.values.batchUpdate({
@@ -436,5 +627,20 @@ export async function updateOrderStatuses(
     },
   });
 
-  return { updated: true, rowsUpdated: rowIndexes.length };
+  await paintOrderStatusCells(
+    sheets,
+    spreadsheetId,
+    tab.sheetId,
+    data.map((item) => {
+      // ranges like 'Sheet1'!M12 → row 12
+      const match = item.range.match(/![A-Z]+(\d+)$/i);
+      const row1Based = match ? Number(match[1]) : 0;
+      return {
+        rowIndex0: Math.max(row1Based - 1, 0),
+        status: orderStatus,
+      };
+    })
+  );
+
+  return { updated: true, rowsUpdated: data.length };
 }

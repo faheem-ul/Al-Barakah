@@ -3,33 +3,27 @@ import type {
   ShopifyWebhookOrder,
 } from "./types/webhook-order";
 
-/** Column headers — keep in sync with buildOrderSheetRows */
+/**
+ * Column headers — keep in sync with buildOrderSheetRows.
+ * Order Number first (dedupe / M&P emails), then ops columns from the sheet brief.
+ */
 export const ORDER_SHEET_HEADERS = [
   "Order Number",
-  "Email",
-  "Phone",
-  "Name of User",
+  "Date",
+  "Name",
   "Address",
-  "Product Name",
+  "City",
+  "Contact",
+  "Product Detail",
+  "Bottle Size",
   "Quantity",
-  "Price",
-  "Financial Status",
-  // M&P tracking — paste Tracking Number; Apps Script fills the rest
+  "Retail Price",
+  "COD",
+  "Total Amount",
+  "Order Status",
   "Tracking Number",
-  "Tracking URL",
-  "Tracking Status",
   "Tracking Location",
   "Tracking Detail",
-  "Tracking Checked At",
-] as const;
-
-export const TRACKING_SHEET_HEADERS = [
-  "Tracking Number",
-  "Tracking URL",
-  "Tracking Status",
-  "Tracking Location",
-  "Tracking Detail",
-  "Tracking Checked At",
 ] as const;
 
 function str(value: string | number | null | undefined): string {
@@ -57,74 +51,164 @@ function customerName(order: ShopifyWebhookOrder): string {
   );
 }
 
-function formatAddress(address?: ShopifyWebhookAddress | null): string {
+/** Street address only (city lives in its own column). */
+function formatStreetAddress(address?: ShopifyWebhookAddress | null): string {
   if (!address) return "";
-  return [
-    address.address1,
-    address.address2,
-    address.city,
-    address.province,
-    address.zip,
-    address.country,
-  ]
+  return [address.address1, address.address2]
     .map((part) => str(part).trim())
     .filter(Boolean)
     .join(", ");
 }
 
-function formatPrice(order: ShopifyWebhookOrder): string {
-  const amount = str(order.total_price);
-  const currency = str(order.currency ?? order.presentment_currency);
-  if (!amount) return "";
-  return currency ? `${amount} ${currency}` : amount;
+/** DD/MM/YYYY for Pakistan ops sheet */
+function formatOrderDate(order: ShopifyWebhookOrder): string {
+  const raw = order.processed_at || order.created_at;
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
-function productName(item: {
+/** Prefer 0300-1234567 style when phone looks Pakistani. */
+function formatContact(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
+  if (digits.length === 12 && digits.startsWith("92")) {
+    return `0${digits.slice(2, 5)}-${digits.slice(5)}`;
+  }
+  if (digits.length === 10) {
+    return `0${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return phone.trim();
+}
+
+function productDetail(item: {
   title?: string | null;
   name?: string | null;
-  variant_title?: string | null;
 }): string {
-  const title = str(item.title ?? item.name);
-  const variant = str(item.variant_title);
-  if (variant && variant.toLowerCase() !== "default title") {
-    return title ? `${title} — ${variant}` : variant;
-  }
-  return title;
+  return str(item.title ?? item.name).trim();
 }
 
 /**
- * One sheet row per line item (order fields repeated).
+ * Normalize Shopify variant titles into “1 kg” / “1/2 kg” style sizes.
+ */
+export function bottleSizeFromVariant(
+  variantTitle?: string | null,
+  productTitle?: string | null
+): string {
+  const raw = `${str(variantTitle)} ${str(productTitle)}`.toLowerCase();
+
+  if (
+    /\b1\s*\/\s*2\s*(kg|kgs|kilo|kilogram)\b/.test(raw) ||
+    /\bhalf\s*(kg|kilo)\b/.test(raw) ||
+    /\b0\.5\s*(kg|kgs)?\b/.test(raw) ||
+    /\b500\s*(g|gm|grams?)\b/.test(raw)
+  ) {
+    return "1/2 kg";
+  }
+
+  if (/\b1\s*(kg|kgs|kilo|kilogram)\b/.test(raw)) {
+    return "1 kg";
+  }
+
+  const variant = str(variantTitle).trim();
+  if (!variant || variant.toLowerCase() === "default title") return "";
+  return variant;
+}
+
+function lineRetailPrice(item: {
+  price?: string | null;
+  quantity?: number | null;
+}): number {
+  const unit = Number(item.price ?? 0);
+  const qty = Number(item.quantity ?? 0);
+  if (!Number.isFinite(unit) || !Number.isFinite(qty)) return 0;
+  return Math.round(unit * qty);
+}
+
+function orderCodAmount(order: ShopifyWebhookOrder): number {
+  const fromSet = Number(
+    order.total_shipping_price_set?.shop_money?.amount ?? NaN
+  );
+  if (Number.isFinite(fromSet) && fromSet >= 0) {
+    return Math.round(fromSet);
+  }
+
+  const fromLines = (order.shipping_lines ?? []).reduce((sum, line) => {
+    const amount = Number(line.price ?? 0);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+
+  return Math.round(fromLines);
+}
+
+/**
+ * Delivery-facing status for ops (M&P later overwrites when CN is pasted).
+ */
+export function initialOrderStatus(order: ShopifyWebhookOrder): string {
+  const fulfillment = str(order.fulfillment_status).toLowerCase();
+  if (fulfillment === "fulfilled") return "Delivered";
+  if (str(order.cancelled_at) || fulfillment === "restocked") return "Cancelled";
+
+  const financial = str(order.financial_status).toLowerCase();
+  if (financial === "refunded" || financial === "voided") return "Cancelled";
+
+  return "Pending";
+}
+
+/**
+ * One sheet row per line item (order-level fields repeated).
  */
 export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
   const lineItems = order.line_items?.length
     ? order.line_items
-    : [{ title: "(no line items)", quantity: 0 }];
+    : [{ title: "(no line items)", quantity: 0, price: "0" }];
 
-  const customer = order.customer;
   const shipping = order.shipping_address;
   const billing = order.billing_address;
 
   const orderNumber = str(order.order_number ?? order.name);
-  const email = str(customer?.email ?? order.email);
-  const phone = str(
-    customer?.phone ?? order.phone ?? shipping?.phone ?? billing?.phone
-  );
+  const date = formatOrderDate(order);
   const name = customerName(order);
-  const address = formatAddress(shipping) || formatAddress(billing);
-  const price = formatPrice(order);
-  const financialStatus = str(order.financial_status);
-  const trackingPlaceholder = ["", "", "", "", "", ""];
+  const address =
+    formatStreetAddress(shipping) || formatStreetAddress(billing);
+  const city = str(shipping?.city || billing?.city);
+  const contact = formatContact(
+    str(
+      shipping?.phone ||
+        billing?.phone ||
+        order.phone ||
+        order.customer?.phone
+    )
+  );
+  const cod = orderCodAmount(order);
+  const status = initialOrderStatus(order);
 
-  return lineItems.map((item) => [
-    orderNumber,
-    email,
-    phone,
-    name,
-    address,
-    productName(item),
-    str(item.quantity),
-    price,
-    financialStatus,
-    ...trackingPlaceholder,
-  ]);
+  return lineItems.map((item) => {
+    const retail = lineRetailPrice(item);
+    const total = retail + cod;
+    return [
+      orderNumber,
+      date,
+      name,
+      address,
+      city,
+      contact,
+      productDetail(item),
+      bottleSizeFromVariant(item.variant_title, item.title),
+      str(item.quantity ?? ""),
+      retail ? String(retail) : "0",
+      String(cod),
+      String(total),
+      status,
+      "", // Tracking Number — ops paste
+      "", // Tracking Location — Apps Script
+      "", // Tracking Detail — Apps Script
+    ];
+  });
 }

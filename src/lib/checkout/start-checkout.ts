@@ -1,11 +1,12 @@
 "use client";
 
-import { getBrowserLocation } from "@/lib/geo/get-browser-location";
-import { reverseGeocode } from "@/lib/geo/reverse-geocode";
+// GPS / reverse-geocode temporarily disabled — re-enable later with Maps key or free OSM.
+// import { getBrowserLocation } from "@/lib/geo/get-browser-location";
+// import { reverseGeocode } from "@/lib/geo/reverse-geocode";
 import { createCheckoutWithOptionalAddress } from "@/lib/shopify/actions/checkout";
 import {
   buildCartPermalink,
-  buildCartPermalinkWithShipping,
+  // buildCartPermalinkWithShipping,
 } from "@/lib/checkout/build-permalink";
 
 export type StartCheckoutItem = {
@@ -14,12 +15,10 @@ export type StartCheckoutItem = {
 };
 
 /**
- * GPS must fully resolve on this origin before any Shopify redirect.
+ * Redirect buyer to Shopify checkout.
  *
- * When we have a geocoded address, use a classic cart permalink with
- * `checkout[shipping_address][...]` query params — that is what reliably
- * paints fields on Basic One-Page Checkout. Storefront `/cart/c/...`
- * checkoutUrls often keep the address on the cart object but leave the form blank.
+ * NOTE: Location autofill is commented out for now (apartment/POI quality needs a
+ * Maps API key). Uncomment the location block below when revisiting this feature.
  */
 export async function startCheckoutWithOptionalLocation(
   cartItems: StartCheckoutItem[]
@@ -36,23 +35,27 @@ export async function startCheckoutWithOptionalLocation(
     quantity: item.quantity,
   }));
 
-  let shippingAddress = null as Awaited<ReturnType<typeof reverseGeocode>>;
-
-  try {
-    const coords = await getBrowserLocation({
-      enableHighAccuracy: true,
-      timeout: 12000,
-      maximumAge: 0,
-    });
-    shippingAddress = await reverseGeocode(coords.latitude, coords.longitude);
-  } catch (error) {
-    console.warn("[checkout] location/geocode skipped", error);
-  }
-
-  // Best path for prefilled Delivery fields on Basic hosted checkout.
-  if (shippingAddress) {
-    return buildCartPermalinkWithShipping(permalinkItems, shippingAddress);
-  }
+  // -------------------------------------------------------------------------
+  // TODO: re-enable GPS + reverse-geocode checkout prefill later
+  // -------------------------------------------------------------------------
+  // let shippingAddress = null as Awaited<ReturnType<typeof reverseGeocode>>;
+  //
+  // try {
+  //   const coords = await getBrowserLocation({
+  //     enableHighAccuracy: true,
+  //     timeout: 12000,
+  //     maximumAge: 0,
+  //   });
+  //   shippingAddress = await reverseGeocode(coords.latitude, coords.longitude);
+  // } catch (error) {
+  //   console.warn("[checkout] location/geocode skipped", error);
+  // }
+  //
+  // // Prefill Delivery fields via cart permalink + checkout[shipping_address] params
+  // if (shippingAddress) {
+  //   return buildCartPermalinkWithShipping(permalinkItems, shippingAddress);
+  // }
+  // -------------------------------------------------------------------------
 
   try {
     const result = await createCheckoutWithOptionalAddress(lineItems, null);

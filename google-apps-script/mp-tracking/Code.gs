@@ -2,7 +2,7 @@
  * M&P (mulphilog) public tracking → Google Sheet
  *
  * Paste a consignments number into the "Tracking Number" column.
- * This script fills Tracking URL / Status / Location / Detail / Checked At.
+ * This script fills Order Status / Tracking Location / Tracking Detail.
  *
  * Logs: Apps Script editor → Executions (clock icon) → open a run → Logs
  *        or after a manual Run: View → Logs / Execution log
@@ -22,15 +22,21 @@ var CONFIG = {
   FETCH_DELAY_MS: 1200,
   /** Notify on every M&P tracking status change */
   NOTIFY_EMAIL: "thealbarakahoney@gmail.com",
+  /**
+   * When Order Status becomes Delivered, POST to Next.js to mark Shopify
+   * order as Paid (if unpaid/COD) + Fulfilled with tracking.
+   * Example: https://your-tunnel-or-domain.com/api/shopify/orders/mark-delivered
+   */
+  SYNC_URL: "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/mark-delivered",
+  /** Must match SHEET_TO_SHOPIFY_SYNC_SECRET in Next.js .env.local */
+  SYNC_SECRET: "7beddfe5b6d434edc53e97eb7c3f420e01bd492f6fa51d8786538a6f6c06a806",
   HEADERS: {
     ORDER_NUMBER: "Order Number",
-    NAME_OF_USER: "Name of User",
+    NAME: "Name",
     TRACKING_NUMBER: "Tracking Number",
-    TRACKING_URL: "Tracking URL",
-    TRACKING_STATUS: "Tracking Status",
+    ORDER_STATUS: "Order Status",
     TRACKING_LOCATION: "Tracking Location",
     TRACKING_DETAIL: "Tracking Detail",
-    TRACKING_CHECKED_AT: "Tracking Checked At",
   },
 };
 
@@ -70,8 +76,29 @@ function installMpTrackingTriggers() {
     .create();
   log_("Installed installable onEdit → handleTrackingNumberEdit");
 
+  // Colour every Order Status cell + install rules for future edits
+  fixOrderStatusColors();
+
   log_("Next: run authorizeExternalRequests once, then re-edit the CN cell");
   log_("===== installMpTrackingTriggers DONE =====");
+}
+
+/**
+ * Run this once from the Apps Script editor to colour ALL Order Status cells
+ * (seeded / webhook rows were plain text — only M&P updates got colours before).
+ */
+function fixOrderStatusColors() {
+  log_("===== fixOrderStatusColors START =====");
+  var sheet = getOrdersSheet_();
+  var cols = getHeaderMap_(sheet);
+  var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
+  if (!statusCol) {
+    log_("ERROR — Order Status column missing");
+    return;
+  }
+  paintAllOrderStatusColors_(sheet, statusCol);
+  installOrderStatusConditionalFormatting_(sheet, statusCol);
+  log_("===== fixOrderStatusColors DONE =====");
 }
 
 /**
@@ -156,10 +183,6 @@ function handleTrackingNumberEdit(e) {
   }
 
   sheet.getRange(row, numberCol).setValue(cn);
-  var trackingUrl = CONFIG.TRACKING_BASE_URL + cn;
-  sheet.getRange(row, cols[CONFIG.HEADERS.TRACKING_URL]).setValue(trackingUrl);
-  log_("Wrote Tracking URL:", trackingUrl);
-
   log_("Fetching status for row", row, "...");
   refreshRowMpTracking_(sheet, cols, row, cn, true);
   log_("===== handleTrackingNumberEdit DONE =====");
@@ -177,7 +200,7 @@ function refreshAllMpTrackingStatuses() {
   ensureTrackingHeaders_();
   var cols = getHeaderMap_(sheet);
   var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
-  var statusCol = cols[CONFIG.HEADERS.TRACKING_STATUS];
+  var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
   if (!numberCol || !statusCol) {
     log_(
       "ERROR — Tracking headers missing — run ensureTrackingHeaders_ / installMpTrackingTriggers",
@@ -256,6 +279,10 @@ function refreshAllMpTrackingStatuses() {
     "| failed:",
     failed,
   );
+
+  // Keep colours consistent even when status text was written without styling
+  paintAllOrderStatusColors_(sheet, statusCol);
+
   log_("===== refreshAllMpTrackingStatuses DONE =====");
 }
 
@@ -291,11 +318,9 @@ function ensureTrackingHeaders_() {
 
   var needed = [
     CONFIG.HEADERS.TRACKING_NUMBER,
-    CONFIG.HEADERS.TRACKING_URL,
-    CONFIG.HEADERS.TRACKING_STATUS,
+    CONFIG.HEADERS.ORDER_STATUS,
     CONFIG.HEADERS.TRACKING_LOCATION,
     CONFIG.HEADERS.TRACKING_DETAIL,
-    CONFIG.HEADERS.TRACKING_CHECKED_AT,
   ];
 
   var missing = [];
@@ -328,7 +353,7 @@ function getHeaderMap_(sheet) {
   log_(
     "Header map tracking cols:",
     CONFIG.HEADERS.TRACKING_NUMBER + "=" + map[CONFIG.HEADERS.TRACKING_NUMBER],
-    CONFIG.HEADERS.TRACKING_STATUS + "=" + map[CONFIG.HEADERS.TRACKING_STATUS],
+    CONFIG.HEADERS.ORDER_STATUS + "=" + map[CONFIG.HEADERS.ORDER_STATUS],
   );
   return map;
 }
@@ -344,20 +369,162 @@ function isDelivered_(status) {
 function clearTrackingDerivFields_(sheet, cols, row) {
   log_("Clearing derived tracking fields on row", row);
   var keys = [
-    CONFIG.HEADERS.TRACKING_URL,
-    CONFIG.HEADERS.TRACKING_STATUS,
+    CONFIG.HEADERS.ORDER_STATUS,
     CONFIG.HEADERS.TRACKING_LOCATION,
     CONFIG.HEADERS.TRACKING_DETAIL,
-    CONFIG.HEADERS.TRACKING_CHECKED_AT,
   ];
   for (var i = 0; i < keys.length; i++) {
     if (cols[keys[i]]) sheet.getRange(row, cols[keys[i]]).clearContent();
   }
 }
 
+function applyOrderStatusStyle_(cell, status) {
+  var colors = orderStatusColors_(status);
+  cell.setFontWeight(colors.bold ? "bold" : "normal").setHorizontalAlignment(
+    "center",
+  );
+  cell.setBackground(colors.bg).setFontColor(colors.fg);
+}
+
+/** Shared colour map for Order Status text. */
+function orderStatusColors_(status) {
+  var normalized = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return { bg: null, fg: "#000000", bold: false };
+  }
+  // Green — delivered
+  if (normalized === "delivered" || normalized === "deliverd") {
+    return { bg: "#34a853", fg: "#000000", bold: true };
+  }
+  // Red — return / errors / failed outcomes
+  if (
+    normalized.indexOf("error:") === 0 ||
+    normalized === "return" ||
+    normalized.indexOf("return") === 0 ||
+    normalized.indexOf("unsuccessful") !== -1 ||
+    normalized.indexOf("fail") !== -1
+  ) {
+    return { bg: "#ea4335", fg: "#000000", bold: true };
+  }
+  // Yellow — Pending and all other in-progress statuses
+  return { bg: "#fbbc04", fg: "#000000", bold: true };
+}
+
+/** Paint every data cell in the Order Status column. */
+function paintAllOrderStatusColors_(sheet, statusCol) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2 || !statusCol) return;
+
+  var range = sheet.getRange(2, statusCol, lastRow - 1, 1);
+  var values = range.getValues();
+  var backgrounds = [];
+  var fonts = [];
+  var weights = [];
+
+  for (var i = 0; i < values.length; i++) {
+    var colors = orderStatusColors_(values[i][0]);
+    backgrounds.push([colors.bg]);
+    fonts.push([colors.fg]);
+    weights.push([colors.bold ? "bold" : "normal"]);
+  }
+
+  range.setBackgrounds(backgrounds);
+  range.setFontColors(fonts);
+  range.setFontWeights(weights);
+  range.setHorizontalAlignments(
+    values.map(function () {
+      return ["center"];
+    }),
+  );
+  log_("Painted Order Status colours on", values.length, "row(s)");
+}
+
+/**
+ * Conditional formatting so future pasted/webhook values also get coloured.
+ */
+function installOrderStatusConditionalFormatting_(sheet, statusCol) {
+  var lastCol = Math.max(sheet.getLastColumn(), statusCol);
+  var maxRows = Math.max(sheet.getMaxRows(), 2000);
+  var range = sheet.getRange(2, statusCol, maxRows - 1, 1);
+
+  // Keep non-status rules (if any) — drop previous status rules we added
+  var existing = sheet.getConditionalFormatRules() || [];
+  var kept = [];
+  for (var i = 0; i < existing.length; i++) {
+    var ranges = existing[i].getRanges();
+    var overlapsStatus = false;
+    for (var r = 0; r < ranges.length; r++) {
+      if (ranges[r].getColumn() === statusCol) {
+        overlapsStatus = true;
+        break;
+      }
+    }
+    if (!overlapsStatus) kept.push(existing[i]);
+  }
+
+  var delivered = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Delivered")
+    .setBackground("#34a853")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+  var deliverd = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Deliverd")
+    .setBackground("#34a853")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+  var returnExact = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Return")
+    .setBackground("#ea4335")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+  var returnPrefix = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextStartsWith("Return")
+    .setBackground("#ea4335")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+  var errorPrefix = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextStartsWith("ERROR:")
+    .setBackground("#ea4335")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+  var unsuccessful = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("Unsuccessful")
+    .setBackground("#ea4335")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+  // Yellow catch-all for Pending / in-progress (must be last among non-empty rules)
+  var otherNonBlank = SpreadsheetApp.newConditionalFormatRule()
+    .whenCellNotEmpty()
+    .setBackground("#fbbc04")
+    .setBold(true)
+    .setRanges([range])
+    .build();
+
+  sheet.setConditionalFormatRules(
+    kept.concat([
+      delivered,
+      deliverd,
+      returnExact,
+      returnPrefix,
+      errorPrefix,
+      unsuccessful,
+      otherNonBlank,
+    ]),
+  );
+  log_("Installed Order Status conditional formatting (col", statusCol + ")");
+}
+
 function refreshRowMpTracking_(sheet, cols, row, cn, force) {
   log_("refreshRow — row:", row, "| CN:", cn, "| force:", force);
-  var statusCol = cols[CONFIG.HEADERS.TRACKING_STATUS];
+  var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
   var previousStatus = statusCol
     ? String(sheet.getRange(row, statusCol).getValue() || "").trim()
     : "";
@@ -369,25 +536,14 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
     }
   }
 
-  if (cols[CONFIG.HEADERS.TRACKING_URL]) {
-    var url = CONFIG.TRACKING_BASE_URL + cn;
-    sheet.getRange(row, cols[CONFIG.HEADERS.TRACKING_URL]).setValue(url);
-    log_("Set Tracking URL:", url);
-  }
-
   log_("Calling mulphilog for CN", cn, "...");
   var tracked = fetchMpTrackingStatus_(cn);
   if (!tracked.ok) {
     log_("FETCH FAILED row", row, "→", tracked.error);
-    if (cols[CONFIG.HEADERS.TRACKING_STATUS]) {
-      sheet
-        .getRange(row, cols[CONFIG.HEADERS.TRACKING_STATUS])
-        .setValue("ERROR: " + tracked.error);
-    }
-    if (cols[CONFIG.HEADERS.TRACKING_CHECKED_AT]) {
-      sheet
-        .getRange(row, cols[CONFIG.HEADERS.TRACKING_CHECKED_AT])
-        .setValue(new Date());
+    if (statusCol) {
+      var errCell = sheet.getRange(row, statusCol);
+      errCell.setValue("ERROR: " + tracked.error);
+      applyOrderStatusStyle_(errCell, "ERROR");
     }
     return;
   }
@@ -404,8 +560,10 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
 
   var newStatus = String(tracked.status || "").trim();
 
-  if (cols[CONFIG.HEADERS.TRACKING_STATUS]) {
-    sheet.getRange(row, cols[CONFIG.HEADERS.TRACKING_STATUS]).setValue(newStatus);
+  if (statusCol) {
+    var statusCell = sheet.getRange(row, statusCol);
+    statusCell.setValue(newStatus);
+    applyOrderStatusStyle_(statusCell, newStatus);
   }
   if (cols[CONFIG.HEADERS.TRACKING_LOCATION]) {
     sheet
@@ -416,11 +574,6 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
     sheet
       .getRange(row, cols[CONFIG.HEADERS.TRACKING_DETAIL])
       .setValue(tracked.detail || "");
-  }
-  if (cols[CONFIG.HEADERS.TRACKING_CHECKED_AT]) {
-    sheet
-      .getRange(row, cols[CONFIG.HEADERS.TRACKING_CHECKED_AT])
-      .setValue(new Date());
   }
 
   log_("Wrote status columns for row", row);
@@ -434,8 +587,67 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
       "— sending email"
     );
     sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
+
+    if (isDelivered_(newStatus)) {
+      syncDeliveredToShopify_(sheet, cols, row, cn);
+    }
   } else {
     log_("Status unchanged (" + newStatus + ") — no email");
+  }
+}
+
+/**
+ * Tell Next.js / Shopify: this order was delivered via M&P.
+ * Requires CONFIG.SYNC_URL + CONFIG.SYNC_SECRET and a Shopify Order Number.
+ */
+function syncDeliveredToShopify_(sheet, cols, row, cn) {
+  var syncUrl = String(CONFIG.SYNC_URL || "").trim();
+  var syncSecret = String(CONFIG.SYNC_SECRET || "").trim();
+  if (!syncUrl || !syncSecret) {
+    log_(
+      "Shopify sync skipped — set CONFIG.SYNC_URL and CONFIG.SYNC_SECRET"
+    );
+    return;
+  }
+
+  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
+      ).trim()
+    : "";
+  if (!orderNumber) {
+    log_(
+      "Shopify sync skipped — blank Order Number on row",
+      row,
+      "(legacy / non-Shopify row)"
+    );
+    return;
+  }
+
+  var payload = {
+    orderNumber: orderNumber,
+    trackingNumber: String(cn || "").trim(),
+  };
+  log_("Shopify sync POST", syncUrl, JSON.stringify(payload));
+
+  try {
+    var response = UrlFetchApp.fetch(syncUrl, {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "x-sync-secret": syncSecret,
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    var code = response.getResponseCode();
+    var text = response.getContentText();
+    log_("Shopify sync HTTP", code, text.slice(0, 500));
+  } catch (err) {
+    log_(
+      "Shopify sync EXCEPTION:",
+      String(err && err.message ? err.message : err)
+    );
   }
 }
 
@@ -453,8 +665,8 @@ function statusChanged_(previousStatus, newStatus) {
 
 function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked) {
   var to = CONFIG.NOTIFY_EMAIL;
-  var customerName = cols[CONFIG.HEADERS.NAME_OF_USER]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.NAME_OF_USER]).getValue() || "").trim()
+  var customerName = cols[CONFIG.HEADERS.NAME]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "").trim()
     : "";
   var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
     ? String(sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "").trim()

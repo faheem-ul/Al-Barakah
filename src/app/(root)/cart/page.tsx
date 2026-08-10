@@ -28,7 +28,7 @@ interface CartItem {
 
 const CartPage = () => {
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
-  const [checkoutStatus, setCheckoutStatus] = useState("");
+  // const [checkoutStatus, setCheckoutStatus] = useState(""); // location UX — re-enable with GPS
 
   const { data: products, isLoading } = useGetCartProducts();
 
@@ -65,9 +65,9 @@ const CartPage = () => {
   const handleOnCheckout = async () => {
     try {
       setIsCreatingCheckout(true);
-      setCheckoutStatus("Waiting for location permission…");
+      // setCheckoutStatus("Waiting for location permission…"); // GPS disabled for now
       const checkoutUrl = await startCheckoutWithOptionalLocation(cartItems);
-      setCheckoutStatus("Opening Shopify checkout…");
+      // setCheckoutStatus("Opening Shopify checkout…");
       if (checkoutUrl) {
         window.location.assign(checkoutUrl);
         return;
@@ -75,7 +75,7 @@ const CartPage = () => {
     } catch (error) {
       console.log("Error creating checkout:", error);
     } finally {
-      setCheckoutStatus("");
+      // setCheckoutStatus("");
       setIsCreatingCheckout(false);
     }
   };
@@ -331,6 +331,7 @@ const CartPage = () => {
 
       {cartItems.length > 0 && (
         <div className="flex w-full flex-col items-center gap-3 py-[24px] md:py-[40px]">
+          {/* Location autofill note — re-enable with GPS later
           <p className="max-w-md text-center text-[12px] leading-relaxed text-[#666]">
             Stay on this page and allow location when prompted — we autofill
             city and address before opening Shopify checkout.
@@ -340,6 +341,7 @@ const CartPage = () => {
               {checkoutStatus}
             </p>
           ) : null}
+          */}
           <Button
             variant={"secondary"}
             onClick={handleOnCheckout}
