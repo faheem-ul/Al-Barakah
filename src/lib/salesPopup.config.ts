@@ -29,6 +29,10 @@ export const salesPopupConfig = {
   apiBatchSize: 10,
   /** Fallback display name when first name is unavailable */
   fallbackFirstName: "Someone",
+  /** Displayed relative time floor (minutes ago) — UI only, not real order age */
+  displayRelativeMinutesMin: 10,
+  /** Displayed relative time ceiling (minutes ago) — UI only, not real order age */
+  displayRelativeMinutesMax: 30,
 } as const;
 
 export type SalesPopupConfig = typeof salesPopupConfig;

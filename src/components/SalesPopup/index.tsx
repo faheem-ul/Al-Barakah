@@ -2,12 +2,6 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  differenceInCalendarDays,
-  differenceInHours,
-  differenceInMinutes,
-  formatDistanceToNowStrict,
-} from "date-fns";
 import { Check } from "lucide-react";
 
 import { SlimCrossIcon } from "@/ui/Icons";
@@ -60,31 +54,23 @@ const randomIntervalMs = () => {
 };
 
 /**
- * Human-friendly relative timestamps for the popup.
- * Prefer short labels ("Just now", "Yesterday") over raw date-fns output.
+ * Display-only “recent” label. Real createdAt is unused so older orders
+ * still read as purchased 10–30 minutes ago.
  */
-export const formatSaleRelativeTime = (
-  createdAt: number,
-  now = Date.now()
-): string => {
-  const date = new Date(createdAt);
-  const minutes = differenceInMinutes(now, date);
-
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) {
-    return formatDistanceToNowStrict(date, { addSuffix: true, unit: "minute" });
-  }
-
-  const hours = differenceInHours(now, date);
-  if (hours < 24) {
-    return formatDistanceToNowStrict(date, { addSuffix: true, unit: "hour" });
-  }
-
-  const days = differenceInCalendarDays(now, date);
-  if (days === 1) return "Yesterday";
-
-  return formatDistanceToNowStrict(date, { addSuffix: true, unit: "day" });
+const randomDisplayRelativeMinutes = () => {
+  const { displayRelativeMinutesMin, displayRelativeMinutesMax } =
+    salesPopupConfig;
+  return (
+    displayRelativeMinutesMin +
+    Math.floor(
+      Math.random() *
+        (displayRelativeMinutesMax - displayRelativeMinutesMin + 1)
+    )
+  );
 };
+
+export const formatDisplayRelativeMinutes = (minutes: number): string =>
+  `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
 
 /**
  * Storefront-only social proof popup fed by real Shopify orders.
@@ -94,6 +80,9 @@ const SalesPopup = () => {
   const [activeSale, setActiveSale] = useState<RecentSale | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [progressKey, setProgressKey] = useState(0);
+  const [relativeMinutes, setRelativeMinutes] = useState<number>(
+    salesPopupConfig.displayRelativeMinutesMin
+  );
 
   const shownCountRef = useRef(0);
   const queueRef = useRef<RecentSale[]>([]);
@@ -128,6 +117,7 @@ const SalesPopup = () => {
     queueRef.current = queueRef.current.slice(1);
 
     setActiveSale(next);
+    setRelativeMinutes(randomDisplayRelativeMinutes());
     setIsVisible(true);
     setProgressKey((key) => key + 1);
     markSaleShown(next.id);
@@ -197,7 +187,7 @@ const SalesPopup = () => {
   }
 
   const imageSrc = activeSale.productImage || PLACEHOLDER_IMAGE;
-  const relativeTime = formatSaleRelativeTime(activeSale.createdAt);
+  const relativeTime = formatDisplayRelativeMinutes(relativeMinutes);
 
   return (
     <div
