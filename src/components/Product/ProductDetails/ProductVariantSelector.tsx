@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 import ProductAccordion from "./Accordion";
 
+const STICKY_OFFSET_PX = 50;
+
 interface PropTypes {
   product: Product;
   onVariantChange?: (variantId: string) => void;
@@ -21,10 +23,8 @@ const ProductVariantSelector = (props: PropTypes) => {
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [selectedSize, setSelectedSize] = useState<string | undefined>();
   const [isStuck, setIsStuck] = useState(false);
-  const controlsRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const isStuckRef = useRef(false);
-  const stuckHeightRef = useRef(0);
+  const inFlowRef = useRef<HTMLDivElement>(null);
+  const stickyBarRef = useRef<HTMLDivElement>(null);
   const { getItemQuantity, addCartQuantity, onCartOpen, isCartOpen } =
     useShoppingCart();
 
@@ -42,88 +42,78 @@ const ProductVariantSelector = (props: PropTypes) => {
     setItemQuantity(quantity);
   }, [quantity]);
 
-  // Pin the same ATC to the bottom as soon as it reaches the viewport bottom
-  // (while still visible) — not after it scrolls off-screen.
+  // Show fixed bar after in-flow ATC clears the viewport bottom by 50px.
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
-
-    const setStuck = (next: boolean, height?: number) => {
-      isStuckRef.current = next;
-      if (next && typeof height === "number") {
-        stuckHeightRef.current = height;
-      }
-      setIsStuck(next);
-    };
+    const inFlow = inFlowRef.current;
+    if (!inFlow) return;
 
     const update = () => {
-      const sentinel = sentinelRef.current;
-      const node = controlsRef.current;
-      if (!sentinel || !node || !mediaQuery.matches || isCartOpen) {
-        setStuck(false);
+      if (!mediaQuery.matches || isCartOpen) {
+        setIsStuck(false);
         return;
       }
 
-      const h = isStuckRef.current
-        ? stuckHeightRef.current || sentinel.offsetHeight
-        : sentinel.offsetHeight;
-      const shouldStick =
-        sentinel.getBoundingClientRect().top <= window.innerHeight - h;
-
-      if (shouldStick) {
-        if (!isStuckRef.current) setStuck(true, sentinel.offsetHeight);
-      } else if (isStuckRef.current) {
-        setStuck(false);
-      }
-    };
-
-    const onViewportChange = () => {
-      if (!mediaQuery.matches) setStuck(false);
-      update();
+      const { top, bottom } = inFlow.getBoundingClientRect();
+      setIsStuck(
+        top < window.innerHeight &&
+          bottom < window.innerHeight - STICKY_OFFSET_PX
+      );
     };
 
     update();
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
-    mediaQuery.addEventListener("change", onViewportChange);
+    mediaQuery.addEventListener("change", update);
 
     return () => {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
-      mediaQuery.removeEventListener("change", onViewportChange);
-      setStuck(false);
+      mediaQuery.removeEventListener("change", update);
+      setIsStuck(false);
     };
   }, [isCartOpen]);
 
-  // Lift floating UI only while the ATC is actually pinned to the bottom.
+  // Lift mute / SalesPopup using the sticky bar's measured height.
   useEffect(() => {
     const root = document.documentElement;
     const mediaQuery = window.matchMedia("(max-width: 767px)");
 
     const applyOffset = () => {
-      if (mediaQuery.matches && isStickyActive) {
-        root.style.setProperty("--sticky-cta-offset", "9.5rem");
+      const bar = stickyBarRef.current;
+      if (mediaQuery.matches && isStickyActive && bar) {
+        root.style.setProperty("--sticky-cta-offset", `${bar.offsetHeight}px`);
       } else {
         root.style.removeProperty("--sticky-cta-offset");
       }
     };
 
-    applyOffset();
+    const raf = requestAnimationFrame(applyOffset);
     mediaQuery.addEventListener("change", applyOffset);
+    window.addEventListener("resize", applyOffset);
+
+    const bar = stickyBarRef.current;
+    const observer =
+      typeof ResizeObserver !== "undefined" && bar
+        ? new ResizeObserver(applyOffset)
+        : null;
+    if (bar && observer) observer.observe(bar);
 
     return () => {
+      cancelAnimationFrame(raf);
       mediaQuery.removeEventListener("change", applyOffset);
+      window.removeEventListener("resize", applyOffset);
+      observer?.disconnect();
       root.style.removeProperty("--sticky-cta-offset");
     };
   }, [isStickyActive]);
 
-  // Initialize selected size on component mount
   useEffect(() => {
     if (sizes.length > 0) {
       setSelectedSize(sizes[0]);
     }
   }, [sizes]);
 
-  // Notify parent when selected size changes
   useEffect(() => {
     if (!selectedSize) return;
     const variant =
@@ -149,7 +139,6 @@ const ProductVariantSelector = (props: PropTypes) => {
   };
 
   const onAddToCart = () => {
-    // Only block when multiple sizes exist and none is selected
     if (sizes.length > 1 && !selectedSize) {
       toast.warning("Please select a size before adding to cart.");
       return;
@@ -157,10 +146,8 @@ const ProductVariantSelector = (props: PropTypes) => {
 
     onCartOpen();
 
-    // Determine size to use when one or zero sizes
     const sizeToUse = selectedSize || sizes[0];
 
-    // Resolve variant by size when available; otherwise fallback to first variant
     const variant =
       product.variants.find((v) =>
         v.selectedOptions.some(
@@ -185,11 +172,36 @@ const ProductVariantSelector = (props: PropTypes) => {
     );
   };
 
+  const qtyControl = (compact?: boolean) => (
+    <div
+      className={cn(
+        "flex items-center justify-center rounded-[62px] bg-[#F0F0F0] px-4 py-3",
+        compact
+          ? "min-w-0 flex-1 gap-4"
+          : "w-full gap-5 md:w-fit md:gap-[50px] md:px-[22px] md:py-[17px]"
+      )}
+    >
+      <MinusIcon className="cursor-pointer" onClick={onDecrease} />
+      <span className="min-w-[1.25rem] text-center">{itemQuantity}</span>
+      <PlusIcon className="cursor-pointer" onClick={onIncrease} />
+    </div>
+  );
+
+  const addToCartButton = (compact?: boolean) => (
+    <Button
+      onClick={onAddToCart}
+      className={cn(
+        "flex min-h-[48px] items-center justify-center bg-black text-[16px] font-semibold capitalize",
+        compact ? "min-w-0 flex-1" : "w-full md:w-fit md:min-h-0"
+      )}
+    >
+      <BagIcon /> Add to cart
+    </Button>
+  );
+
   return (
     <>
       <div className="mt-1 flex flex-col gap-1">
-        {/* Color selection removed */}
-
         {sizes.length > 1 && (
           <ProductAccordion title="Choose Weight">
             <div className="mt-2 -mb-3 flex items-center gap-1">
@@ -211,35 +223,33 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      {/* Sentinel marks the natural ATC position; collapses when pinned (no gap) */}
+      {/* In-flow ATC — stacked on mobile; fades out when sticky bar shows */}
       <div
-        ref={sentinelRef}
-        className={cn(!isStickyActive && "mt-4")}
-        aria-hidden={isStickyActive || undefined}
+        ref={inFlowRef}
+        className={cn(
+          "mt-4 flex flex-col items-stretch gap-3 pt-10 transition-opacity duration-200 md:flex-row md:items-center md:gap-4",
+          isStickyActive &&
+            "pointer-events-none opacity-0 md:pointer-events-auto md:opacity-100"
+        )}
       >
-        {/* Single qty + ATC — pins at bottom when it reaches the viewport edge */}
-        <div
-          ref={controlsRef}
-          className={cn(
-            "flex flex-col items-stretch justify-between gap-3 pt-10 md:flex-row md:items-center md:gap-4 md:static md:z-auto md:border-0 md:bg-transparent md:px-0 md:pt-10 md:shadow-none md:pb-0",
-            isStickyActive &&
-              "fixed inset-x-0 bottom-0 z-[100] border-t border-[#E5E5E5] bg-white px-4 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[max(12px,env(safe-area-inset-bottom))] md:relative md:inset-auto"
-          )}
-        >
-          <div className="mx-auto flex w-full max-w-[521px] flex-col gap-3 md:mx-0 md:max-w-none md:flex-row md:items-center md:justify-between md:gap-4">
-            <div className="flex w-full items-center justify-center gap-5 rounded-[62px] bg-[#F0F0F0] px-4 py-3 md:w-fit md:gap-[50px] md:px-[22px] md:py-[17px]">
-              <MinusIcon className="cursor-pointer" onClick={onDecrease} />
-              <span className="min-w-[1.25rem] text-center">{itemQuantity}</span>
-              <PlusIcon className="cursor-pointer" onClick={onIncrease} />
-            </div>
+        {qtyControl()}
+        {addToCartButton()}
+      </div>
 
-            <Button
-              onClick={onAddToCart}
-              className="flex min-h-[48px] w-full items-center justify-center bg-black text-[16px] font-semibold capitalize md:w-fit md:min-h-0"
-            >
-              <BagIcon /> Add to cart
-            </Button>
-          </div>
+      {/* Sticky 50/50 ATC — slides in on mobile only */}
+      <div
+        ref={stickyBarRef}
+        aria-hidden={!isStickyActive}
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-[100] border-t border-[#E5E5E5] bg-white px-4 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out md:hidden pb-[max(12px,env(safe-area-inset-bottom))]",
+          isStickyActive
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-full opacity-0"
+        )}
+      >
+        <div className="mx-auto flex w-full max-w-[521px] flex-row items-center gap-2">
+          {qtyControl(true)}
+          {addToCartButton(true)}
         </div>
       </div>
     </>
