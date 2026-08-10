@@ -18,7 +18,7 @@ import { Phone } from "./ui/Icons";
 
 const Footer = () => {
   return (
-    <footer className="bg-[#F2EEE6]">
+    <footer className="bg-[#F2EEE6] pb-[var(--sticky-cta-offset,0px)]">
       <div className="container mx-auto max-w-7xl px-[20px] md:px-0">
         <div className="flex w-full">
           {/* Left */}
