@@ -1,7 +1,9 @@
-const LOG = "[Shopify Admin]";
+import {
+  adminGraphql,
+  normalizeOrderNumber,
+} from "@/lib/shopify/admin/client";
 
-const ADMIN_API_VERSION =
-  process.env.SHOPIFY_ADMIN_API_VERSION?.trim() || "2024-10";
+const LOG = "[Shopify Admin]";
 
 export type MarkDeliveredResult = {
   ok: boolean;
@@ -13,51 +15,6 @@ export type MarkDeliveredResult = {
   reason?: string;
   errors?: string[];
 };
-
-function getAdminConfig() {
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim().replace(
-    /^https?:\/\//,
-    ""
-  ).replace(/\/$/, "");
-  const accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
-
-  if (!shopDomain || !accessToken) {
-    throw new Error(
-      "Missing SHOPIFY_SHOP_DOMAIN or SHOPIFY_ADMIN_ACCESS_TOKEN"
-    );
-  }
-
-  return { shopDomain, accessToken };
-}
-
-async function adminGraphql<T>(
-  query: string,
-  variables?: Record<string, unknown>
-): Promise<T> {
-  const { shopDomain, accessToken } = getAdminConfig();
-  const url = `https://${shopDomain}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-    body: JSON.stringify({ query, variables }),
-    cache: "no-store",
-  });
-
-  const body = await response.json();
-  if (!response.ok) {
-    console.error(`${LOG} HTTP ${response.status}`, body);
-    throw new Error(`Shopify Admin HTTP ${response.status}`);
-  }
-  if (body.errors?.length) {
-    console.error(`${LOG} GraphQL errors`, body.errors);
-    throw new Error(body.errors[0]?.message || "Shopify Admin GraphQL error");
-  }
-  return body.data as T;
-}
 
 type OrderNode = {
   id: string;
@@ -74,12 +31,6 @@ type OrderNode = {
     }>;
   };
 };
-
-function normalizeOrderNumber(raw: string): string {
-  return String(raw || "")
-    .trim()
-    .replace(/^#/, "");
-}
 
 async function findOrderByNumber(
   orderNumber: string
@@ -211,12 +162,21 @@ async function fulfillOrderWithTracking(
   const errors =
     data.fulfillmentCreate?.userErrors?.map((e) => e.message).filter(Boolean) ??
     [];
-  return { ok: errors.length === 0 && Boolean(data.fulfillmentCreate?.fulfillment), errors };
+  return {
+    ok:
+      errors.length === 0 && Boolean(data.fulfillmentCreate?.fulfillment),
+    errors,
+  };
 }
 
 function isPaidStatus(status?: string | null): boolean {
   const s = String(status || "").toUpperCase();
-  return s === "PAID" || s === "PARTIALLY_PAID" || s === "REFUNDED" || s === "PARTIALLY_REFUNDED";
+  return (
+    s === "PAID" ||
+    s === "PARTIALLY_PAID" ||
+    s === "REFUNDED" ||
+    s === "PARTIALLY_REFUNDED"
+  );
 }
 
 function isFulfilledStatus(status?: string | null): boolean {

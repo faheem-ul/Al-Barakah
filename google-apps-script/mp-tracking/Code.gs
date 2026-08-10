@@ -28,11 +28,36 @@ var CONFIG = {
    * Example: https://your-tunnel-or-domain.com/api/shopify/orders/mark-delivered
    */
   SYNC_URL: "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/mark-delivered",
+  /**
+   * Lookup customer checkout email via Shopify Admin (Order Number).
+   * Same host as SYNC_URL; leave blank to derive from SYNC_URL.
+   */
+  CUSTOMER_CONTACT_URL:
+    "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/customer-contact",
   /** Must match SHEET_TO_SHOPIFY_SYNC_SECRET in Next.js .env.local */
   SYNC_SECRET: "7beddfe5b6d434edc53e97eb7c3f420e01bd492f6fa51d8786538a6f6c06a806",
+  /** Public site — logo + review QR must be deployed under /public */
+  SITE_BASE_URL: "https://www.albarakahoney.com",
+  LOGO_URL: "https://www.albarakahoney.com/logo.png",
+  REVIEW_QR_URL: "https://www.albarakahoney.com/google-review-qr.png",
+  GOOGLE_REVIEW_URL: "https://g.page/r/Cb5ju-Dzbs1nEBM/review",
+  SUPPORT_PHONE: "+92 306 2141972",
+  SUPPORT_PHONE_TEL: "+923062141972",
+  /** Brand colors from the website UI */
+  BRAND: {
+    brown: "#302A25",
+    mint: "#8FB69F",
+    ink: "#1F150A",
+    muted: "#6B6B6B",
+    cream: "#F2EEE6",
+    page: "#FDFBFF",
+    white: "#FFFFFF",
+    border: "#E8E2D8",
+  },
   HEADERS: {
     ORDER_NUMBER: "Order Number",
     NAME: "Name",
+    EMAIL: "Email",
     TRACKING_NUMBER: "Tracking Number",
     ORDER_STATUS: "Order Status",
     TRACKING_LOCATION: "Tracking Location",
@@ -316,6 +341,23 @@ function ensureTrackingHeaders_() {
     return String(h || "").trim();
   });
 
+  // Physically insert Email after Contact so existing rows stay aligned.
+  if (headerNames.indexOf(CONFIG.HEADERS.EMAIL) === -1) {
+    var contactIdx = headerNames.indexOf("Contact"); // 0-based
+    if (contactIdx >= 0) {
+      sheet.insertColumnAfter(contactIdx + 1);
+      sheet.getRange(1, contactIdx + 2).setValue(CONFIG.HEADERS.EMAIL);
+      log_("Inserted Email column after Contact");
+      lastCol = Math.max(sheet.getLastColumn(), 1);
+      headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      headerNames = headers.map(function (h) {
+        return String(h || "").trim();
+      });
+    } else {
+      log_("Contact column missing — Email not inserted");
+    }
+  }
+
   var needed = [
     CONFIG.HEADERS.TRACKING_NUMBER,
     CONFIG.HEADERS.ORDER_STATUS,
@@ -587,6 +629,7 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
       "— sending email"
     );
     sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
+    sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
 
     if (isDelivered_(newStatus)) {
       syncDeliveredToShopify_(sheet, cols, row, cn);
@@ -751,9 +794,622 @@ function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked)
       htmlBody: html,
       name: "Al Barakah Honey Tracking",
     });
-    log_("Email sent to", to, "| subject:", subject);
+    log_("Admin email sent to", to, "| subject:", subject);
   } catch (err) {
-    log_("EMAIL FAILED:", String(err && err.message ? err.message : err));
+    log_("ADMIN EMAIL FAILED:", String(err && err.message ? err.message : err));
+  }
+}
+
+/**
+ * Email the customer on every tracking status change.
+ * Looks up checkout email from Shopify Admin via Next.js (Order Number).
+ */
+function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked, contactOverride) {
+  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "").trim()
+    : "";
+  var sheetName = cols[CONFIG.HEADERS.NAME]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "").trim()
+    : "";
+  var sheetEmail = cols[CONFIG.HEADERS.EMAIL]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.EMAIL]).getValue() || "")
+        .trim()
+        .toLowerCase()
+    : "";
+
+  var contact = contactOverride || null;
+  if (!contact) {
+    if (sheetEmail && sheetEmail.indexOf("@") !== -1) {
+      contact = {
+        email: sheetEmail,
+        name: sheetName || "Customer",
+        orderName: orderNumber
+          ? orderNumber.indexOf("#") === 0
+            ? orderNumber
+            : "#" + orderNumber
+          : "",
+      };
+      log_("Customer email from sheet:", sheetEmail);
+    } else if (orderNumber) {
+      log_("Sheet Email blank — trying Shopify Admin lookup for", orderNumber);
+      contact = lookupCustomerContact_(orderNumber);
+    } else {
+      log_("Customer email skipped — no Email on sheet and no Order Number");
+      return;
+    }
+  }
+
+  if (!contact || !contact.email) {
+    log_(
+      "Customer email skipped — no email found (sheet + Shopify). " +
+        "Paste the customer email into the Email column for this row, " +
+        "or wait for a new webhook order that includes Email."
+    );
+    return;
+  }
+
+  var customerName = String(contact.name || sheetName || "Customer").trim();
+  var status = String(tracked.status || "").trim();
+  var location = String(tracked.location || "").trim();
+  var detail = String(tracked.detail || "").trim();
+  var trackingUrl = CONFIG.TRACKING_BASE_URL + cn;
+  var checkedAt = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone() || "Asia/Karachi",
+    "dd MMM yyyy, hh:mm a"
+  );
+  var displayOrder =
+    contact.orderName ||
+    (orderNumber.indexOf("#") === 0 ? orderNumber : "#" + orderNumber);
+
+  var prevNorm = String(previousStatus || "")
+    .trim()
+    .toLowerCase();
+  var isInitial = !prevNorm || prevNorm === "pending";
+  var isDelivered = isDelivered_(status);
+  var reviewUrl = String(CONFIG.GOOGLE_REVIEW_URL || "").trim();
+  var supportPhone = String(CONFIG.SUPPORT_PHONE || "+92 306 2141972").trim();
+  var supportTel = String(CONFIG.SUPPORT_PHONE_TEL || "+923062141972").trim();
+  var siteUrl = String(
+    CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com"
+  ).trim();
+  var logoUrl = String(CONFIG.LOGO_URL || siteUrl + "/logo.png").trim();
+  var siteQrUrl = String(CONFIG.REVIEW_QR_URL || "").trim();
+  var generatedQrUrl = reviewUrl
+    ? "https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=" +
+      encodeURIComponent(reviewUrl)
+    : "";
+
+  var subject;
+  if (isDelivered) {
+    subject =
+      "Order " + displayOrder + " delivered — thank you! Please leave a review";
+  } else if (isInitial) {
+    subject =
+      "Order " +
+      displayOrder +
+      " shipped — tracking " +
+      cn +
+      " (" +
+      status +
+      ")";
+  } else {
+    subject = "Order " + displayOrder + " update — now " + status;
+  }
+
+  var eyebrow = isDelivered
+    ? "Successfully delivered"
+    : isInitial
+      ? "Your shipment is on the way"
+      : "Shipment status update";
+
+  var introHtml;
+  var introPlain;
+  if (isDelivered) {
+    introHtml =
+      "Great news — your Al Barakah Honey order has been <strong style=\"color:#1f5c3a;\">delivered</strong>. " +
+      "We hope every spoon tastes like a blessing. If you loved it, a short Google review would mean the world to us.";
+    introPlain =
+      "Great news — your Al Barakah Honey order has been delivered. " +
+      "We hope every spoon tastes like a blessing. If you loved it, a short Google review would mean the world to us.";
+  } else if (isInitial) {
+    introHtml =
+      "Thank you for choosing Al Barakah Honey. Your order has been shipped with M&amp;P. " +
+      "Please save your tracking number below so you can follow the delivery.";
+    introPlain =
+      "Thank you for choosing Al Barakah Honey. Your order has been shipped with M&P. " +
+      "Please save your tracking number below so you can follow the delivery.";
+  } else {
+    introHtml =
+      "Your Al Barakah Honey shipment status has changed" +
+      (previousStatus
+        ? " from <strong>" +
+          escapeHtml_(previousStatus) +
+          "</strong> to <strong style=\"color:#1f5c3a;\">" +
+          escapeHtml_(status) +
+          "</strong>."
+        : " to <strong style=\"color:#1f5c3a;\">" +
+          escapeHtml_(status) +
+          "</strong>.");
+    introPlain =
+      "Your Al Barakah Honey shipment status has changed" +
+      (previousStatus
+        ? ' from "' + previousStatus + '" to "' + status + '".'
+        : ' to "' + status + '".');
+  }
+
+  var footerNote = isDelivered
+    ? "Thank you for shopping with Al Barakah Honey. "
+    : isInitial
+      ? "You will receive another email whenever the courier status changes. "
+      : "This message was sent because the courier status for your order changed. ";
+
+  var brand = CONFIG.BRAND || {};
+  var cBrown = brand.brown || "#302A25";
+  var cMint = brand.mint || "#8FB69F";
+  var cInk = brand.ink || "#1F150A";
+  var cMuted = brand.muted || "#6B6B6B";
+  var cCream = brand.cream || "#F2EEE6";
+  var cPage = brand.page || "#FDFBFF";
+  var cWhite = brand.white || "#FFFFFF";
+  var cBorder = brand.border || "#E8E2D8";
+
+  // Keep site URLs in CONFIG; until deploy, fall back so the email still looks complete.
+  var inlineImages = {};
+  var logoCid = "";
+  var qrCid = "";
+  var logoBlob = fetchEmailImageBlob_(logoUrl, "logo.png");
+  if (logoBlob) {
+    logoCid = "logo";
+    inlineImages[logoCid] = logoBlob;
+  } else {
+    log_("Logo not reachable yet (", logoUrl, ") — using text brand for now");
+  }
+
+  var reviewQrSrc = "";
+  if (isDelivered && reviewUrl) {
+    var qrBlob = siteQrUrl
+      ? fetchEmailImageBlob_(siteQrUrl, "google-review-qr.png")
+      : null;
+    if (!qrBlob && generatedQrUrl) {
+      log_("Site QR not reachable yet — using generated QR for testing");
+      qrBlob = fetchEmailImageBlob_(generatedQrUrl, "google-review-qr.png");
+      reviewQrSrc = generatedQrUrl;
+    } else if (qrBlob) {
+      reviewQrSrc = siteQrUrl;
+    } else {
+      reviewQrSrc = generatedQrUrl || siteQrUrl;
+    }
+    if (qrBlob) {
+      qrCid = "reviewqr";
+      inlineImages[qrCid] = qrBlob;
+    }
+  }
+
+  var logoHtml = logoCid
+    ? '<img src="cid:' +
+      logoCid +
+      '" alt="Al Barakah Honey" width="148" style="display:block;margin:0 auto 10px;width:148px;max-width:60%;height:auto;border:0;" />'
+    : '<div style="font-size:26px;letter-spacing:0.06em;color:' +
+      cBrown +
+      ";font-weight:700;font-family:Georgia,'Times New Roman',serif;\">Al Barakah Honey</div>" +
+      '<div style="font-size:11px;color:' +
+      cMint +
+      ';letter-spacing:0.08em;margin-top:4px;">Pure · Natural · Blessed</div>';
+
+  var statusBadgeColor = isDelivered
+    ? cMint
+    : String(status).toLowerCase().indexOf("return") >= 0
+      ? "#b42318"
+      : cBrown;
+
+  if (isDelivered) {
+    introHtml = introHtml.replace(/#1f5c3a/g, cMint);
+  } else if (!isInitial) {
+    introHtml = introHtml.replace(/#1f5c3a/g, cBrown);
+  }
+
+  var reviewBlockHtml = "";
+  var reviewBlockPlain = "";
+  if (isDelivered && reviewUrl) {
+    var qrImgHtml = qrCid
+      ? '<img src="cid:' +
+        qrCid +
+        '" alt="Scan to leave a Google review" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;border:0;" />'
+      : reviewQrSrc
+        ? '<img src="' +
+          escapeHtml_(reviewQrSrc) +
+          '" alt="Scan to leave a Google review" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;border:0;" />'
+        : "";
+
+    // Stacked layout (button above QR) with clear vertical gap — email-safe tables.
+    reviewBlockHtml =
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 24px;background:' +
+      cCream +
+      ";border:1px solid " +
+      cBorder +
+      ';border-radius:10px;">' +
+      '<tr><td style="padding:22px 20px;text-align:center;font-family:Arial,sans-serif;">' +
+      '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:' +
+      cMuted +
+      ';font-weight:700;margin-bottom:8px;">Share your experience</div>' +
+      '<div style="font-size:18px;color:' +
+      cBrown +
+      ";font-weight:700;margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;\">Would you leave us a Google review?</div>" +
+      '<p style="margin:0 0 20px;font-size:14px;color:' +
+      cMuted +
+      ';line-height:1.55;">Your feedback helps more families find pure honey — and it only takes a minute.</p>' +
+      '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 24px;"><tr><td align="center" style="border-radius:30px;background:' +
+      cBrown +
+      ';">' +
+      '<a href="' +
+      escapeHtml_(reviewUrl) +
+      '" style="display:inline-block;background:' +
+      cBrown +
+      ";color:" +
+      cWhite +
+      ';text-decoration:none;padding:14px 28px;font-size:14px;font-weight:600;border-radius:30px;line-height:1.2;">Leave a Google review</a>' +
+      "</td></tr></table>" +
+      (qrImgHtml
+        ? '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;"><tr><td align="center" style="padding:14px;background:' +
+          cWhite +
+          ";border:1px solid " +
+          cBorder +
+          ';border-radius:12px;">' +
+          qrImgHtml +
+          "</td></tr></table>" +
+          '<p style="margin:12px 0 0;font-size:12px;color:' +
+          cMuted +
+          ';">Or scan this code with your phone camera</p>'
+        : "") +
+      "</td></tr></table>";
+    reviewBlockPlain =
+      "\nWould you leave us a Google review?\n" +
+      reviewUrl +
+      "\n(Or scan the QR code in the HTML email.)\n";
+  }
+
+  var primaryCtaHtml = isDelivered
+    ? ""
+    : '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 18px;"><tr><td align="center" style="border-radius:30px;background:' +
+      cBrown +
+      ';">' +
+      '<a href="' +
+      trackingUrl +
+      '" style="display:inline-block;background:' +
+      cBrown +
+      ";color:" +
+      cWhite +
+      ';text-decoration:none;padding:14px 28px;font-size:14px;font-weight:600;border-radius:30px;">Track your shipment</a>' +
+      "</td></tr></table>";
+
+  var html =
+    '<div style="margin:0;padding:0;background:' +
+    cPage +
+    ';">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:' +
+    cPage +
+    ';padding:28px 12px;">' +
+    "<tr><td align=\"center\">" +
+    '<table role="presentation" width="580" cellspacing="0" cellpadding="0" style="max-width:580px;width:100%;background:' +
+    cWhite +
+    ";border-radius:14px;overflow:hidden;border:1px solid " +
+    cBorder +
+    ';">' +
+    '<tr><td style="padding:28px 28px 18px;text-align:center;background:' +
+    cCream +
+    ";border-bottom:1px solid " +
+    cBorder +
+    ';">' +
+    logoHtml +
+    '<div style="margin-top:8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:' +
+    cMuted +
+    ';font-family:Arial,sans-serif;font-weight:600;">' +
+    escapeHtml_(eyebrow) +
+    "</div>" +
+    "</td></tr>" +
+    '<tr><td style="padding:26px 28px 8px;font-family:Arial,sans-serif;color:' +
+    cInk +
+    ';font-size:15px;line-height:1.65;">' +
+    '<p style="margin:0 0 14px;font-size:16px;">Assalamualaikum' +
+    (customerName && customerName !== "Customer"
+      ? ", <strong>" + escapeHtml_(customerName) + "</strong>"
+      : "") +
+    ",</p>" +
+    '<p style="margin:0 0 20px;color:' +
+    cInk +
+    ';">' +
+    introHtml +
+    "</p>" +
+    '<div style="margin:0 0 18px;text-align:center;">' +
+    '<span style="display:inline-block;background:' +
+    statusBadgeColor +
+    ";color:" +
+    (isDelivered ? cInk : cWhite) +
+    ';font-size:13px;font-weight:700;letter-spacing:0.04em;padding:8px 16px;border-radius:999px;">' +
+    escapeHtml_(status) +
+    "</span></div>" +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 20px;font-size:14px;border:1px solid ' +
+    cBorder +
+    ';border-radius:10px;overflow:hidden;">' +
+    customerRowHtml_("Order number", escapeHtml_(displayOrder)) +
+    customerRowHtml_(
+      "Tracking number",
+      '<strong style="letter-spacing:0.04em;">' + escapeHtml_(cn) + "</strong>"
+    ) +
+    customerRowHtml_(
+      "Current status",
+      '<strong style="color:' +
+        cBrown +
+        ';">' +
+        escapeHtml_(status) +
+        "</strong>"
+    ) +
+    customerRowHtml_("Location", escapeHtml_(location || "—")) +
+    customerRowHtml_("Detail", escapeHtml_(detail || "—")) +
+    customerRowHtml_("Updated", escapeHtml_(checkedAt)) +
+    "</table>" +
+    primaryCtaHtml +
+    reviewBlockHtml +
+    (!isDelivered
+      ? '<p style="margin:0 0 8px;font-size:12px;color:' +
+        cMuted +
+        ';text-align:center;">Track anytime:<br><a href="' +
+        trackingUrl +
+        '" style="color:' +
+        cBrown +
+        ';word-break:break-all;">' +
+        escapeHtml_(trackingUrl) +
+        "</a></p>"
+      : "") +
+    "</td></tr>" +
+    '<tr><td style="padding:20px 28px 28px;background:' +
+    cCream +
+    ";border-top:1px solid " +
+    cBorder +
+    ';font-family:Arial,sans-serif;font-size:13px;color:' +
+    cMuted +
+    ';line-height:1.55;">' +
+    '<div style="margin:0 0 12px;padding:14px 16px;background:' +
+    cWhite +
+    ";border:1px solid " +
+    cBorder +
+    ';border-radius:8px;">' +
+    '<strong style="color:' +
+    cBrown +
+    ';">Need help?</strong><br>' +
+    'Call or WhatsApp: <a href="tel:' +
+    escapeHtml_(supportTel) +
+    '" style="color:' +
+    cBrown +
+    ';font-weight:700;text-decoration:none;">' +
+    escapeHtml_(supportPhone) +
+    "</a><br>" +
+    'Email: <a href="mailto:' +
+    escapeHtml_(CONFIG.NOTIFY_EMAIL) +
+    '" style="color:' +
+    cBrown +
+    ';">' +
+    escapeHtml_(CONFIG.NOTIFY_EMAIL) +
+    "</a></div>" +
+    escapeHtml_(footerNote) +
+    "If you did not place this order, reply to this email and we will help immediately.<br><br>" +
+    'Warm regards,<br><strong style="color:' +
+    cBrown +
+    ';">Al Barakah Honey</strong><br>' +
+    '<a href="' +
+    escapeHtml_(siteUrl) +
+    '" style="color:' +
+    cMuted +
+    ';font-size:12px;">' +
+    escapeHtml_(siteUrl.replace(/^https?:\/\//, "")) +
+    "</a>" +
+    "</td></tr>" +
+    "</table></td></tr></table></div>";
+
+  var plain =
+    "Assalamualaikum" +
+    (customerName && customerName !== "Customer" ? ", " + customerName : "") +
+    ",\n\n" +
+    introPlain +
+    "\n\n" +
+    "Order number: " +
+    displayOrder +
+    "\n" +
+    "Tracking number: " +
+    cn +
+    "\n" +
+    "Current status: " +
+    status +
+    "\n" +
+    "Location: " +
+    (location || "—") +
+    "\n" +
+    "Detail: " +
+    (detail || "—") +
+    "\n" +
+    "Updated: " +
+    checkedAt +
+    "\n" +
+    (!isDelivered ? "\nTrack your shipment: " + trackingUrl + "\n" : "") +
+    reviewBlockPlain +
+    "\nNeed help?\nCall or WhatsApp: " +
+    supportPhone +
+    "\nEmail: " +
+    CONFIG.NOTIFY_EMAIL +
+    "\n\nWarm regards,\nAl Barakah Honey\n";
+
+  try {
+    var mailOpts = {
+      to: contact.email,
+      subject: subject,
+      body: plain,
+      htmlBody: html,
+      name: "Al Barakah Honey",
+      replyTo: CONFIG.NOTIFY_EMAIL,
+    };
+    var hasInline = false;
+    for (var k in inlineImages) {
+      if (inlineImages.hasOwnProperty(k)) {
+        hasInline = true;
+        break;
+      }
+    }
+    if (hasInline) mailOpts.inlineImages = inlineImages;
+    MailApp.sendEmail(mailOpts);
+    log_(
+      "Customer email sent to",
+      contact.email,
+      "|",
+      isDelivered ? "delivered+review" : isInitial ? "initial" : "update",
+      "| order",
+      displayOrder,
+      "| status",
+      status
+    );
+  } catch (err) {
+    log_(
+      "CUSTOMER EMAIL FAILED:",
+      String(err && err.message ? err.message : err)
+    );
+  }
+}
+
+/**
+ * Manual test: send sample customer emails (update + Delivered+review) to admin.
+ * Run from Apps Script editor → select testCustomerTrackingEmails → Run.
+ * Does not modify sheet rows.
+ */
+function testCustomerTrackingEmails() {
+  var to = CONFIG.NOTIFY_EMAIL;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  var cols = getHeaderMap_(sheet);
+  var contact = {
+    email: to,
+    name: "Test Customer",
+    orderName: "#1090",
+  };
+
+  sendCustomerTrackingEmail_(
+    sheet,
+    cols,
+    2,
+    "7212345678901",
+    "Booked",
+    {
+      status: "In-transit",
+      location: "Lahore Hub",
+      detail: "Shipment arrived at local facility",
+    },
+    contact
+  );
+
+  sendCustomerTrackingEmail_(
+    sheet,
+    cols,
+    2,
+    "7212345678901",
+    "In-transit",
+    {
+      status: "Delivered",
+      location: "Lahore",
+      detail: "Shipment delivered to consignee",
+    },
+    contact
+  );
+
+  log_("testCustomerTrackingEmails done — check inbox:", to);
+}
+
+/**
+ * Fetch an image for MailApp inlineImages (cid:...).
+ */
+function fetchEmailImageBlob_(url, filename) {
+  if (!url) return null;
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+    });
+    var code = response.getResponseCode();
+    if (code < 200 || code >= 300) {
+      log_("Email image fetch failed", code, url);
+      return null;
+    }
+    return response.getBlob().setName(filename || "image.png");
+  } catch (err) {
+    log_(
+      "Email image fetch error:",
+      String(err && err.message ? err.message : err),
+      url
+    );
+    return null;
+  }
+}
+
+function customerRowHtml_(label, valueHtml) {
+  return (
+    "<tr>" +
+    '<td style="padding:11px 14px;border-bottom:1px solid #E8E2D8;background:#F2EEE6;color:#6B6B6B;width:38%;vertical-align:top;font-size:13px;">' +
+    escapeHtml_(label) +
+    "</td>" +
+    '<td style="padding:11px 14px;border-bottom:1px solid #E8E2D8;vertical-align:top;color:#1F150A;font-size:14px;">' +
+    valueHtml +
+    "</td>" +
+    "</tr>"
+  );
+}
+
+function resolveCustomerContactUrl_() {
+  var explicit = String(CONFIG.CUSTOMER_CONTACT_URL || "").trim();
+  if (explicit) return explicit;
+  var syncUrl = String(CONFIG.SYNC_URL || "").trim();
+  if (!syncUrl) return "";
+  return syncUrl.replace(
+    /\/api\/shopify\/orders\/mark-delivered\/?$/,
+    "/api/shopify/orders/customer-contact"
+  );
+}
+
+/**
+ * POST Order Number → Next.js → Shopify Admin → { email, name, orderName }
+ */
+function lookupCustomerContact_(orderNumber) {
+  var url = resolveCustomerContactUrl_();
+  var syncSecret = String(CONFIG.SYNC_SECRET || "").trim();
+  if (!url || !syncSecret) {
+    log_(
+      "Customer contact lookup skipped — set CUSTOMER_CONTACT_URL/SYNC_URL and SYNC_SECRET"
+    );
+    return null;
+  }
+
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      headers: { "x-sync-secret": syncSecret },
+      payload: JSON.stringify({ orderNumber: String(orderNumber || "").trim() }),
+      muteHttpExceptions: true,
+    });
+    var code = response.getResponseCode();
+    var text = response.getContentText() || "";
+    log_("Customer contact HTTP", code, text.slice(0, 400));
+    if (code < 200 || code >= 300) return null;
+    var data = JSON.parse(text);
+    if (!data || !data.ok || !data.email) return null;
+    return {
+      email: String(data.email || "").trim(),
+      name: String(data.name || "").trim(),
+      orderName: String(data.orderName || "").trim(),
+    };
+  } catch (err) {
+    log_(
+      "Customer contact lookup FAILED:",
+      String(err && err.message ? err.message : err)
+    );
+    return null;
   }
 }
 

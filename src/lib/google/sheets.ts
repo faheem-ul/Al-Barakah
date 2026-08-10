@@ -251,6 +251,73 @@ function headersMatchOpsLayout(firstRow: string[]): boolean {
   );
 }
 
+/**
+ * Insert Email after Contact without shifting data into wrong labels.
+ * Safe to call repeatedly — no-op when Email already exists.
+ */
+async function ensureEmailColumn(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tab: TabMeta,
+  firstRow: string[]
+): Promise<string[]> {
+  if (firstRow.includes("Email")) return firstRow;
+
+  const contactIdx = firstRow.indexOf("Contact");
+  if (contactIdx < 0) {
+    console.warn(`${LOG} Contact column missing — cannot insert Email`);
+    return firstRow;
+  }
+
+  const insertAt = contactIdx + 1; // 0-based index after Contact
+  console.log(
+    `${LOG} Inserting Email column at index ${insertAt} (after Contact)`
+  );
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId: tab.sheetId,
+              dimension: "COLUMNS",
+              startIndex: insertAt,
+              endIndex: insertAt + 1,
+            },
+            inheritFromBefore: true,
+          },
+        },
+      ],
+    },
+  });
+
+  const colLetter = columnIndexToLetter_(insertAt); // 0-based → A=0
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: sheetRange(tab.title, `${colLetter}1`),
+    valueInputOption: "RAW",
+    requestBody: { values: [["Email"]] },
+  });
+
+  const next = [...firstRow];
+  next.splice(insertAt, 0, "Email");
+  return next;
+}
+
+/** 0-based column index → A1 letter(s). */
+function columnIndexToLetter_(index: number): string {
+  let n = index + 1;
+  let s = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
 async function ensureHeaderRow(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
@@ -264,7 +331,7 @@ async function ensureHeaderRow(
     range,
   });
 
-  const firstRow = (existing.data.values?.[0] ?? []).map((h) =>
+  let firstRow = (existing.data.values?.[0] ?? []).map((h) =>
     String(h || "").trim()
   );
   const headers = ORDER_SHEET_HEADERS as unknown as string[];
@@ -284,8 +351,10 @@ async function ensureHeaderRow(
     return;
   }
 
+  firstRow = await ensureEmailColumn(sheets, spreadsheetId, tab, firstRow);
+
   console.log(
-    `${LOG} Header already present (${firstRow.length} columns) — skip write`
+    `${LOG} Header already present (${firstRow.length} columns) — skip full rewrite`
   );
 }
 

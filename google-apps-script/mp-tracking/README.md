@@ -16,6 +16,7 @@ No M&P COD portal login is required.
 | Address | Shopify webhook |
 | City | Shopify webhook |
 | Contact | Shopify webhook |
+| Email | Shopify webhook (checkout email) |
 | Product Detail | Shopify webhook |
 | Bottle Size | Shopify webhook |
 | Quantity | Shopify webhook |
@@ -59,10 +60,11 @@ SHEET_TO_SHOPIFY_SYNC_SECRET=long-random-string
 
 ```js
 SYNC_URL: "https://YOUR-PUBLIC-HTTPS-HOST/api/shopify/orders/mark-delivered",
+CUSTOMER_CONTACT_URL: "https://YOUR-PUBLIC-HTTPS-HOST/api/shopify/orders/customer-contact",
 SYNC_SECRET: "same-long-random-string-as-env",
 ```
 
-Use your tunnel/domain (same host you use for Shopify webhooks). Leave blank to disable sync.
+Use your tunnel/domain (same host you use for Shopify webhooks). Leave blank to disable sync / customer email lookup.
 
 5. Paste the latest `Code.gs` → Save → run **`installMpTrackingTriggers`** again if needed.
 
@@ -113,11 +115,27 @@ In Apps Script, run **`refreshAllMpTrackingStatuses`**.
 
 ## Tracking status email alerts
 
-Whenever **Order Status** changes from M&P (hourly job or after you paste/edit a CN), Apps Script emails:
+Whenever **Order Status** changes from M&P (hourly job or after you paste/edit a CN), Apps Script sends **two** emails:
+
+### 1. Admin
 
 - **To:** `thealbarakahoney@gmail.com`
 - **Subject:** `Tracking update: {Name} — CN {number} is now "{Status}"`
 - **Body:** customer name, order number, CN, previous→current status, location, detail, tracking link
+
+### 2. Customer (checkout email from sheet)
+
+- **Email source:** Shopify **orders webhook** writes the checkout email into the sheet **Email** column (works on Basic plans). Apps Script reads that cell — Admin API email lookup is blocked on Basic and is only a fallback.
+- Branded HTML uses `public/logo.png` (from `https://www.albarakahoney.com/logo.png`) and support **+92 306 2141972**.
+- Same layout every time; **subject + intro change** by stage:
+  - **First send** (from blank/Pending): `Order #{n} shipped — tracking {CN} ({Status})`
+  - **Later updates:** `Order #{n} update — now {Status}`
+  - **Delivered:** `Order #{n} delivered — thank you! Please leave a review`  
+    Includes Google review CTA + QR (`/google-review-qr.png`) for  
+    `https://g.page/r/Cb5ju-Dzbs1nEBM/review`
+- Skipped when Email is blank (legacy rows): paste the email manually, or use new orders after the webhook starts writing Email.
+
+**Deploy note:** `logo.png` + `google-review-qr.png` must be live on the site root for inline email images to load. Until then, Delivered emails fall back to a generated QR for the same review URL.
 
 Update `CONFIG.NOTIFY_EMAIL` in `Code.gs` if the inbox should change.
 

@@ -14,6 +14,7 @@ export const ORDER_SHEET_HEADERS = [
   "Address",
   "City",
   "Contact",
+  "Email",
   "Product Detail",
   "Bottle Size",
   "Quantity",
@@ -186,6 +187,10 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
         order.customer?.phone
     )
   );
+  // Webhook payload includes email even on Basic plans (Admin API PII does not).
+  const email = str(order.email || order.customer?.email)
+    .trim()
+    .toLowerCase();
   const cod = orderCodAmount(order);
   const status = initialOrderStatus(order);
 
@@ -199,6 +204,7 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
       address,
       city,
       contact,
+      email,
       productDetail(item),
       bottleSizeFromVariant(item.variant_title, item.title),
       str(item.quantity ?? ""),
