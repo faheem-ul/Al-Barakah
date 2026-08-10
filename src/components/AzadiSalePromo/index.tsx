@@ -100,7 +100,7 @@ const AzadiSalePromo = () => {
       <button
         type="button"
         onClick={toggleMute}
-        className="fixed right-4 bottom-4 z-[110] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-white text-[#302A25] shadow-md sm:right-6 sm:bottom-6"
+        className="fixed right-4 bottom-[calc(1rem+var(--sticky-cta-offset,0px))] z-[110] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-white text-[#302A25] shadow-md sm:right-6 sm:bottom-[calc(1.5rem+var(--sticky-cta-offset,0px))]"
         aria-label={isMuted ? "Unmute music" : "Mute music"}
       >
         {isMuted ? (

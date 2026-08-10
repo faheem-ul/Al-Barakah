@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BagIcon, MinusIcon, PlusIcon } from "@/ui/Icons";
@@ -20,7 +20,13 @@ const ProductVariantSelector = (props: PropTypes) => {
   const { product, onVariantChange } = props;
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [selectedSize, setSelectedSize] = useState<string | undefined>();
-  const { getItemQuantity, addCartQuantity, onCartOpen } = useShoppingCart();
+  const [isStuck, setIsStuck] = useState(false);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const isStuckRef = useRef(false);
+  const stuckHeightRef = useRef(0);
+  const { getItemQuantity, addCartQuantity, onCartOpen, isCartOpen } =
+    useShoppingCart();
 
   const quantity = getItemQuantity(product?.id as string);
   const sizes = useMemo(
@@ -30,9 +36,85 @@ const ProductVariantSelector = (props: PropTypes) => {
     [product]
   );
 
+  const isStickyActive = isStuck && !isCartOpen;
+
   useEffect(() => {
     setItemQuantity(quantity);
   }, [quantity]);
+
+  // Pin the same ATC to the bottom as soon as it reaches the viewport bottom
+  // (while still visible) — not after it scrolls off-screen.
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+
+    const setStuck = (next: boolean, height?: number) => {
+      isStuckRef.current = next;
+      if (next && typeof height === "number") {
+        stuckHeightRef.current = height;
+      }
+      setIsStuck(next);
+    };
+
+    const update = () => {
+      const sentinel = sentinelRef.current;
+      const node = controlsRef.current;
+      if (!sentinel || !node || !mediaQuery.matches || isCartOpen) {
+        setStuck(false);
+        return;
+      }
+
+      const h = isStuckRef.current
+        ? stuckHeightRef.current || sentinel.offsetHeight
+        : sentinel.offsetHeight;
+      const shouldStick =
+        sentinel.getBoundingClientRect().top <= window.innerHeight - h;
+
+      if (shouldStick) {
+        if (!isStuckRef.current) setStuck(true, sentinel.offsetHeight);
+      } else if (isStuckRef.current) {
+        setStuck(false);
+      }
+    };
+
+    const onViewportChange = () => {
+      if (!mediaQuery.matches) setStuck(false);
+      update();
+    };
+
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    mediaQuery.addEventListener("change", onViewportChange);
+
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      mediaQuery.removeEventListener("change", onViewportChange);
+      setStuck(false);
+    };
+  }, [isCartOpen]);
+
+  // Lift floating UI only while the ATC is actually pinned to the bottom.
+  useEffect(() => {
+    const root = document.documentElement;
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+
+    const applyOffset = () => {
+      if (mediaQuery.matches && isStickyActive) {
+        root.style.setProperty("--sticky-cta-offset", "9.5rem");
+      } else {
+        root.style.removeProperty("--sticky-cta-offset");
+      }
+    };
+
+    applyOffset();
+    mediaQuery.addEventListener("change", applyOffset);
+
+    return () => {
+      mediaQuery.removeEventListener("change", applyOffset);
+      root.style.removeProperty("--sticky-cta-offset");
+    };
+  }, [isStickyActive]);
 
   // Initialize selected size on component mount
   useEffect(() => {
@@ -129,19 +211,36 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between md:flex-row flex-col pt-10 gap-4">
-        <div className="flex w-full md:w-fit items-center gap-[50px] rounded-[62px] bg-[#F0F0F0] px-[22px] py-[17px] justify-center">
-          <MinusIcon className="cursor-pointer" onClick={onDecrease} />
-          <span>{itemQuantity}</span>
-          <PlusIcon className="cursor-pointer" onClick={onIncrease} />
-        </div>
-
-        <Button
-          onClick={onAddToCart}
-          className="text-[16px] font-semibold capitalize bg-black md:w-fit w-full flex justify-center items-center"
+      {/* Sentinel marks the natural ATC position; collapses when pinned (no gap) */}
+      <div
+        ref={sentinelRef}
+        className={cn(!isStickyActive && "mt-4")}
+        aria-hidden={isStickyActive || undefined}
+      >
+        {/* Single qty + ATC — pins at bottom when it reaches the viewport edge */}
+        <div
+          ref={controlsRef}
+          className={cn(
+            "flex flex-col items-stretch justify-between gap-3 pt-10 md:flex-row md:items-center md:gap-4 md:static md:z-auto md:border-0 md:bg-transparent md:px-0 md:pt-10 md:shadow-none md:pb-0",
+            isStickyActive &&
+              "fixed inset-x-0 bottom-0 z-[100] border-t border-[#E5E5E5] bg-white px-4 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[max(12px,env(safe-area-inset-bottom))] md:relative md:inset-auto"
+          )}
         >
-          <BagIcon /> Add to cart
-        </Button>
+          <div className="mx-auto flex w-full max-w-[521px] flex-col gap-3 md:mx-0 md:max-w-none md:flex-row md:items-center md:justify-between md:gap-4">
+            <div className="flex w-full items-center justify-center gap-5 rounded-[62px] bg-[#F0F0F0] px-4 py-3 md:w-fit md:gap-[50px] md:px-[22px] md:py-[17px]">
+              <MinusIcon className="cursor-pointer" onClick={onDecrease} />
+              <span className="min-w-[1.25rem] text-center">{itemQuantity}</span>
+              <PlusIcon className="cursor-pointer" onClick={onIncrease} />
+            </div>
+
+            <Button
+              onClick={onAddToCart}
+              className="flex min-h-[48px] w-full items-center justify-center bg-black text-[16px] font-semibold capitalize md:w-fit md:min-h-0"
+            >
+              <BagIcon /> Add to cart
+            </Button>
+          </div>
+        </div>
       </div>
     </>
   );

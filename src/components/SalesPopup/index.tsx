@@ -191,7 +191,7 @@ const SalesPopup = () => {
 
   return (
     <div
-      className={`fixed bottom-4 left-4 z-[90] w-[min(100%-2rem,340px)] transition-all duration-300 ease-out sm:bottom-6 sm:left-6 ${
+      className={`fixed bottom-[calc(1rem+var(--sticky-cta-offset,0px))] left-4 z-[90] w-[min(100%-2rem,340px)] transition-all duration-300 ease-out sm:bottom-[calc(1.5rem+var(--sticky-cta-offset,0px))] sm:left-6 ${
         isVisible
           ? "translate-y-0 opacity-100"
           : "pointer-events-none translate-y-3 opacity-0"
