@@ -27,7 +27,8 @@ var CONFIG = {
    * order as Paid (if unpaid/COD) + Fulfilled with tracking.
    * Example: https://your-tunnel-or-domain.com/api/shopify/orders/mark-delivered
    */
-  SYNC_URL: "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/mark-delivered",
+  SYNC_URL:
+    "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/mark-delivered",
   /**
    * Lookup customer checkout email via Shopify Admin (Order Number).
    * Same host as SYNC_URL; leave blank to derive from SYNC_URL.
@@ -35,7 +36,8 @@ var CONFIG = {
   CUSTOMER_CONTACT_URL:
     "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/customer-contact",
   /** Must match SHEET_TO_SHOPIFY_SYNC_SECRET in Next.js .env.local */
-  SYNC_SECRET: "7beddfe5b6d434edc53e97eb7c3f420e01bd492f6fa51d8786538a6f6c06a806",
+  SYNC_SECRET:
+    "7beddfe5b6d434edc53e97eb7c3f420e01bd492f6fa51d8786538a6f6c06a806",
   /** Public site — logo + review QR must be deployed under /public */
   SITE_BASE_URL: "https://www.albarakahoney.com",
   LOGO_URL: "https://www.albarakahoney.com/logo.png",
@@ -138,7 +140,9 @@ function authorizeExternalRequests() {
   var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
   log_("HTTP status:", response.getResponseCode());
   log_("Body bytes:", response.getContentText().length);
-  log_("===== authorizeExternalRequests DONE — now re-run refresh or re-edit CN =====");
+  log_(
+    "===== authorizeExternalRequests DONE — now re-run refresh or re-edit CN =====",
+  );
 }
 
 /** Removes triggers created by installMpTrackingTriggers. */
@@ -422,9 +426,9 @@ function clearTrackingDerivFields_(sheet, cols, row) {
 
 function applyOrderStatusStyle_(cell, status) {
   var colors = orderStatusColors_(status);
-  cell.setFontWeight(colors.bold ? "bold" : "normal").setHorizontalAlignment(
-    "center",
-  );
+  cell
+    .setFontWeight(colors.bold ? "bold" : "normal")
+    .setHorizontalAlignment("center");
   cell.setBackground(colors.bg).setFontColor(colors.fg);
 }
 
@@ -626,7 +630,7 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
       previousStatus || "(empty)",
       "→",
       newStatus,
-      "— sending email"
+      "— sending email",
     );
     sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
     sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
@@ -647,9 +651,7 @@ function syncDeliveredToShopify_(sheet, cols, row, cn) {
   var syncUrl = String(CONFIG.SYNC_URL || "").trim();
   var syncSecret = String(CONFIG.SYNC_SECRET || "").trim();
   if (!syncUrl || !syncSecret) {
-    log_(
-      "Shopify sync skipped — set CONFIG.SYNC_URL and CONFIG.SYNC_SECRET"
-    );
+    log_("Shopify sync skipped — set CONFIG.SYNC_URL and CONFIG.SYNC_SECRET");
     return;
   }
 
@@ -662,7 +664,7 @@ function syncDeliveredToShopify_(sheet, cols, row, cn) {
     log_(
       "Shopify sync skipped — blank Order Number on row",
       row,
-      "(legacy / non-Shopify row)"
+      "(legacy / non-Shopify row)",
     );
     return;
   }
@@ -689,7 +691,7 @@ function syncDeliveredToShopify_(sheet, cols, row, cn) {
   } catch (err) {
     log_(
       "Shopify sync EXCEPTION:",
-      String(err && err.message ? err.message : err)
+      String(err && err.message ? err.message : err),
     );
   }
 }
@@ -706,13 +708,24 @@ function statusChanged_(previousStatus, newStatus) {
   return prev !== next;
 }
 
-function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked) {
+function sendTrackingStatusEmail_(
+  sheet,
+  cols,
+  row,
+  cn,
+  previousStatus,
+  tracked,
+) {
   var to = CONFIG.NOTIFY_EMAIL;
   var customerName = cols[CONFIG.HEADERS.NAME]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "").trim()
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "",
+      ).trim()
     : "";
   var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "").trim()
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
+      ).trim()
     : "";
   if (!customerName) customerName = "Customer";
 
@@ -723,7 +736,7 @@ function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked)
   var checkedAt = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone() || "Asia/Karachi",
-    "dd MMM yyyy, hh:mm a"
+    "dd MMM yyyy, hh:mm a",
   );
 
   var subject =
@@ -731,15 +744,15 @@ function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked)
     customerName +
     " — CN " +
     cn +
-    " is now \"" +
+    ' is now "' +
     status +
-    "\"";
+    '"';
 
   var html =
-    "<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#222;line-height:1.5\">" +
+    '<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;line-height:1.5">' +
     "<p>Assalamualaikum,</p>" +
     "<p>An M&amp;P shipment status has changed.</p>" +
-    "<table style=\"border-collapse:collapse;margin:16px 0\">" +
+    '<table style="border-collapse:collapse;margin:16px 0">' +
     rowHtml_("Customer", customerName) +
     rowHtml_("Order Number", orderNumber || "—") +
     rowHtml_("Tracking / CN", cn) +
@@ -749,10 +762,10 @@ function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked)
     rowHtml_("Detail", detail || "—") +
     rowHtml_("Checked at", checkedAt) +
     "</table>" +
-    "<p><a href=\"" +
+    '<p><a href="' +
     trackingUrl +
-    "\">Open M&amp;P tracking page</a></p>" +
-    "<p style=\"color:#666;font-size:12px\">Al Barakah Honey — automated tracking notice</p>" +
+    '">Open M&amp;P tracking page</a></p>' +
+    '<p style="color:#666;font-size:12px">Al Barakah Honey — automated tracking notice</p>' +
     "</div>";
 
   var plain =
@@ -804,12 +817,24 @@ function sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked)
  * Email the customer on every tracking status change.
  * Looks up checkout email from Shopify Admin via Next.js (Order Number).
  */
-function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked, contactOverride) {
+function sendCustomerTrackingEmail_(
+  sheet,
+  cols,
+  row,
+  cn,
+  previousStatus,
+  tracked,
+  contactOverride,
+) {
   var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "").trim()
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
+      ).trim()
     : "";
   var sheetName = cols[CONFIG.HEADERS.NAME]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "").trim()
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "",
+      ).trim()
     : "";
   var sheetEmail = cols[CONFIG.HEADERS.EMAIL]
     ? String(sheet.getRange(row, cols[CONFIG.HEADERS.EMAIL]).getValue() || "")
@@ -843,7 +868,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
     log_(
       "Customer email skipped — no email found (sheet + Shopify). " +
         "Paste the customer email into the Email column for this row, " +
-        "or wait for a new webhook order that includes Email."
+        "or wait for a new webhook order that includes Email.",
     );
     return;
   }
@@ -856,7 +881,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
   var checkedAt = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone() || "Asia/Karachi",
-    "dd MMM yyyy, hh:mm a"
+    "dd MMM yyyy, hh:mm a",
   );
   var displayOrder =
     contact.orderName ||
@@ -871,7 +896,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
   var supportPhone = String(CONFIG.SUPPORT_PHONE || "+92 306 2141972").trim();
   var supportTel = String(CONFIG.SUPPORT_PHONE_TEL || "+923062141972").trim();
   var siteUrl = String(
-    CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com"
+    CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com",
   ).trim();
   var logoUrl = String(CONFIG.LOGO_URL || siteUrl + "/logo.png").trim();
   var siteQrUrl = String(CONFIG.REVIEW_QR_URL || "").trim();
@@ -900,14 +925,14 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
   var eyebrow = isDelivered
     ? "Successfully delivered"
     : isInitial
-      ? "Your shipment is on the way"
-      : "Shipment status update";
+    ? "Your shipment is on the way"
+    : "Shipment status update";
 
   var introHtml;
   var introPlain;
   if (isDelivered) {
     introHtml =
-      "Great news — your Al Barakah Honey order has been <strong style=\"color:#1f5c3a;\">delivered</strong>. " +
+      'Great news — your Al Barakah Honey order has been <strong style="color:#1f5c3a;">delivered</strong>. ' +
       "We hope every spoon tastes like a blessing. If you loved it, a short Google review would mean the world to us.";
     introPlain =
       "Great news — your Al Barakah Honey order has been delivered. " +
@@ -925,10 +950,10 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
       (previousStatus
         ? " from <strong>" +
           escapeHtml_(previousStatus) +
-          "</strong> to <strong style=\"color:#1f5c3a;\">" +
+          '</strong> to <strong style="color:#1f5c3a;">' +
           escapeHtml_(status) +
           "</strong>."
-        : " to <strong style=\"color:#1f5c3a;\">" +
+        : ' to <strong style="color:#1f5c3a;">' +
           escapeHtml_(status) +
           "</strong>.");
     introPlain =
@@ -941,8 +966,8 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
   var footerNote = isDelivered
     ? "Thank you for shopping with Al Barakah Honey. "
     : isInitial
-      ? "You will receive another email whenever the courier status changes. "
-      : "This message was sent because the courier status for your order changed. ";
+    ? "You will receive another email whenever the courier status changes. "
+    : "This message was sent because the courier status for your order changed. ";
 
   var brand = CONFIG.BRAND || {};
   var cBrown = brand.brown || "#302A25";
@@ -1000,8 +1025,8 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
   var statusBadgeColor = isDelivered
     ? cMint
     : String(status).toLowerCase().indexOf("return") >= 0
-      ? "#b42318"
-      : cBrown;
+    ? "#b42318"
+    : cBrown;
 
   if (isDelivered) {
     introHtml = introHtml.replace(/#1f5c3a/g, cMint);
@@ -1017,10 +1042,10 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
         qrCid +
         '" alt="Scan to leave a Google review" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;border:0;" />'
       : reviewQrSrc
-        ? '<img src="' +
-          escapeHtml_(reviewQrSrc) +
-          '" alt="Scan to leave a Google review" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;border:0;" />'
-        : "";
+      ? '<img src="' +
+        escapeHtml_(reviewQrSrc) +
+        '" alt="Scan to leave a Google review" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;border:0;" />'
+      : "";
 
     // Stacked layout (button above QR) with clear vertical gap — email-safe tables.
     reviewBlockHtml =
@@ -1090,7 +1115,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:' +
     cPage +
     ';padding:28px 12px;">' +
-    "<tr><td align=\"center\">" +
+    '<tr><td align="center">' +
     '<table role="presentation" width="580" cellspacing="0" cellpadding="0" style="max-width:580px;width:100%;background:' +
     cWhite +
     ";border-radius:14px;overflow:hidden;border:1px solid " +
@@ -1135,7 +1160,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
     customerRowHtml_("Order number", escapeHtml_(displayOrder)) +
     customerRowHtml_(
       "Tracking number",
-      '<strong style="letter-spacing:0.04em;">' + escapeHtml_(cn) + "</strong>"
+      '<strong style="letter-spacing:0.04em;">' + escapeHtml_(cn) + "</strong>",
     ) +
     customerRowHtml_(
       "Current status",
@@ -1143,7 +1168,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
         cBrown +
         ';">' +
         escapeHtml_(status) +
-        "</strong>"
+        "</strong>",
     ) +
     customerRowHtml_("Location", escapeHtml_(location || "—")) +
     customerRowHtml_("Detail", escapeHtml_(detail || "—")) +
@@ -1167,7 +1192,7 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
     cCream +
     ";border-top:1px solid " +
     cBorder +
-    ';font-family:Arial,sans-serif;font-size:13px;color:' +
+    ";font-family:Arial,sans-serif;font-size:13px;color:" +
     cMuted +
     ';line-height:1.55;">' +
     '<div style="margin:0 0 12px;padding:14px 16px;background:' +
@@ -1265,12 +1290,12 @@ function sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracke
       "| order",
       displayOrder,
       "| status",
-      status
+      status,
     );
   } catch (err) {
     log_(
       "CUSTOMER EMAIL FAILED:",
-      String(err && err.message ? err.message : err)
+      String(err && err.message ? err.message : err),
     );
   }
 }
@@ -1302,7 +1327,7 @@ function testCustomerTrackingEmails() {
       location: "Lahore Hub",
       detail: "Shipment arrived at local facility",
     },
-    contact
+    contact,
   );
 
   sendCustomerTrackingEmail_(
@@ -1316,7 +1341,7 @@ function testCustomerTrackingEmails() {
       location: "Lahore",
       detail: "Shipment delivered to consignee",
     },
-    contact
+    contact,
   );
 
   log_("testCustomerTrackingEmails done — check inbox:", to);
@@ -1342,7 +1367,7 @@ function fetchEmailImageBlob_(url, filename) {
     log_(
       "Email image fetch error:",
       String(err && err.message ? err.message : err),
-      url
+      url,
     );
     return null;
   }
@@ -1368,7 +1393,7 @@ function resolveCustomerContactUrl_() {
   if (!syncUrl) return "";
   return syncUrl.replace(
     /\/api\/shopify\/orders\/mark-delivered\/?$/,
-    "/api/shopify/orders/customer-contact"
+    "/api/shopify/orders/customer-contact",
   );
 }
 
@@ -1380,7 +1405,7 @@ function lookupCustomerContact_(orderNumber) {
   var syncSecret = String(CONFIG.SYNC_SECRET || "").trim();
   if (!url || !syncSecret) {
     log_(
-      "Customer contact lookup skipped — set CUSTOMER_CONTACT_URL/SYNC_URL and SYNC_SECRET"
+      "Customer contact lookup skipped — set CUSTOMER_CONTACT_URL/SYNC_URL and SYNC_SECRET",
     );
     return null;
   }
@@ -1390,7 +1415,9 @@ function lookupCustomerContact_(orderNumber) {
       method: "post",
       contentType: "application/json",
       headers: { "x-sync-secret": syncSecret },
-      payload: JSON.stringify({ orderNumber: String(orderNumber || "").trim() }),
+      payload: JSON.stringify({
+        orderNumber: String(orderNumber || "").trim(),
+      }),
       muteHttpExceptions: true,
     });
     var code = response.getResponseCode();
@@ -1407,7 +1434,7 @@ function lookupCustomerContact_(orderNumber) {
   } catch (err) {
     log_(
       "Customer contact lookup FAILED:",
-      String(err && err.message ? err.message : err)
+      String(err && err.message ? err.message : err),
     );
     return null;
   }
@@ -1416,10 +1443,10 @@ function lookupCustomerContact_(orderNumber) {
 function rowHtml_(label, value) {
   return (
     "<tr>" +
-    "<td style=\"padding:6px 12px 6px 0;color:#555;vertical-align:top\">" +
+    '<td style="padding:6px 12px 6px 0;color:#555;vertical-align:top">' +
     escapeHtml_(label) +
     "</td>" +
-    "<td style=\"padding:6px 0;vertical-align:top\">" +
+    '<td style="padding:6px 0;vertical-align:top">' +
     value +
     "</td>" +
     "</tr>"
