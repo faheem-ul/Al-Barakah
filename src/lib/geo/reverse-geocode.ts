@@ -189,7 +189,7 @@ function sameText(a: string, b: string): boolean {
 function looksLikeRoadName(text: string): boolean {
   const v = text.toLowerCase();
   return /\b(boulevard|blvd|road|rd\.?|street|st\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|way|highway|motorway|expressway|main blvd|main boulevard)\b/.test(
-    v
+    v,
   );
 }
 
@@ -200,7 +200,7 @@ function resolveCity(a: NominatimAddress, displayName?: string): string {
     a.municipality,
     a.county,
     a.state_district,
-    displayName
+    displayName,
   );
   if (fromKnown) return fromKnown;
 
@@ -239,7 +239,7 @@ function haversineMeters(
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number
+  lon2: number,
 ): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const R = 6371000;
@@ -259,7 +259,7 @@ async function findNearbyPlaceName(
   latitude: number,
   longitude: number,
   street: string,
-  city: string
+  city: string,
 ): Promise<string> {
   const radius = 75;
   const query = `
@@ -318,8 +318,12 @@ out center 12;
       if (dist < bestDist) {
         bestDist = dist;
         // Prefer “Name, House No” when addr tags exist
-        const house = clean(el.tags?.["addr:housenumber"] || el.tags?.housenumber);
-        const unit = clean(el.tags?.["addr:unit"] || el.tags?.level || el.tags?.["addr:floor"]);
+        const house = clean(
+          el.tags?.["addr:housenumber"] || el.tags?.housenumber,
+        );
+        const unit = clean(
+          el.tags?.["addr:unit"] || el.tags?.level || el.tags?.["addr:floor"],
+        );
         bestName = [name, house ? `No. ${house}` : "", unit]
           .filter(Boolean)
           .join(", ");
@@ -342,7 +346,8 @@ function finalizeAddress(parts: {
   zip: string;
   country: string;
 }): PrefillShippingAddress {
-  let { address1, address2, city } = parts;
+  let { address1, address2 } = parts;
+  const { city } = parts;
 
   // Never duplicate street into apartment.
   if (address2 && address1 && sameText(address2, address1)) {
@@ -379,7 +384,7 @@ function finalizeAddress(parts: {
  */
 export async function reverseGeocode(
   latitude: number,
-  longitude: number
+  longitude: number,
 ): Promise<PrefillShippingAddress | null> {
   try {
     const url = new URL("https://nominatim.openstreetmap.org/reverse");
@@ -435,7 +440,7 @@ export async function reverseGeocode(
         latitude,
         longitude,
         address1,
-        city
+        city,
       );
       if (nearby) address2 = nearby;
     }
