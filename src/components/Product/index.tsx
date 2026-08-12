@@ -18,7 +18,7 @@ const ProductView = (props: PropTypes) => {
   );
 
   return (
-    <div className="mx-auto flex max-w-[1117px] flex-wrap flex-col gap-10 px-5 py-10 md:flex-row md:px-4 md:py-0">
+    <div className="mx-auto flex max-w-[1117px] flex-col flex-wrap gap-10 px-5 py-10 md:flex-row md:px-4 md:py-0">
       <ImageGallery
         product={product}
         selectedVariantId={selectedVariantId}
