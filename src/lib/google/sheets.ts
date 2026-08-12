@@ -1,5 +1,8 @@
 import { google, sheets_v4 } from "googleapis";
-import { ORDER_SHEET_HEADERS } from "@/lib/shopify/orders-to-sheet-rows";
+import {
+  ORDER_LEVEL_MERGE_HEADERS,
+  ORDER_SHEET_HEADERS,
+} from "@/lib/shopify/orders-to-sheet-rows";
 
 const LOG = "[Google Sheets]";
 
@@ -11,6 +14,10 @@ const BANDING_COLORS = {
 };
 
 const STATUS_COL_INDEX = ORDER_SHEET_HEADERS.indexOf("Order Status"); // 0-based
+
+const MERGE_COL_INDEXES = ORDER_LEVEL_MERGE_HEADERS.map((h) =>
+  ORDER_SHEET_HEADERS.indexOf(h as (typeof ORDER_SHEET_HEADERS)[number])
+).filter((i) => i >= 0);
 
 /** RGB fills for Order Status (matches Apps Script styling). */
 function orderStatusFill(status: string): {
@@ -475,6 +482,8 @@ export type AppendOrderResult = {
 /**
  * Inserts order rows at the top of the sheet (directly under the header).
  * Newest Shopify orders appear first.
+ * Multi-item orders: merge order-level columns; product columns stay split.
+ * Always inserts one blank separator row under the new order block.
  */
 export async function appendOrderRows(
   rows: string[][],
@@ -524,9 +533,11 @@ export async function appendOrderRows(
       };
     }
 
-    const insertCount = rows.length;
+    // Product rows + 1 blank separator under the block
+    const productCount = rows.length;
+    const insertCount = productCount + 1;
     console.log(
-      `${LOG} Inserting ${insertCount} row(s) at top (after header) for order ${orderKey}`
+      `${LOG} Inserting ${productCount} product row(s) + 1 blank separator at top for order ${orderKey}`
     );
 
     await sheets.spreadsheets.batchUpdate({
@@ -566,21 +577,44 @@ export async function appendOrderRows(
       updatedCells: result.data.updatedCells,
     });
 
-    // Colour Order Status for newly inserted rows (Pending → red, etc.)
-    await paintOrderStatusCells(
-      sheets,
-      spreadsheetId,
-      tab.sheetId,
-      rows.map((row, i) => ({
-        rowIndex0: 1 + i, // row 2 onwards
-        status: String(row[STATUS_COL_INDEX] ?? ""),
-      }))
-    );
+    // Merge order-level columns across multi-item product rows (rows 2..1+n)
+    if (productCount > 1 && MERGE_COL_INDEXES.length) {
+      const startRowIndex = 1; // 0-based sheet row 2
+      const endRowIndex = 1 + productCount;
+      const mergeRequests = MERGE_COL_INDEXES.map((c0) => ({
+        mergeCells: {
+          range: {
+            sheetId: tab.sheetId,
+            startRowIndex,
+            endRowIndex,
+            startColumnIndex: c0,
+            endColumnIndex: c0 + 1,
+          },
+          mergeType: "MERGE_ALL" as const,
+        },
+      }));
+
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: mergeRequests },
+      });
+      console.log(
+        `${LOG} Merged ${MERGE_COL_INDEXES.length} order-level column(s) across ${productCount} rows`
+      );
+    }
+
+    // Colour Order Status on the first product row (merged when multi-item)
+    await paintOrderStatusCells(sheets, spreadsheetId, tab.sheetId, [
+      {
+        rowIndex0: 1,
+        status: String(rows[0]?.[STATUS_COL_INDEX] ?? ""),
+      },
+    ]);
 
     return {
       written: true,
       skipped: false,
-      rows: rows.length,
+      rows: productCount,
     };
   } finally {
     inFlightOrderIds.delete(orderKey);

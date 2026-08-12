@@ -59,11 +59,13 @@ var CONFIG = {
   HEADERS: {
     ORDER_NUMBER: "Order Number",
     NAME: "Name",
+    CONTACT: "Contact",
     EMAIL: "Email",
     TRACKING_NUMBER: "Tracking Number",
     ORDER_STATUS: "Order Status",
     TRACKING_LOCATION: "Tracking Location",
     TRACKING_DETAIL: "Tracking Detail",
+    ADDITIONAL_NOTE: "Additional Note",
   },
 };
 
@@ -389,7 +391,9 @@ function ensureTrackingHeaders_() {
 
 function getHeaderMap_(sheet) {
   ensureTrackingHeaders_();
-  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  // Use a wide header range so late columns like "Additional Note" are found
+  // even if most data rows leave them blank (getLastColumn can miss them).
+  var lastCol = Math.max(sheet.getLastColumn(), 20);
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var map = {};
   for (var c = 0; c < headers.length; c++) {
@@ -397,9 +401,12 @@ function getHeaderMap_(sheet) {
     if (name) map[name] = c + 1;
   }
   log_(
-    "Header map tracking cols:",
+    "Header map:",
     CONFIG.HEADERS.TRACKING_NUMBER + "=" + map[CONFIG.HEADERS.TRACKING_NUMBER],
     CONFIG.HEADERS.ORDER_STATUS + "=" + map[CONFIG.HEADERS.ORDER_STATUS],
+    CONFIG.HEADERS.ADDITIONAL_NOTE +
+      "=" +
+      (map[CONFIG.HEADERS.ADDITIONAL_NOTE] || "(missing)"),
   );
   return map;
 }
@@ -727,6 +734,17 @@ function sendTrackingStatusEmail_(
         sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
       ).trim()
     : "";
+  var contactNumber = cols[CONFIG.HEADERS.CONTACT]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.CONTACT]).getValue() || "",
+      ).trim()
+    : "";
+  var additionalNote = cols[CONFIG.HEADERS.ADDITIONAL_NOTE]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ADDITIONAL_NOTE]).getValue() ||
+          "",
+      ).trim()
+    : "";
   if (!customerName) customerName = "Customer";
 
   var status = String(tracked.status || "").trim();
@@ -738,6 +756,49 @@ function sendTrackingStatusEmail_(
     Session.getScriptTimeZone() || "Asia/Karachi",
     "dd MMM yyyy, hh:mm a",
   );
+
+  // First admin notice after CN is pasted (blank / Pending → first M&P status)
+  var prevNorm = String(previousStatus || "")
+    .trim()
+    .toLowerCase();
+  var isFirstTrackingEmail = !prevNorm || prevNorm === "pending";
+
+  var waPhone = toWhatsAppPhone_(contactNumber);
+  var waLink = "";
+  var waBlockHtml = "";
+  var waBlockPlain = "";
+  if (isFirstTrackingEmail && waPhone) {
+    var displayOrder = orderNumber
+      ? orderNumber.indexOf("#") === 0
+        ? orderNumber
+        : "#" + orderNumber
+      : "your order";
+    var waText =
+      "Assalamualaikum" +
+      (customerName && customerName !== "Customer" ? " " + customerName : "") +
+      ", your Al Barakah Honey order " +
+      displayOrder +
+      " is now *" +
+      status +
+      "*. Tracking number: " +
+      cn +
+      ". Track here: " +
+      trackingUrl;
+    waLink =
+      "https://wa.me/" + waPhone + "?text=" + encodeURIComponent(waText);
+    waBlockHtml =
+      '<p style="margin:18px 0 8px">' +
+      '<a href="' +
+      waLink +
+      '" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;border-radius:6px;">Send WhatsApp update to customer</a>' +
+      "</p>" +
+      '<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with a ready message. Tap <strong>Send</strong> to deliver it.</p>';
+    waBlockPlain =
+      "\nSend WhatsApp update to customer:\n" + waLink + "\n";
+    log_("WhatsApp draft link added for", waPhone);
+  } else if (isFirstTrackingEmail && !waPhone) {
+    log_("WhatsApp link skipped — no valid Contact phone on row", row);
+  }
 
   var subject =
     "Tracking update: " +
@@ -753,15 +814,18 @@ function sendTrackingStatusEmail_(
     "<p>Assalamualaikum,</p>" +
     "<p>An M&amp;P shipment status has changed.</p>" +
     '<table style="border-collapse:collapse;margin:16px 0">' +
-    rowHtml_("Customer", customerName) +
-    rowHtml_("Order Number", orderNumber || "—") +
-    rowHtml_("Tracking / CN", cn) +
-    rowHtml_("Previous status", previousStatus || "(none)") +
+    rowHtml_("Customer", escapeHtml_(customerName)) +
+    rowHtml_("Contact", escapeHtml_(contactNumber || "—")) +
+    rowHtml_("Order Number", escapeHtml_(orderNumber || "—")) +
+    rowHtml_("Tracking / CN", escapeHtml_(cn)) +
+    rowHtml_("Previous status", escapeHtml_(previousStatus || "(none)")) +
     rowHtml_("Current status", "<strong>" + escapeHtml_(status) + "</strong>") +
-    rowHtml_("Location", location || "—") +
-    rowHtml_("Detail", detail || "—") +
-    rowHtml_("Checked at", checkedAt) +
+    rowHtml_("Location", escapeHtml_(location || "—")) +
+    rowHtml_("Tracking Detail", escapeHtml_(detail || "—")) +
+    rowHtml_("Additional Note", escapeHtml_(additionalNote || "—")) +
+    rowHtml_("Checked at", escapeHtml_(checkedAt)) +
     "</table>" +
+    waBlockHtml +
     '<p><a href="' +
     trackingUrl +
     '">Open M&amp;P tracking page</a></p>' +
@@ -773,6 +837,9 @@ function sendTrackingStatusEmail_(
     "M&P shipment status changed.\n\n" +
     "Customer: " +
     customerName +
+    "\n" +
+    "Contact: " +
+    (contactNumber || "—") +
     "\n" +
     "Order Number: " +
     (orderNumber || "—") +
@@ -789,12 +856,16 @@ function sendTrackingStatusEmail_(
     "Location: " +
     (location || "—") +
     "\n" +
-    "Detail: " +
+    "Tracking Detail: " +
     (detail || "—") +
+    "\n" +
+    "Additional Note: " +
+    (additionalNote || "—") +
     "\n" +
     "Checked at: " +
     checkedAt +
     "\n" +
+    waBlockPlain +
     "Track: " +
     trackingUrl +
     "\n";
@@ -811,6 +882,20 @@ function sendTrackingStatusEmail_(
   } catch (err) {
     log_("ADMIN EMAIL FAILED:", String(err && err.message ? err.message : err));
   }
+}
+
+/**
+ * Normalize sheet Contact → WhatsApp wa.me digits (Pakistan-friendly).
+ * Returns "" if not usable.
+ */
+function toWhatsAppPhone_(raw) {
+  var d = String(raw || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.indexOf("92") === 0 && d.length >= 12) return d;
+  if (d.charAt(0) === "0" && d.length >= 11) return "92" + d.slice(1);
+  if (d.length === 10) return "92" + d;
+  if (d.length >= 11) return d;
+  return "";
 }
 
 /**
@@ -1203,19 +1288,12 @@ function sendCustomerTrackingEmail_(
     '<strong style="color:' +
     cBrown +
     ';">Need help?</strong><br>' +
-    'Call or WhatsApp: <a href="tel:' +
+    'If you have any questions, call or WhatsApp us at <a href="tel:' +
     escapeHtml_(supportTel) +
     '" style="color:' +
     cBrown +
     ';font-weight:700;text-decoration:none;">' +
     escapeHtml_(supportPhone) +
-    "</a><br>" +
-    'Email: <a href="mailto:' +
-    escapeHtml_(CONFIG.NOTIFY_EMAIL) +
-    '" style="color:' +
-    cBrown +
-    ';">' +
-    escapeHtml_(CONFIG.NOTIFY_EMAIL) +
     "</a></div>" +
     escapeHtml_(footerNote) +
     "If you did not place this order, reply to this email and we will help immediately.<br><br>" +
@@ -1258,10 +1336,8 @@ function sendCustomerTrackingEmail_(
     "\n" +
     (!isDelivered ? "\nTrack your shipment: " + trackingUrl + "\n" : "") +
     reviewBlockPlain +
-    "\nNeed help?\nCall or WhatsApp: " +
+    "\nNeed help?\nIf you have any questions, call or WhatsApp us at " +
     supportPhone +
-    "\nEmail: " +
-    CONFIG.NOTIFY_EMAIL +
     "\n\nWarm regards,\nAl Barakah Honey\n";
 
   try {

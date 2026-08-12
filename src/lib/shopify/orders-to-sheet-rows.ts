@@ -163,7 +163,9 @@ export function initialOrderStatus(order: ShopifyWebhookOrder): string {
 }
 
 /**
- * One sheet row per line item (order-level fields repeated).
+ * One sheet row per line item.
+ * Order-level fields (name, address, COD, total, etc.) live on the first row;
+ * continuation rows only fill product columns so Sheets can merge the order block.
  */
 export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
   const lineItems = order.line_items?.length
@@ -194,27 +196,48 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
   const cod = orderCodAmount(order);
   const status = initialOrderStatus(order);
 
-  return lineItems.map((item) => {
-    const retail = lineRetailPrice(item);
-    const total = retail + cod;
+  const retails = lineItems.map((item) => lineRetailPrice(item));
+  const orderTotal =
+    retails.reduce((sum, n) => sum + n, 0) + (Number.isFinite(cod) ? cod : 0);
+
+  return lineItems.map((item, index) => {
+    const retail = retails[index] ?? 0;
+    const isFirst = index === 0;
     return [
-      orderNumber,
-      date,
-      name,
-      address,
-      city,
-      contact,
-      email,
+      isFirst ? orderNumber : "",
+      isFirst ? date : "",
+      isFirst ? name : "",
+      isFirst ? address : "",
+      isFirst ? city : "",
+      isFirst ? contact : "",
+      isFirst ? email : "",
       productDetail(item),
       bottleSizeFromVariant(item.variant_title, item.title),
       str(item.quantity ?? ""),
       retail ? String(retail) : "0",
-      String(cod),
-      String(total),
-      status,
+      isFirst ? String(cod) : "",
+      isFirst ? String(orderTotal) : "",
+      isFirst ? status : "",
       "", // Tracking Number — ops paste
       "", // Tracking Location — Apps Script
       "", // Tracking Detail — Apps Script
     ];
   });
 }
+
+/** Columns merged across multi-item order blocks (product cols stay split). */
+export const ORDER_LEVEL_MERGE_HEADERS = [
+  "Order Number",
+  "Date",
+  "Name",
+  "Address",
+  "City",
+  "Contact",
+  "Email",
+  "COD",
+  "Total Amount",
+  "Order Status",
+  "Tracking Number",
+  "Tracking Location",
+  "Tracking Detail",
+] as const;

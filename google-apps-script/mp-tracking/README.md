@@ -30,7 +30,9 @@ No M&P COD portal login is required.
 
 Rows whose **Order Status** is already `Delivered` are skipped on the hourly refresh.
 
-New Shopify orders are **inserted at the top** of the sheet (under the header).
+New Shopify orders are **inserted at the top** of the sheet (under the header), with a **blank separator row** under each order block.
+
+Multi-item carts write **one merged order block**: shared fields (name, address, contact, email, COD, total, status, tracking) span the product rows; **Product Detail / Bottle Size / Quantity / Retail Price** stay split per line.
 
 ## Auto Paid + Fulfilled in Shopify (when Delivered)
 
@@ -59,12 +61,12 @@ SHEET_TO_SHOPIFY_SYNC_SECRET=long-random-string
 4. In Apps Script `CONFIG` (top of `Code.gs`) set:
 
 ```js
-SYNC_URL: "https://YOUR-PUBLIC-HTTPS-HOST/api/shopify/orders/mark-delivered",
-CUSTOMER_CONTACT_URL: "https://YOUR-PUBLIC-HTTPS-HOST/api/shopify/orders/customer-contact",
+SYNC_URL: "https://www.albarakahoney.com/api/shopify/orders/mark-delivered",
+CUSTOMER_CONTACT_URL: "https://www.albarakahoney.com/api/shopify/orders/customer-contact",
 SYNC_SECRET: "same-long-random-string-as-env",
 ```
 
-Use your tunnel/domain (same host you use for Shopify webhooks). Leave blank to disable sync / customer email lookup.
+Use the live site host (same as Shopify webhooks). Leave blank to disable sync / customer email lookup.
 
 5. Paste the latest `Code.gs` → Save → run **`installMpTrackingTriggers`** again if needed.
 
@@ -121,7 +123,8 @@ Whenever **Order Status** changes from M&P (hourly job or after you paste/edit a
 
 - **To:** `thealbarakahoney@gmail.com`
 - **Subject:** `Tracking update: {Name} — CN {number} is now "{Status}"`
-- **Body:** customer name, order number, CN, previous→current status, location, detail, tracking link
+- **Body:** customer name, contact number, order number, CN, previous→current status, location, tracking detail, Additional Note, tracking link
+- On the **first** tracking email (when CN is first pasted), a green **Send WhatsApp update to customer** button appears if Contact has a phone — opens WhatsApp with a ready message; admin taps Send
 
 ### 2. Customer (checkout email from sheet)
 
