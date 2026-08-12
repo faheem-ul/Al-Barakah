@@ -28,13 +28,13 @@ var CONFIG = {
    * Example: https://your-tunnel-or-domain.com/api/shopify/orders/mark-delivered
    */
   SYNC_URL:
-    "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/mark-delivered",
+    "https://www.albarakahoney.com/api/shopify/orders/mark-delivered",
   /**
    * Lookup customer checkout email via Shopify Admin (Order Number).
    * Same host as SYNC_URL; leave blank to derive from SYNC_URL.
    */
   CUSTOMER_CONTACT_URL:
-    "https://tjz15zfl-3000.asse.devtunnels.ms/api/shopify/orders/customer-contact",
+    "https://www.albarakahoney.com/api/shopify/orders/customer-contact",
   /** Must match SHEET_TO_SHOPIFY_SYNC_SECRET in Next.js .env.local */
   SYNC_SECRET:
     "7beddfe5b6d434edc53e97eb7c3f420e01bd492f6fa51d8786538a6f6c06a806",
