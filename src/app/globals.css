@@ -108,6 +108,21 @@ body {
   }
 }
 
+@keyframes sales-popup-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.animate-sales-popup-progress {
+  animation-name: sales-popup-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
 @keyframes azadi-popup-in {
   from {
     opacity: 0;

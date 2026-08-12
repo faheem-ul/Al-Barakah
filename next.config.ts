@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         hostname: "cdn.shopify.com",
         pathname: "**",
       },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "**",
+      },
     ],
   },
   // Dev Tunnel / reverse proxies send x-forwarded-host that can differ from Origin
