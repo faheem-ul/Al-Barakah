@@ -22,6 +22,7 @@ import {
   splitTitleSegments,
 } from "@/hooks/useProductData";
 import ProductTitle from "@/ui/ProductTitle";
+import { startCheckoutWithOptionalLocation } from "@/lib/checkout/start-checkout";
 
 import { CartItem as DefaultCartItem } from "@/types";
 // import { useProductData } from "@/hooks/useProductData";
@@ -44,6 +45,7 @@ const Cart = (props: PropTypes) => {
   const { onCartClose } = props;
 
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
+  // const [checkoutStatus, setCheckoutStatus] = useState(""); // location UX — re-enable with GPS
 
   const { data: products, isLoading } = useGetCartProducts();
 
@@ -88,46 +90,21 @@ const Cart = (props: PropTypes) => {
     }, 0);
   }, [cartItems, products]);
 
-  // Function to generate the checkout URL
-  const generateCheckoutUrl = (
-    lineItems: { variantId: string; quantity: number }[]
-  ) => {
-    const storeUrl = process.env.NEXT_PUBLIC_STORE_URL;
-    const previewKey = process.env.NEXT_PUBLIC_THEME_PREVIEW_KEY;
-    const baseUrl = `${storeUrl}/cart`;
-    // Create a query string with all variantId and quantity pairs
-    const cartQuery = lineItems
-      ?.map((item) => `${item?.variantId}:${item?.quantity}`)
-      .join(",");
-    const url = `${baseUrl}/${cartQuery}`;
-    return previewKey ? `${url}?key=${previewKey}` : url;
-  };
-
   const handleOnCheckout = async () => {
     try {
       setIsCreatingCheckout(true);
-      const lineItems = cartItems?.map((item) => ({
-        //   variantId: item.variantId as string,
-        variantId: item?.variantId?.replace(
-          "gid://shopify/ProductVariant/",
-          ""
-        ), // Strip 'gid://' from variantId,
-        quantity: item?.quantity,
-      }));
-
-      // console.log("object", { lineItems });
-
-      // Create the checkout URL
-      const checkoutUrl = generateCheckoutUrl(lineItems);
-      // console.log("Checkout URL:", checkoutUrl);
-
-      window.location.href = checkoutUrl;
+      // setCheckoutStatus("Waiting for location permission…"); // GPS disabled for now
+      const checkoutUrl = await startCheckoutWithOptionalLocation(cartItems);
+      // setCheckoutStatus("Opening Shopify checkout…");
+      if (checkoutUrl) {
+        window.location.assign(checkoutUrl);
+        return;
+      }
     } catch (error) {
       console.log("Error creating checkout:", error);
     } finally {
-      setTimeout(() => {
-        setIsCreatingCheckout(false);
-      }, 2000);
+      // setCheckoutStatus("");
+      setIsCreatingCheckout(false);
     }
   };
 
@@ -319,6 +296,18 @@ const Cart = (props: PropTypes) => {
             {formatPrice(totalPice)}
           </Text>
         </div>
+
+        {/* Location autofill note — re-enable with GPS later
+        <p className="pt-4 text-center text-[12px] leading-relaxed text-[#666] md:text-left">
+          Stay on this page and allow location when prompted — we autofill city
+          and address before opening Shopify checkout.
+        </p>
+        {checkoutStatus ? (
+          <p className="pt-2 text-center text-[12px] font-medium text-[#161616] md:text-left">
+            {checkoutStatus}
+          </p>
+        ) : null}
+        */}
 
         <div className="flex flex-col-reverse items-center gap-5 pt-8 pb-8 md:flex-row md:pb-0">
         <Button
