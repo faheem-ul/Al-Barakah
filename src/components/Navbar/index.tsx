@@ -54,7 +54,7 @@ const Navbar = () => {
               key={item.title}
               className={cn(
                 "text-[16px] leading-6 font-semibold hidden sm:block",
-                !item.blink && "text-foreground",
+                // !item.blink && "text-foreground",
                 item.title === "Merch" && "font-bold",
               )}
             >
