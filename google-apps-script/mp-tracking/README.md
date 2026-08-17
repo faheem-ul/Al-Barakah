@@ -125,7 +125,9 @@ Whenever **Order Status** changes from M&P (hourly job or after you paste/edit a
 - **Subject:** `Tracking update: {Name} — CN {number} is now "{Status}"`
 - **Body:** customer name, contact number, order number, CN, previous→current status (both from the M&P timeline), location, tracking detail, Additional Note, tracking link
 - Email still sends only when **sheet** Order Status changes; Previous/Current in the email are read from Mulphilog (latest event + the one under it)
-- On admin emails where **Current status** is a delivery issue (**Re-Attempt Advice**, **Failed Delivered**, **Unsuccessful Delivery Attempt**, **Hold for Advice**, etc.), a green **Send WhatsApp update to customer** button appears if Contact has a phone — opens WhatsApp with a ready message; admin taps Send
+- On admin emails where **Current status** is a delivery issue (**Re-Attempt Advice**, **Failed Delivered**, **Unsuccessful Delivery Attempt**, **Hold for Advice**, etc.), a green **Send WhatsApp update to customer** button appears if Contact has a phone
+- Button opens `https://www.albarakahoney.com/wa?...` (ASCII params) → instant redirect to WhatsApp with the emoji-safe draft; admin taps Send
+- Direct `wa.me?text=` from Gmail is avoided (Gmail corrupts emoji characters)
 
 ### 2. Customer (checkout email from sheet)
 

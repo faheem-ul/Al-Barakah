@@ -777,22 +777,21 @@ function sendTrackingStatusEmail_(
   var waBlockHtml = "";
   var waBlockPlain = "";
   if (showWhatsAppButton && waPhone) {
-    var waText = buildWhatsAppTrackingMessage_(
+    // Site redirect builds the emoji message — Gmail corrupts direct wa.me?text= unicode
+    waLink = buildWhatsAppDraftSiteLink_(
+      waPhone,
       customerName,
       orderNumber,
       status,
       cn,
-      trackingUrl,
     );
-    waLink =
-      "https://wa.me/" + waPhone + "?text=" + encodeURIComponent(waText);
     waBlockHtml =
       '<p style="margin:18px 0 8px">' +
       '<a href="' +
       waLink +
       '" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;border-radius:6px;">Send WhatsApp update to customer</a>' +
       "</p>" +
-      '<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with a ready message. Tap <strong>Send</strong> to deliver it.</p>';
+      '<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with a ready message (via albarakahoney.com). Tap <strong>Send</strong> to deliver it.</p>';
     waBlockPlain =
       "\nSend WhatsApp update to customer:\n" + waLink + "\n";
     log_("WhatsApp draft link added for", waPhone, "| status:", status);
@@ -885,54 +884,38 @@ function sendTrackingStatusEmail_(
 }
 
 /**
- * Pre-filled WhatsApp draft for the admin "Send" button
- * (Re-Attempt / Failed Delivered / similar).
- * Emojis use fromCodePoint so paste/encoding cannot turn them into �.
+ * ASCII-only link to Next.js /wa → redirects to wa.me with emoji message.
+ * Putting unicode in Gmail's wa.me href corrupts emojis to �.
  */
-function buildWhatsAppTrackingMessage_(
+function buildWhatsAppDraftSiteLink_(
+  phone,
   customerName,
   orderNumber,
   status,
   cn,
-  trackingUrl,
 ) {
+  var base = String(CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com")
+    .trim()
+    .replace(/\/+$/, "");
   var name =
     customerName && customerName !== "Customer" ? customerName : "Customer";
   var displayOrder = orderNumber
     ? orderNumber.indexOf("#") === 0
       ? orderNumber
       : "#" + orderNumber
-    : "your order";
-
-  var packageEmoji = String.fromCodePoint(0x1f4e6); // 📦
-  var truckEmoji = String.fromCodePoint(0x1f69a); // 🚚
-  var phoneEmoji = String.fromCodePoint(0x1f4de); // 📞
-  var linkEmoji = String.fromCodePoint(0x1f517); // 🔗
-  var honeyEmoji = String.fromCodePoint(0x1f36f); // 🍯
-
+    : "";
   return (
-    "Assalamualaikum " +
-    name +
-    ",\n\n" +
-    "Your Al Barakah Honey Order " +
-    displayOrder +
-    " could not be delivered on the first attempt.\n\n" +
-    packageEmoji +
-    " Delivery Status: " +
-    status +
-    "\n" +
-    truckEmoji +
-    " Tracking No.: " +
-    cn +
-    "\n\n" +
-    phoneEmoji +
-    " Please keep your mobile phone active and available for the courier's call. If the courier is unable to reach you, your parcel may be returned to us.\n\n" +
-    linkEmoji +
-    " Track Your Shipment:\n" +
-    trackingUrl +
-    "\n\n" +
-    "Thank you for choosing Al Barakah Honey " +
-    honeyEmoji
+    base +
+    "/wa?phone=" +
+    encodeURIComponent(phone) +
+    "&name=" +
+    encodeURIComponent(name) +
+    "&order=" +
+    encodeURIComponent(displayOrder) +
+    "&status=" +
+    encodeURIComponent(status) +
+    "&cn=" +
+    encodeURIComponent(cn)
   );
 }
 
