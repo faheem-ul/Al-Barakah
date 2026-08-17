@@ -93,11 +93,11 @@ const AzadiSalePromo = () => {
 
   return (
     <>
-    {/* audio player */}
-      <audio ref={audioRef} src="/music/azadi-sale.mp3" loop preload="auto" />
+      {/* audio player */}
+      {/* <audio ref={audioRef} src="/music/azadi-sale.mp3" loop preload="auto" /> */}
 
       {/* mute button */}
-      <button
+      {/* <button
         type="button"
         onClick={toggleMute}
         className="fixed right-4 bottom-[calc(1rem+var(--sticky-cta-offset,0px))] z-[110] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-white text-[#302A25] shadow-md sm:right-6 sm:bottom-[calc(1.5rem+var(--sticky-cta-offset,0px))]"
@@ -108,7 +108,7 @@ const AzadiSalePromo = () => {
         ) : (
           <Volume2 className="h-5 w-5" />
         )}
-      </button>
+      </button> */}
 
       {/* popup - Azadi Sale */}
       {isOpen && (

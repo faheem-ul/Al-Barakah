@@ -15,6 +15,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/azadi-sale",
+        destination: "/",
+        permanent: false,
+      },
+    ];
+  },
   // Dev Tunnel / reverse proxies send x-forwarded-host that can differ from Origin
   experimental: {
     serverActions: {

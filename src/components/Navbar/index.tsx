@@ -31,7 +31,7 @@ const Navbar = () => {
     pathname !== "/about-us" &&
     pathname !== "/contact-us" &&
     pathname !== "/cart" &&
-    pathname !== "/azadi-sale" &&
+    // pathname !== "/azadi-sale" &&
     pathname !== "/privacy-policy" &&
     pathname !== "/terms-and-conditions";
 
@@ -39,7 +39,7 @@ const Navbar = () => {
     <nav
       className={cn(
         "relative z-10 mx-auto max-w-[1117px] py-[22px] sm:pt-10 sm:pb-[53px] px-4",
-        isProductRoute && "sm:pt-3 pt-3"
+        isProductRoute && "sm:pt-3 pt-3",
       )}
     >
       <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5 md:py-0 py-5 sm:h-[78px] sm:px-8">
@@ -55,24 +55,26 @@ const Navbar = () => {
               className={cn(
                 "text-[16px] leading-6 font-semibold hidden sm:block",
                 !item.blink && "text-foreground",
-                item.title === "Merch" && "font-bold"
+                item.title === "Merch" && "font-bold",
               )}
             >
-              {item.blink ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Image
-                    src={AZADI_FLAG_SRC}
-                    alt="Pakistan Flag"
-                    width={20}
-                    height={14}
-                    unoptimized
-                    className="animate-flag-wave h-[14px] w-5 shrink-0 object-contain"
-                  />
-                  <span className="animate-azadi-blink">{item.title}</span>
-                </span>
-              ) : (
+              {
+                // item.blink ? (
+                //   <span className="inline-flex items-center gap-1.5">
+                //     <Image
+                //       src={AZADI_FLAG_SRC}
+                //       alt="Pakistan Flag"
+                //       width={20}
+                //       height={14}
+                //       unoptimized
+                //       className="animate-flag-wave h-[14px] w-5 shrink-0 object-contain"
+                //     />
+                //     <span className="animate-azadi-blink">{item.title}</span>
+                //   </span>
+                // ) : (
                 item.title
-              )}
+                // )
+              }
             </Link>
           ))}
         </div>
