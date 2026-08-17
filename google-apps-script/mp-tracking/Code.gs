@@ -593,10 +593,21 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
   var tracked = fetchMpTrackingStatus_(cn);
   if (!tracked.ok) {
     log_("FETCH FAILED row", row, "→", tracked.error);
-    if (statusCol) {
+    // Don't overwrite a real courier status with a parse/fetch ERROR
+    var prevLower = String(previousStatus || "").toLowerCase();
+    if (
+      statusCol &&
+      (!previousStatus || prevLower.indexOf("error:") === 0)
+    ) {
       var errCell = sheet.getRange(row, statusCol);
       errCell.setValue("ERROR: " + tracked.error);
       applyOrderStatusStyle_(errCell, "ERROR");
+    } else {
+      log_(
+        "Keeping existing Order Status (" +
+          previousStatus +
+          ") — fetch/parse failed",
+      );
     }
     return;
   }
@@ -750,6 +761,7 @@ function sendTrackingStatusEmail_(
   var status = String(tracked.status || "").trim();
   var location = String(tracked.location || "").trim();
   var detail = String(tracked.detail || "").trim();
+  var mpPrevious = String(tracked.previousStatus || "").trim();
   var trackingUrl = CONFIG.TRACKING_BASE_URL + cn;
   var checkedAt = Utilities.formatDate(
     new Date(),
@@ -757,33 +769,21 @@ function sendTrackingStatusEmail_(
     "dd MMM yyyy, hh:mm a",
   );
 
-  // First admin notice after CN is pasted (blank / Pending → first M&P status)
-  var prevNorm = String(previousStatus || "")
-    .trim()
-    .toLowerCase();
-  var isFirstTrackingEmail = !prevNorm || prevNorm === "pending";
+  // WhatsApp draft only for failed / re-attempt delivery statuses (not every update)
+  var showWhatsAppButton = isWhatsAppDeliveryIssueStatus_(status);
 
   var waPhone = toWhatsAppPhone_(contactNumber);
   var waLink = "";
   var waBlockHtml = "";
   var waBlockPlain = "";
-  if (isFirstTrackingEmail && waPhone) {
-    var displayOrder = orderNumber
-      ? orderNumber.indexOf("#") === 0
-        ? orderNumber
-        : "#" + orderNumber
-      : "your order";
-    var waText =
-      "Assalamualaikum" +
-      (customerName && customerName !== "Customer" ? " " + customerName : "") +
-      ", your Al Barakah Honey order " +
-      displayOrder +
-      " is now *" +
-      status +
-      "*. Tracking number: " +
-      cn +
-      ". Track here: " +
-      trackingUrl;
+  if (showWhatsAppButton && waPhone) {
+    var waText = buildWhatsAppTrackingMessage_(
+      customerName,
+      orderNumber,
+      status,
+      cn,
+      trackingUrl,
+    );
     waLink =
       "https://wa.me/" + waPhone + "?text=" + encodeURIComponent(waText);
     waBlockHtml =
@@ -795,8 +795,8 @@ function sendTrackingStatusEmail_(
       '<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with a ready message. Tap <strong>Send</strong> to deliver it.</p>';
     waBlockPlain =
       "\nSend WhatsApp update to customer:\n" + waLink + "\n";
-    log_("WhatsApp draft link added for", waPhone);
-  } else if (isFirstTrackingEmail && !waPhone) {
+    log_("WhatsApp draft link added for", waPhone, "| status:", status);
+  } else if (showWhatsAppButton && !waPhone) {
     log_("WhatsApp link skipped — no valid Contact phone on row", row);
   }
 
@@ -818,7 +818,7 @@ function sendTrackingStatusEmail_(
     rowHtml_("Contact", escapeHtml_(contactNumber || "—")) +
     rowHtml_("Order Number", escapeHtml_(orderNumber || "—")) +
     rowHtml_("Tracking / CN", escapeHtml_(cn)) +
-    rowHtml_("Previous status", escapeHtml_(previousStatus || "(none)")) +
+    rowHtml_("Previous status", escapeHtml_(mpPrevious || "(none)")) +
     rowHtml_("Current status", "<strong>" + escapeHtml_(status) + "</strong>") +
     rowHtml_("Location", escapeHtml_(location || "—")) +
     rowHtml_("Tracking Detail", escapeHtml_(detail || "—")) +
@@ -848,7 +848,7 @@ function sendTrackingStatusEmail_(
     cn +
     "\n" +
     "Previous status: " +
-    (previousStatus || "(none)") +
+    (mpPrevious || "(none)") +
     "\n" +
     "Current status: " +
     status +
@@ -882,6 +882,78 @@ function sendTrackingStatusEmail_(
   } catch (err) {
     log_("ADMIN EMAIL FAILED:", String(err && err.message ? err.message : err));
   }
+}
+
+/**
+ * Pre-filled WhatsApp draft for the admin "Send" button
+ * (Re-Attempt / Failed Delivered / similar).
+ * Emojis use fromCodePoint so paste/encoding cannot turn them into �.
+ */
+function buildWhatsAppTrackingMessage_(
+  customerName,
+  orderNumber,
+  status,
+  cn,
+  trackingUrl,
+) {
+  var name =
+    customerName && customerName !== "Customer" ? customerName : "Customer";
+  var displayOrder = orderNumber
+    ? orderNumber.indexOf("#") === 0
+      ? orderNumber
+      : "#" + orderNumber
+    : "your order";
+
+  var packageEmoji = String.fromCodePoint(0x1f4e6); // 📦
+  var truckEmoji = String.fromCodePoint(0x1f69a); // 🚚
+  var phoneEmoji = String.fromCodePoint(0x1f4de); // 📞
+  var linkEmoji = String.fromCodePoint(0x1f517); // 🔗
+  var honeyEmoji = String.fromCodePoint(0x1f36f); // 🍯
+
+  return (
+    "Assalamualaikum " +
+    name +
+    ",\n\n" +
+    "Your Al Barakah Honey Order " +
+    displayOrder +
+    " could not be delivered on the first attempt.\n\n" +
+    packageEmoji +
+    " Delivery Status: " +
+    status +
+    "\n" +
+    truckEmoji +
+    " Tracking No.: " +
+    cn +
+    "\n\n" +
+    phoneEmoji +
+    " Please keep your mobile phone active and available for the courier's call. If the courier is unable to reach you, your parcel may be returned to us.\n\n" +
+    linkEmoji +
+    " Track Your Shipment:\n" +
+    trackingUrl +
+    "\n\n" +
+    "Thank you for choosing Al Barakah Honey " +
+    honeyEmoji
+  );
+}
+
+/**
+ * True when admin should get a WhatsApp draft button
+ * (failed / re-attempt delivery statuses).
+ */
+function isWhatsAppDeliveryIssueStatus_(status) {
+  var n = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (!n) return false;
+  if (n.indexOf("return") === 0) return false;
+  return (
+    n.indexOf("re-attempt") !== -1 ||
+    n.indexOf("reattempt") !== -1 ||
+    n.indexOf("failed deliver") !== -1 ||
+    n.indexOf("failed delivery") !== -1 ||
+    n.indexOf("unsuccessful") !== -1 ||
+    n.indexOf("hold for advice") !== -1
+  );
 }
 
 /**
@@ -1538,7 +1610,7 @@ function escapeHtml_(text) {
 }
 
 /**
- * Fetches public tracking page and returns the latest (first) timeline event.
+ * Fetches public tracking page and returns the latest + previous timeline events.
  * No merchant COD API credentials required.
  */
 function fetchMpTrackingStatus_(consignment) {
@@ -1568,18 +1640,29 @@ function fetchMpTrackingStatus_(consignment) {
     if (code < 200 || code >= 300) {
       return { ok: false, error: "HTTP " + code };
     }
-    var parsed = parseLatestTrackingEventFromHtml_(html);
-    if (!parsed) {
+    var events = parseTrackingEventsFromHtml_(html);
+    if (!events || !events.length) {
       log_("Parse failed — no order-track-step found in HTML");
       return { ok: false, error: "Could not parse tracking timeline" };
     }
-    log_("Parsed latest event:", parsed.status, "/", parsed.location);
+    var latest = events[0];
+    var previous = events.length > 1 ? events[1] : null;
+    log_(
+      "Parsed latest event:",
+      latest.status,
+      "/",
+      latest.location,
+      "| previous:",
+      previous ? previous.status : "(none)",
+    );
     return {
       ok: true,
-      status: parsed.status,
-      location: parsed.location,
-      detail: parsed.detail,
-      datetime: parsed.datetime,
+      status: latest.status,
+      location: latest.location,
+      detail: latest.detail,
+      datetime: latest.datetime,
+      previousStatus: previous ? previous.status : "",
+      previousLocation: previous ? previous.location : "",
     };
   } catch (err) {
     log_("fetch EXCEPTION:", String(err && err.message ? err.message : err));
@@ -1588,30 +1671,44 @@ function fetchMpTrackingStatus_(consignment) {
 }
 
 /**
- * Parses the first order-track-step (latest event) from mulphilog HTML.
+ * Parses Mulphilog timeline steps (latest first, same order as the page).
  */
-function parseLatestTrackingEventFromHtml_(html) {
-  if (!html) return null;
+function parseTrackingEventsFromHtml_(html) {
+  if (!html) return [];
 
   var stepRegex =
-    /<div class="order-track-step([^"]*)"[\s\S]*?<p class="order-track-text-stat status">\s*([^<]+?)\s*<\/p>\s*<p class="order-track-text-stat location">\s*([^<]*?)\s*<\/p>[\s\S]*?<p class="order-track-text-stat status-message">\s*([\s\S]*?)\s*<\/p>/i;
+    /<div class="order-track-step([^"]*)"[\s\S]*?<p class="order-track-text-stat status">\s*([^<]+?)\s*<\/p>\s*<p class="order-track-text-stat location">\s*([^<]*?)\s*<\/p>[\s\S]*?<p class="order-track-text-stat status-message">\s*([\s\S]*?)\s*<\/p>/gi;
 
-  var match = stepRegex.exec(html);
-  if (!match) return null;
+  var events = [];
+  var match;
+  while ((match = stepRegex.exec(html)) !== null) {
+    events.push({
+      status: cleanText_(match[2]),
+      location: cleanText_(match[3]),
+      detail: cleanText_(match[4]),
+      datetime: "",
+    });
+  }
 
-  var datetimeMatch = html.match(
-    /order-track-step[\s\S]*?order-track-text-sub last-date">\s*([\s\S]*?)\s*<\/span>/i,
-  );
-  var datetime = datetimeMatch
-    ? cleanText_(datetimeMatch[1].replace(/<br\s*\/?>/gi, " "))
-    : "";
+  if (!events.length) return [];
 
-  return {
-    status: cleanText_(match[2]),
-    location: cleanText_(match[3]),
-    detail: cleanText_(match[4]),
-    datetime: datetime,
-  };
+  var dateRegex = /order-track-text-sub last-date">\s*([\s\S]*?)\s*<\/span>/gi;
+  var dates = [];
+  var dateMatch;
+  while ((dateMatch = dateRegex.exec(html)) !== null) {
+    dates.push(cleanText_(dateMatch[1].replace(/<br\s*\/?>/gi, " ")));
+  }
+  for (var i = 0; i < events.length && i < dates.length; i++) {
+    events[i].datetime = dates[i];
+  }
+
+  return events;
+}
+
+/** @deprecated use parseTrackingEventsFromHtml_ */
+function parseLatestTrackingEventFromHtml_(html) {
+  var events = parseTrackingEventsFromHtml_(html);
+  return events.length ? events[0] : null;
 }
 
 function cleanText_(value) {

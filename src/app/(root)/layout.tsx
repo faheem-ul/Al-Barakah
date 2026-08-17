@@ -20,7 +20,7 @@ export default function RootLayout({
     <>
       <TopBar />
       <Navbar />
-      <AzadiSalePromo />
+      {/* <AzadiSalePromo /> */}
       {children}
       <Footer />
       <SalesPopup />

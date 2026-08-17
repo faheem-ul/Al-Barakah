@@ -55,26 +55,26 @@ const MobileNav = (props: PropTypes) => {
               <Link
                 href={item.path}
                 key={item.title}
-                className={`text-[24px] leading-6 font-semibold ${
-                  item.blink ? "" : "text-foreground"
-                }`}
+                className={`text-[24px] leading-6 font-semibold `}
                 onClick={onClose}
               >
-                {item.blink ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Image
-                      src={AZADI_FLAG_SRC}
-                      alt="Pakistan Flag"
-                      width={26}
-                      height={18}
-                      unoptimized
-                      className="animate-flag-wave h-[18px] w-[26px] shrink-0 object-contain"
-                    />
-                    <span className="animate-azadi-blink">{item.title}</span>
-                  </span>
-                ) : (
+                {
+                  // item.blink ? (
+                  //   <span className="inline-flex items-center gap-2">
+                  //     <Image
+                  //       src={AZADI_FLAG_SRC}
+                  //       alt="Pakistan Flag"
+                  //       width={26}
+                  //       height={18}
+                  //       unoptimized
+                  //       className="animate-flag-wave h-[18px] w-[26px] shrink-0 object-contain"
+                  //     />
+                  //     <span className="animate-azadi-blink">{item.title}</span>
+                  //   </span>
+                  // ) : (
                   item.title
-                )}
+                  // )
+                }
               </Link>
             ))}
           </div>
