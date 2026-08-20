@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { notifyAdminNewOrder } from "@/lib/email/new-order-admin";
 import { appendOrderRows, updateOrderStatuses } from "@/lib/google/sheets";
 import {
   buildOrderSheetRows,
@@ -22,6 +23,17 @@ const UPDATE_TOPICS = new Set([
 const ALLOWED_TOPICS = new Set([...CREATE_TOPICS, ...UPDATE_TOPICS]);
 
 const LOG = "[Shopify Webhook]";
+
+/** One admin new-order email per order number per process (webhook retries / races). */
+const adminEmailedOrderKeys = new Set<string>();
+
+function claimNewOrderAdminEmail_(orderNumber: string): boolean {
+  const key = String(orderNumber).trim();
+  if (!key) return false;
+  if (adminEmailedOrderKeys.has(key)) return false;
+  adminEmailedOrderKeys.add(key);
+  return true;
+}
 
 async function readRawBody(request: NextRequest): Promise<Buffer> {
   try {
@@ -48,6 +60,26 @@ export async function GET() {
     message:
       "Shopify orders webhook ready. Point Order creation/payment/update webhooks here (POST).",
   });
+}
+
+async function sendNewOrderAdminEmailSafe(
+  order: ShopifyWebhookOrder,
+  orderNumber: string,
+  reason: string,
+) {
+  if (!claimNewOrderAdminEmail_(orderNumber)) {
+    console.log(
+      `${LOG} Admin email skipped — already sent for order ${orderNumber} (${reason})`,
+    );
+    return;
+  }
+  try {
+    await notifyAdminNewOrder(order);
+  } catch (err) {
+    // Allow a later webhook to retry if send threw before completion
+    adminEmailedOrderKeys.delete(String(orderNumber).trim());
+    console.error(`${LOG} Admin new-order email failed:`, err);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -127,6 +159,9 @@ export async function POST(request: NextRequest) {
       console.log(`${LOG} CREATE — writing ${rows.length} row(s)...`);
       const result = await appendOrderRows(rows, orderNumber);
       console.log(`${LOG} CREATE result:`, result);
+      // Always try once on create (even if sheet skipped as in_flight/duplicate).
+      // Dedupe is by order number so parallel webhooks only send one email.
+      await sendNewOrderAdminEmailSafe(order, orderNumber, "orders/create");
       return NextResponse.json({ ok: true, action: "create", ...result });
     }
 
@@ -147,6 +182,19 @@ export async function POST(request: NextRequest) {
       console.log(`${LOG} Order not in sheet yet — inserting on update webhook`);
       const rows = buildOrderSheetRows(order);
       const created = await appendOrderRows(rows, orderNumber);
+      // Only if this path actually inserted (create webhook may have emailed already)
+      if (created.written) {
+        await sendNewOrderAdminEmailSafe(
+          order,
+          orderNumber,
+          "create_on_update",
+        );
+      } else {
+        console.log(
+          `${LOG} Admin email skipped on update-insert — sheet:`,
+          created.reason || created,
+        );
+      }
       return NextResponse.json({
         ok: true,
         action: "create_on_update",

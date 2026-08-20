@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  buildDeliveryIssueWhatsAppDraft,
+  buildWhatsAppDraft,
   normalizeWhatsAppPhone,
+  type WhatsAppDraftType,
 } from "@/lib/whatsapp/delivery-issue-draft";
 
 /**
- * GET /wa?phone=&name=&order=&status=&cn=
+ * GET /wa?type=delivery_issue|order_placed&phone=&name=&order=&status=&cn=
  * Instant redirect → WhatsApp with emoji-safe prefilled message.
  * Email buttons link here (ASCII query only) so Gmail cannot corrupt emojis.
  */
@@ -16,12 +17,16 @@ export function GET(request: NextRequest) {
 
   if (!phone) {
     return new NextResponse(
-      "Missing or invalid phone. Close this tab and use the contact number from the tracking email.",
+      "Missing or invalid phone. Close this tab and use the contact number from the email.",
       { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } },
     );
   }
 
-  const text = buildDeliveryIssueWhatsAppDraft({
+  const typeParam = (sp.get("type") || "delivery_issue").trim().toLowerCase();
+  const type: WhatsAppDraftType =
+    typeParam === "order_placed" ? "order_placed" : "delivery_issue";
+
+  const text = buildWhatsAppDraft(type, {
     name: sp.get("name") || undefined,
     order: sp.get("order") || undefined,
     status: sp.get("status") || undefined,
