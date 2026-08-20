@@ -8,25 +8,25 @@ No M&P COD portal login is required.
 
 ## Ops sheet columns (filled by Shopify webhook + this script)
 
-| Header | Who fills it |
-|--------|----------------|
-| Order Number | Shopify webhook |
-| Date | Shopify webhook |
-| Name | Shopify webhook |
-| Address | Shopify webhook |
-| City | Shopify webhook |
-| Contact | Shopify webhook |
-| Email | Shopify webhook (checkout email) |
-| Product Detail | Shopify webhook |
-| Bottle Size | Shopify webhook |
-| Quantity | Shopify webhook |
-| Retail Price | Shopify webhook |
-| COD | Shopify webhook (shipping) |
-| Total Amount | Shopify webhook (Retail + COD) |
-| Order Status | Webhook starts as `Pending`; script sets M&P status |
-| Tracking Number | You (paste CN, min 7 digits) |
-| Tracking Location | Script |
-| Tracking Detail | Script |
+| Header            | Who fills it                                        |
+| ----------------- | --------------------------------------------------- |
+| Order Number      | Shopify webhook                                     |
+| Date              | Shopify webhook                                     |
+| Name              | Shopify webhook                                     |
+| Address           | Shopify webhook                                     |
+| City              | Shopify webhook                                     |
+| Contact           | Shopify webhook                                     |
+| Email             | Shopify webhook (checkout email)                    |
+| Product Detail    | Shopify webhook                                     |
+| Bottle Size       | Shopify webhook                                     |
+| Quantity          | Shopify webhook                                     |
+| Retail Price      | Shopify webhook                                     |
+| COD               | Shopify webhook (shipping)                          |
+| Total Amount      | Shopify webhook (Retail + COD)                      |
+| Order Status      | Webhook starts as `Pending`; script sets M&P status |
+| Tracking Number   | You (paste CN, min 7 digits)                        |
+| Tracking Location | Script                                              |
+| Tracking Detail   | Script                                              |
 
 Rows whose **Order Status** is already `Delivered` are skipped on the hourly refresh.
 
@@ -91,9 +91,10 @@ Use the live site host (same as Shopify webhooks). Leave blank to disable sync /
 Order Status / Location / Detail should fill with real M&P data.
 
 **Order Status colours**
-- **Green** — Delivered  
-- **Yellow** — Pending and other in-progress statuses (Booked, In-transit, Re-Attempt, etc.)  
-- **Red** — Return / ERROR / unsuccessful  
+
+- **Green** — Delivered
+- **Yellow** — Pending and other in-progress statuses (Booked, In-transit, Re-Attempt, etc.)
+- **Red** — Return / ERROR / unsuccessful
 
 If some Order Status cells look uncoloured (common after bulk paste), in Apps Script run **`fixOrderStatusColors`** once.
 
@@ -132,7 +133,7 @@ Whenever **Order Status** changes from M&P (hourly job or after you paste/edit a
 ### 2. Customer (checkout email from sheet)
 
 - **Email source:** Shopify **orders webhook** writes the checkout email into the sheet **Email** column (works on Basic plans). Apps Script reads that cell — Admin API email lookup is blocked on Basic and is only a fallback.
-- Branded HTML uses `public/logo.png` (from `https://www.albarakahoney.com/logo.png`) and support **+92 306 2141972**.
+- Branded HTML uses `public/logo.png` (from `https://www.albarakahoney.com/logo.png`) and support **+92 325 6957327**.
 - Same layout every time; **subject + intro change** by stage:
   - **First send** (from blank/Pending): `Order #{n} shipped — tracking {CN} ({Status})`
   - **Later updates:** `Order #{n} update — now {Status}`

@@ -30,7 +30,7 @@ const ContactForm = () => {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -102,10 +102,10 @@ const ContactForm = () => {
 
               <div className="">
                 <ContactItem
-                  href="tel:+92 306 2141972"
+                  href="tel:+92 325 6957327"
                   icon={<AiOutlinePhone className="text-black" size={18} />}
                   boxed
-                  text="+92 306 2141972"
+                  text="+92 325 6957327"
                 />
                 <ContactItem
                   href="https://www.facebook.com/profile.php?id=61579862667667"

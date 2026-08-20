@@ -27,8 +27,7 @@ var CONFIG = {
    * order as Paid (if unpaid/COD) + Fulfilled with tracking.
    * Example: https://your-tunnel-or-domain.com/api/shopify/orders/mark-delivered
    */
-  SYNC_URL:
-    "https://www.albarakahoney.com/api/shopify/orders/mark-delivered",
+  SYNC_URL: "https://www.albarakahoney.com/api/shopify/orders/mark-delivered",
   /**
    * Lookup customer checkout email via Shopify Admin (Order Number).
    * Same host as SYNC_URL; leave blank to derive from SYNC_URL.
@@ -43,7 +42,7 @@ var CONFIG = {
   LOGO_URL: "https://www.albarakahoney.com/logo.png",
   REVIEW_QR_URL: "https://www.albarakahoney.com/google-review-qr.png",
   GOOGLE_REVIEW_URL: "https://g.page/r/Cb5ju-Dzbs1nEBM/review",
-  SUPPORT_PHONE: "+92 306 2141972",
+  SUPPORT_PHONE: "+92 325 6957327",
   SUPPORT_PHONE_TEL: "+923062141972",
   /** Brand colors from the website UI */
   BRAND: {
@@ -595,10 +594,7 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
     log_("FETCH FAILED row", row, "→", tracked.error);
     // Don't overwrite a real courier status with a parse/fetch ERROR
     var prevLower = String(previousStatus || "").toLowerCase();
-    if (
-      statusCol &&
-      (!previousStatus || prevLower.indexOf("error:") === 0)
-    ) {
+    if (statusCol && (!previousStatus || prevLower.indexOf("error:") === 0)) {
       var errCell = sheet.getRange(row, statusCol);
       errCell.setValue("ERROR: " + tracked.error);
       applyOrderStatusStyle_(errCell, "ERROR");
@@ -792,8 +788,7 @@ function sendTrackingStatusEmail_(
       '" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;border-radius:6px;">Send WhatsApp update to customer</a>' +
       "</p>" +
       '<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with a ready message (via albarakahoney.com). Tap <strong>Send</strong> to deliver it.</p>';
-    waBlockPlain =
-      "\nSend WhatsApp update to customer:\n" + waLink + "\n";
+    waBlockPlain = "\nSend WhatsApp update to customer:\n" + waLink + "\n";
     log_("WhatsApp draft link added for", waPhone, "| status:", status);
   } else if (showWhatsAppButton && !waPhone) {
     log_("WhatsApp link skipped — no valid Contact phone on row", row);
@@ -1033,7 +1028,7 @@ function sendCustomerTrackingEmail_(
   var isInitial = !prevNorm || prevNorm === "pending";
   var isDelivered = isDelivered_(status);
   var reviewUrl = String(CONFIG.GOOGLE_REVIEW_URL || "").trim();
-  var supportPhone = String(CONFIG.SUPPORT_PHONE || "+92 306 2141972").trim();
+  var supportPhone = String(CONFIG.SUPPORT_PHONE || "+92 325 6957327").trim();
   var supportTel = String(CONFIG.SUPPORT_PHONE_TEL || "+923062141972").trim();
   var siteUrl = String(
     CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com",
