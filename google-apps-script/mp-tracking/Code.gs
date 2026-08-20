@@ -906,7 +906,7 @@ function buildWhatsAppDraftSiteLink_(
     : "";
   return (
     base +
-    "/wa?phone=" +
+    "/wa?type=delivery_issue&phone=" +
     encodeURIComponent(phone) +
     "&name=" +
     encodeURIComponent(name) +
