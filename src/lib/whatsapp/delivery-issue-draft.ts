@@ -81,15 +81,27 @@ export function normalizeWhatsAppPhone(raw: string): string {
 }
 
 export function siteBaseUrl(): string {
-  // Never use Shopify STORE_URL — /wa must hit this Next.js app (tunnel or albarakahoney.com).
-  const raw = (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    "https://www.albarakahoney.com"
-  ).trim();
-  // Support values like NEXT_PUBLIC_BASE_URL = "https://..." with spaces/quotes
-  const fromEnv = raw.replace(/^["']|["']$/g, "");
-  return fromEnv.replace(/\/+$/, "");
+  const candidates = [
+    process.env.SITE_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.NEXT_PUBLIC_BASE_URL,
+  ];
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const cleaned = String(raw)
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/\/+$/, "");
+    if (!cleaned) continue;
+    // Never put localhost into customer/admin WhatsApp links (common Vercel misconfig)
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(cleaned)) {
+      continue;
+    }
+    return cleaned;
+  }
+
+  return "https://www.albarakahoney.com";
 }
 
 /** ASCII-only link for emails → /wa → WhatsApp (emoji-safe). */
