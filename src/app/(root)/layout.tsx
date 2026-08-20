@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import SalesPopup from "@/components/SalesPopup";
 import TopBar from "@/components/TopBar";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 
 export const metadata: Metadata = {
   title: "Albaraka Honey",
@@ -24,6 +25,7 @@ export default function RootLayout({
       {children}
       <Footer />
       <SalesPopup />
+      <WhatsAppFloat />
     </>
   );
 }

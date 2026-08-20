@@ -6,6 +6,11 @@ export const NAV_ITEMS = [
   // { title: "Azadi Sale", path: "/azadi-sale", blink: true },
 ];
 
+/** Store WhatsApp (digits for wa.me) — Al Barakah support */
+export const WHATSAPP_SUPPORT_PHONE = "923062141972";
+export const WHATSAPP_SUPPORT_PREFILL =
+  "Assalamualaikum, I have a question about Al Barakah Honey.";
+
 export const GOOGLE_PLAY_STORE =
   "https://play.google.com/store/apps/details?id=co.groundsapp.grounds&hl=en";
 
