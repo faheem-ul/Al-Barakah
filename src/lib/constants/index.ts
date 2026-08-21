@@ -7,7 +7,7 @@ export const NAV_ITEMS = [
 ];
 
 /** Store WhatsApp (digits for wa.me) — Al Barakah support */
-export const WHATSAPP_SUPPORT_PHONE = "923062141972";
+export const WHATSAPP_SUPPORT_PHONE = "923256957327";
 export const WHATSAPP_SUPPORT_PREFILL =
   "Assalamualaikum, I have a question about Al Barakah Honey.";
 
