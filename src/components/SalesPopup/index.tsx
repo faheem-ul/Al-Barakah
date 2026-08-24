@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 
 import { SlimCrossIcon } from "@/ui/Icons";
 import type { RecentSale } from "@/lib/recent-sales.types";
+import { isTestBuyerName } from "@/lib/recent-sales.types";
 import { salesPopupConfig } from "@/lib/salesPopup.config";
 
 const PLACEHOLDER_IMAGE = "/images/placeholder.png";
@@ -150,7 +151,9 @@ const SalesPopup = () => {
         const data = (await response.json()) as RecentSalesApiResponse;
         const sales = Array.isArray(data.sales) ? data.sales : [];
         const shownIds = new Set(getShownSaleIds());
-        const eligible = sales.filter((sale) => !shownIds.has(sale.id));
+        const eligible = sales.filter(
+          (sale) => !shownIds.has(sale.id) && !isTestBuyerName(sale.firstName),
+        );
 
         if (cancelled || eligible.length === 0) return;
 

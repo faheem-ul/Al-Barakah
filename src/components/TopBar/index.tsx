@@ -15,7 +15,9 @@ const TopBar = () => {
     pathname !== "/contact-us" &&
     pathname !== "/cart" &&
     pathname !== "/privacy-policy" &&
-    pathname !== "/terms-and-conditions";
+    pathname !== "/terms-and-conditions" &&
+    pathname !== "/refund-policy" &&
+    pathname !== "/ownership-statement";
 
   return (
     <div className={cn("w-full hidden", isProductRoute && "block")}>
