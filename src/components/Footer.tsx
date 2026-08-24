@@ -49,6 +49,18 @@ const Footer = () => {
                 </h4>
               </Link>
 
+              <Link href="/refund-policy" className="hidden md:block">
+                <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
+                  Refund Policy
+                </h4>
+              </Link>
+
+              <Link href="/ownership-statement" className="hidden md:block">
+                <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
+                  Ownership Statement
+                </h4>
+              </Link>
+
               {/* Mobile */}
               <Link href="/terms-and-conditions" className="block md:hidden">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
@@ -59,6 +71,18 @@ const Footer = () => {
               <Link href="/privacy-policy" className="block md:hidden">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
                   Privacy
+                </h4>
+              </Link>
+
+              <Link href="/refund-policy" className="block md:hidden">
+                <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
+                  Refund
+                </h4>
+              </Link>
+
+              <Link href="/ownership-statement" className="block md:hidden">
+                <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
+                  Ownership
                 </h4>
               </Link>
             </div>

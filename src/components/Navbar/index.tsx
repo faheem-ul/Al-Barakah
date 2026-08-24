@@ -33,7 +33,9 @@ const Navbar = () => {
     pathname !== "/cart" &&
     // pathname !== "/azadi-sale" &&
     pathname !== "/privacy-policy" &&
-    pathname !== "/terms-and-conditions";
+    pathname !== "/terms-and-conditions" &&
+    pathname !== "/refund-policy" &&
+    pathname !== "/ownership-statement";
 
   return (
     <nav

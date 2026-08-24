@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { RecentSale, RecentSaleInput } from "@/lib/recent-sales.types";
+import { isTestBuyerName } from "@/lib/recent-sales.types";
 import { salesPopupConfig } from "@/lib/salesPopup.config";
 
 export type { RecentSale, RecentSaleInput } from "@/lib/recent-sales.types";
@@ -209,7 +210,7 @@ export const getRecentSales = cache(async (): Promise<RecentSale[]> => {
       revalidateSeconds: salesPopupConfig.cacheSeconds,
     });
 
-    return snapshot.sales;
+    return snapshot.sales.filter((sale) => !isTestBuyerName(sale.firstName));
   } catch (error) {
     console.error("[Recent Sales] Failed to load from Firestore", error);
     return [];

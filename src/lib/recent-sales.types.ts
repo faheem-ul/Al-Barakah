@@ -14,3 +14,32 @@ export type RecentSale = {
 };
 
 export type RecentSaleInput = RecentSale;
+
+/** Hide checkout test orders from the storefront sales popup. */
+export function isTestBuyerName(firstName: string): boolean {
+  const n = String(firstName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (!n) return false;
+
+  if (
+    n === "test" ||
+    n === "tester" ||
+    n === "testing" ||
+    n === "testuser" ||
+    n === "test user" ||
+    n === "dummy" ||
+    n === "demo" ||
+    n === "sample"
+  ) {
+    return true;
+  }
+
+  if (n.startsWith("test ") || n.endsWith(" test") || n.includes(" test ")) {
+    return true;
+  }
+
+  return /\b(test|tester|testing|dummy|demo|sample)\b/.test(n);
+}
