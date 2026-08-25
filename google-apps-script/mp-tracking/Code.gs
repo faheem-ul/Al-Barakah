@@ -62,9 +62,31 @@ var CONFIG = {
     EMAIL: "Email",
     TRACKING_NUMBER: "Tracking Number",
     ORDER_STATUS: "Order Status",
+    VERIFY: "Verify",
     TRACKING_LOCATION: "Tracking Location",
     TRACKING_DETAIL: "Tracking Detail",
     ADDITIONAL_NOTE: "Additional Note",
+    ADDRESS: "Address",
+    CITY: "City",
+    PRODUCT_DETAIL: "Product Detail",
+    QUANTITY: "Quantity",
+    COD: "COD",
+    TOTAL_AMOUNT: "Total Amount",
+  },
+  VERIFY_VALUES: {
+    FALSE: "false",
+    TRUE: "true",
+    DONE: "already done",
+  },
+  /**
+   * M&P COD API. Password is Script property MP_PASSWORD only (never commit it).
+   */
+  MP_API: {
+    BASE: "https://mnpcourier.com/mycodapi/api",
+    USERNAME: "ALBARAKAHONEY.COM_1A1150",
+    ACCOUNT_NO: "1A1150",
+    WEIGHT: 1,
+    SERVICE: "Overnight",
   },
 };
 
@@ -106,8 +128,10 @@ function installMpTrackingTriggers() {
 
   // Colour every Order Status cell + install rules for future edits
   fixOrderStatusColors();
+  addVerifyColumn();
 
   log_("Next: run authorizeExternalRequests once, then re-edit the CN cell");
+  log_("Set Script property MP_PASSWORD before using the Verify column");
   log_("===== installMpTrackingTriggers DONE =====");
 }
 
@@ -190,14 +214,22 @@ function handleTrackingNumberEdit(e) {
 
   var cols = getHeaderMap_(sheet);
   var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
+  var verifyCol = cols[CONFIG.HEADERS.VERIFY];
+  var editedCol = e.range.getColumn();
+
+  if (verifyCol && editedCol === verifyCol) {
+    handleVerifyEdit_(sheet, cols, e);
+    return;
+  }
+
   if (!numberCol) {
     log_("ERROR — Tracking Number column not found in headers");
     return;
   }
   log_("Tracking Number column index:", numberCol);
 
-  if (e.range.getColumn() !== numberCol) {
-    log_("Ignored — edit was not in Tracking Number column");
+  if (editedCol !== numberCol) {
+    log_("Ignored — edit was not in Tracking Number or Verify column");
     return;
   }
 
@@ -316,6 +348,706 @@ function refreshAllMpTrackingStatuses() {
   log_("===== refreshAllMpTrackingStatuses DONE =====");
 }
 
+function normalizeVerifyValue_(value) {
+  if (value === true || value === 1) return CONFIG.VERIFY_VALUES.TRUE;
+  if (value === false || value === 0) return CONFIG.VERIFY_VALUES.FALSE;
+  var text = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  if (text === "true" || text === "yes") return CONFIG.VERIFY_VALUES.TRUE;
+  if (text === "false" || text === "no") return CONFIG.VERIFY_VALUES.FALSE;
+  if (text === "already done" || text === "done" || text === "alreadydone") {
+    return CONFIG.VERIFY_VALUES.DONE;
+  }
+  return text;
+}
+
+function handleVerifyEdit_(sheet, cols, e) {
+  log_("===== handleVerifyEdit =====");
+  var verifyCol = cols[CONFIG.HEADERS.VERIFY];
+  var row = e.range.getRow();
+  var merged = e.range.getMergedRanges();
+  if (merged && merged.length) {
+    row = merged[0].getRow();
+  }
+
+  var raw = e.value;
+  if (raw === undefined || raw === null || raw === "") {
+    raw = sheet.getRange(row, verifyCol).getValue();
+  }
+  var verify = normalizeVerifyValue_(raw);
+  log_("Row:", row, "| verify:", verify);
+
+  if (verify !== CONFIG.VERIFY_VALUES.TRUE) {
+    log_("Not true — no booking");
+    return;
+  }
+
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(15000)) {
+    log_("Could not lock sheet — skip (another booking in progress)");
+    return;
+  }
+  try {
+    bookMpFromVerifyRow_(sheet, cols, row);
+  } finally {
+    lock.releaseLock();
+  }
+  log_("===== handleVerifyEdit DONE =====");
+}
+
+function bookMpFromVerifyRow_(sheet, cols, row) {
+  var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
+  var verifyCol = cols[CONFIG.HEADERS.VERIFY];
+  var existingCn = numberCol
+    ? String(sheet.getRange(row, numberCol).getValue() || "")
+        .trim()
+        .replace(/\D/g, "")
+    : "";
+  if (existingCn.length >= 7) {
+    log_("CN already on sheet — marking already done", existingCn);
+    sheet.getRange(row, verifyCol).setValue(CONFIG.VERIFY_VALUES.DONE);
+    refreshRowMpTracking_(sheet, cols, row, existingCn, true);
+    markBookedIfTrackingEmpty_(sheet, cols, row);
+    return;
+  }
+
+  var payload = buildMpBookingPayload_(sheet, cols, row);
+  if (payload.error) {
+    log_("Booking blocked:", payload.error);
+    writeVerifyError_(sheet, cols, row, payload.error);
+    return;
+  }
+
+  var result = insertMpBooking_(payload.body);
+  if (!result.ok && isAlreadyBookedMessage_(result.message)) {
+    log_("M&P says order reference already exists — looking up CN");
+    var lookedUp = lookupMpCnByOrderRef_(
+      payload.body.custRefNo,
+      getMpApiCreds_()
+    );
+    if (lookedUp.cn) {
+      result = { ok: true, cn: lookedUp.cn };
+    }
+  }
+  if (!result.ok) {
+    log_("InsertBookingData failed:", result.message);
+    writeVerifyError_(sheet, cols, row, result.message);
+    return;
+  }
+
+  var cn = String(result.cn || "").replace(/\D/g, "");
+  log_("Booked CN:", cn);
+  if (!cn) {
+    writeVerifyError_(sheet, cols, row, "M&P returned no consignment number");
+    return;
+  }
+
+  sheet.getRange(row, verifyCol).setValue(CONFIG.VERIFY_VALUES.DONE);
+  if (numberCol) {
+    var cnCell = sheet.getRange(row, numberCol);
+    cnCell.setNumberFormat("@");
+    cnCell.setValue(cn);
+  }
+  refreshRowMpTracking_(sheet, cols, row, cn, true);
+  markBookedIfTrackingEmpty_(sheet, cols, row);
+}
+
+function markBookedIfTrackingEmpty_(sheet, cols, row) {
+  var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
+  if (!statusCol) return;
+  var status = String(sheet.getRange(row, statusCol).getValue() || "").trim();
+  var lower = status.toLowerCase();
+  if (!status || lower.indexOf("error:") === 0 || lower === "pending") {
+    var cell = sheet.getRange(row, statusCol);
+    cell.setValue("Booked");
+    applyOrderStatusStyle_(cell, "Booked");
+  }
+  var locCol = cols[CONFIG.HEADERS.TRACKING_LOCATION];
+  if (locCol && !String(sheet.getRange(row, locCol).getValue() || "").trim()) {
+    sheet.getRange(row, locCol).setValue("LAHORE");
+  }
+  var detailCol = cols[CONFIG.HEADERS.TRACKING_DETAIL];
+  if (!detailCol) return;
+  var detail = String(sheet.getRange(row, detailCol).getValue() || "").trim();
+  if (
+    !detail ||
+    detail.indexOf("ERROR:") === 0 ||
+    detail.indexOf("Could not parse") >= 0
+  ) {
+    sheet.getRange(row, detailCol).setValue(
+      "Booked in M&P portal. Public tracking may update later."
+    );
+  }
+}
+
+function waitForMpTracking_(cn, attempts, delayMs) {
+  var last = { ok: false, error: "no attempt" };
+  for (var i = 0; i < attempts; i++) {
+    if (i > 0) Utilities.sleep(delayMs);
+    last = fetchMpTrackingStatus_(cn);
+    if (last.ok && last.status) {
+      log_("Tracking live on attempt", i + 1, last.status);
+      return last;
+    }
+    log_("Tracking wait", i + 1, "/", attempts, last.error || "empty");
+  }
+  return last;
+}
+
+function writeVerifyError_(sheet, cols, row, message) {
+  var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
+  var existingCn = numberCol
+    ? String(sheet.getRange(row, numberCol).getValue() || "")
+        .replace(/\D/g, "")
+    : "";
+  if (existingCn.length >= 7) {
+    log_("Skip ERROR write — CN already on row:", existingCn);
+    return;
+  }
+  var detailCol = cols[CONFIG.HEADERS.TRACKING_DETAIL];
+  if (detailCol) {
+    sheet.getRange(row, detailCol).setValue("ERROR: " + message);
+  }
+}
+
+function isAlreadyBookedMessage_(message) {
+  var text = String(message || "").toLowerCase();
+  return (
+    text.indexOf("already exists") >= 0 ||
+    text.indexOf("already exist") >= 0 ||
+    text.indexOf("duplicate") >= 0
+  );
+}
+
+function lookupMpCnByOrderRef_(orderRef, creds) {
+  if (!creds || creds.error || !orderRef) return { cn: "" };
+  var url = CONFIG.MP_API.BASE + "/Reports/CN_Detail_Customer_Order_No";
+  var response = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      UserName: creds.username,
+      Password: creds.password,
+      CustomerOrderRef: String(orderRef),
+      AccountNumber: creds.accountNo,
+    }),
+    muteHttpExceptions: true,
+  });
+  var text = response.getContentText();
+  log_("CN_Detail_Customer_Order_No", response.getResponseCode(), text.slice(0, 400));
+  var json = null;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    return { cn: "" };
+  }
+  var row = json;
+  if (Object.prototype.toString.call(json) === "[object Array]") row = json[0];
+  var details = row && (row.Details || row.details);
+  if (!details || !details.length) return { cn: "" };
+  var cn = String(
+    details[0].consignmentNumber || details[0].ConsignmentNumber || ""
+  ).replace(/\D/g, "");
+  return { cn: cn };
+}
+
+function cellStr_(sheet, cols, row, headerKey) {
+  var col = cols[headerKey];
+  if (!col) return "";
+  return String(sheet.getRange(row, col).getValue() || "").trim();
+}
+
+function getOrderBlock_(sheet, cols, startRow) {
+  var orderCol = cols[CONFIG.HEADERS.ORDER_NUMBER];
+  if (!orderCol) return { start: startRow, count: 1 };
+  var merges = sheet.getRange(startRow, orderCol).getMergedRanges();
+  if (merges && merges.length) {
+    return { start: merges[0].getRow(), count: merges[0].getNumRows() };
+  }
+  return { start: startRow, count: 1 };
+}
+
+function pakistanMobile_(raw) {
+  var digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length === 12 && digits.indexOf("92") === 0) {
+    digits = "0" + digits.slice(2);
+  }
+  if (digits.length === 10) digits = "0" + digits;
+  if (digits.length === 11 && digits.charAt(0) === "0") return digits;
+  return "";
+}
+
+function buildMpBookingPayload_(sheet, cols, row) {
+  var block = getOrderBlock_(sheet, cols, row);
+  row = block.start;
+  var name = cellStr_(sheet, cols, row, CONFIG.HEADERS.NAME);
+  var address = cellStr_(sheet, cols, row, CONFIG.HEADERS.ADDRESS);
+  var city = cellStr_(sheet, cols, row, CONFIG.HEADERS.CITY);
+  var phone = pakistanMobile_(cellStr_(sheet, cols, row, CONFIG.HEADERS.CONTACT));
+  var email = cellStr_(sheet, cols, row, CONFIG.HEADERS.EMAIL);
+  var orderNumber = String(
+    cellStr_(sheet, cols, row, CONFIG.HEADERS.ORDER_NUMBER) || ""
+  )
+    .replace(/^#/, "")
+    .trim();
+  var total = cellStr_(sheet, cols, row, CONFIG.HEADERS.TOTAL_AMOUNT);
+  var codOnly = cellStr_(sheet, cols, row, CONFIG.HEADERS.COD);
+  var codAmount = parseInt(String(total || codOnly).replace(/[^\d]/g, ""), 10);
+  if (!isFinite(codAmount) || codAmount < 0) codAmount = 0;
+
+  var qtyCol = cols[CONFIG.HEADERS.QUANTITY];
+  var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
+  var pieces = 0;
+  var products = [];
+  for (var i = 0; i < block.count; i++) {
+    var r = block.start + i;
+    if (qtyCol) {
+      var q = Number(sheet.getRange(r, qtyCol).getValue() || 0);
+      if (isFinite(q) && q > 0) pieces += q;
+    }
+    if (productCol) {
+      var p = String(sheet.getRange(r, productCol).getValue() || "").trim();
+      if (p) products.push(p);
+    }
+  }
+  if (pieces < 1) pieces = 1;
+  if (pieces > 99) pieces = 99;
+
+  if (!name) return { error: "Name is empty" };
+  if (!address) return { error: "Address is empty" };
+  if (!city) return { error: "City is empty" };
+  if (!phone) {
+    return { error: "Contact must be a Pakistani mobile (03XXXXXXXXX)" };
+  }
+  if (!orderNumber) return { error: "Order Number is empty" };
+
+  var creds = getMpApiCreds_();
+  if (creds.error) return { error: creds.error };
+
+  var cityMatch = matchMpCity_(city, creds);
+  if (cityMatch.error) return { error: cityMatch.error };
+
+  var ids = resolveMpLocationIds_(creds);
+  if (ids.error) return { error: ids.error };
+
+  var returnLoc = ids.returnLocation;
+  if (String(returnLoc).match(/^\d+$/)) returnLoc = Number(returnLoc);
+
+  var body = {
+    username: creds.username,
+    password: creds.password,
+    consigneeName: name.slice(0, 50),
+    consigneeAddress: address.slice(0, 255),
+    consigneeMobNo: phone,
+    consigneeEmail: email.slice(0, 50),
+    destinationCityName: cityMatch.name,
+    pieces: pieces,
+    weight: CONFIG.MP_API.WEIGHT,
+    codAmount: codAmount,
+    custRefNo: orderNumber.slice(0, 50),
+    productDetails: asciiProductDetails_(products),
+    fragile: "No",
+    service: CONFIG.MP_API.SERVICE,
+    remarks: "Al Barakah Honey",
+    insuranceValue: "0",
+    locationID: String(ids.locationID),
+    AccountNo: creds.accountNo,
+    ReturnLocation: returnLoc,
+    subAccountId: Number(ids.subAccountId),
+  };
+  var insertTypeRaw = PropertiesService.getScriptProperties().getProperty(
+    "MP_INSERT_TYPE"
+  );
+  if (insertTypeRaw && String(insertTypeRaw).trim() !== "") {
+    body.InsertType = Number(insertTypeRaw);
+  }
+  return { body: body };
+}
+
+function asciiProductDetails_(products) {
+  var raw = (products || []).join("; ");
+  var ascii = raw.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
+  if (!ascii) ascii = "Honey";
+  return ascii.slice(0, 50);
+}
+
+function getMpApiCreds_() {
+  var props = PropertiesService.getScriptProperties();
+  var username = (props.getProperty("MP_USERNAME") || CONFIG.MP_API.USERNAME).trim();
+  var password = String(props.getProperty("MP_PASSWORD") || "").trim();
+  var accountNo = (
+    props.getProperty("MP_ACCOUNT_NO") || CONFIG.MP_API.ACCOUNT_NO
+  ).trim();
+  if (!password) {
+    return {
+      error:
+        "Set Script property MP_PASSWORD (Apps Script → Project Settings → Script properties)",
+    };
+  }
+  return { username: username, password: password, accountNo: accountNo };
+}
+
+function mpApiGet_(path, creds, extra) {
+  var url =
+    CONFIG.MP_API.BASE +
+    path +
+    "?username=" +
+    encodeURIComponent(creds.username) +
+    "&password=" +
+    encodeURIComponent(creds.password) +
+    "&AccountNo=" +
+    encodeURIComponent(creds.accountNo);
+  if (extra) {
+    var keys = Object.keys(extra);
+    for (var i = 0; i < keys.length; i++) {
+      url +=
+        "&" +
+        encodeURIComponent(keys[i]) +
+        "=" +
+        encodeURIComponent(extra[keys[i]]);
+    }
+  }
+  var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  var text = response.getContentText();
+  var code = response.getResponseCode();
+  var json = null;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    json = null;
+  }
+  return { code: code, json: json, text: text };
+}
+
+function matchMpCity_(sheetCity, creds) {
+  var wanted = String(sheetCity || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get("mp_cities_" + creds.accountNo);
+  var cities = [];
+  if (cached) {
+    try {
+      cities = JSON.parse(cached);
+    } catch (e) {
+      cities = [];
+    }
+  }
+  if (!cities.length) {
+    var res = mpApiGet_("/Branches/Get_Cities", creds);
+    cities = extractMpCityNames_(res.json);
+    if (!cities.length) {
+      res = mpApiGet_("/Branches/Get_Cities_All", creds);
+      cities = extractMpCityNames_(res.json);
+    }
+    if (cities.length) {
+      cache.put("mp_cities_" + creds.accountNo, JSON.stringify(cities), 21600);
+    }
+  }
+  if (!cities.length) {
+    return { error: "Could not load M&P city list — check API login" };
+  }
+
+  var exact = "";
+  var loose = "";
+  for (var i = 0; i < cities.length; i++) {
+    var name = String(cities[i] || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    var upper = name.toUpperCase();
+    if (upper === wanted) {
+      exact = name;
+      break;
+    }
+    if (!loose && (upper.indexOf(wanted) >= 0 || wanted.indexOf(upper) >= 0)) {
+      loose = name;
+    }
+  }
+  var matched = exact || loose;
+  if (!matched) {
+    return { error: 'City "' + sheetCity + '" is not in the M&P city list' };
+  }
+  return { name: matched };
+}
+
+function extractMpCityNames_(json) {
+  var names = [];
+  if (!json) return names;
+  var list = json;
+  if (Object.prototype.toString.call(json) !== "[object Array]") {
+    list = [json];
+  }
+  for (var i = 0; i < list.length; i++) {
+    var city = list[i] && list[i].City;
+    if (Object.prototype.toString.call(city) === "[object Array]") {
+      for (var j = 0; j < city.length; j++) names.push(city[j]);
+    }
+  }
+  return names;
+}
+
+function resolveMpLocationIds_(creds) {
+  var props = PropertiesService.getScriptProperties();
+  var subAccountId = String(props.getProperty("MP_SUB_ACCOUNT_ID") || "").trim();
+  var locationID = String(props.getProperty("MP_LOCATION_ID") || "").trim();
+  var returnLocation = String(
+    props.getProperty("MP_RETURN_LOCATION") || ""
+  ).trim();
+
+  if (!subAccountId) {
+    var subRes = mpApiGet_("/UserManagement/GetSubAccounts", creds);
+    var subs =
+      (subRes.json && subRes.json.locationList) ||
+      (subRes.json && subRes.json.LocationList) ||
+      [];
+    if (subs.length) {
+      var sub = pickMpSubAccount_(subs) || subs[0];
+      subAccountId = String(sub.subAccountId);
+      props.setProperty("MP_SUB_ACCOUNT_ID", subAccountId);
+      log_("Cached MP_SUB_ACCOUNT_ID", subAccountId);
+    }
+  }
+
+  if (!locationID && subAccountId) {
+    var subLoc = mpApiGet_("/Locations/GetSubAccountLocations", creds, {
+      SubAccountId: subAccountId,
+    });
+    var subLocations =
+      (subLoc.json && subLoc.json.locationList) ||
+      (subLoc.json && subLoc.json.LocationList) ||
+      [];
+    var pickedSub = pickMpLahoreLocation_(subLocations);
+    if (pickedSub) {
+      locationID = String(pickedSub.locationID);
+      log_(
+        "Using sub-account location",
+        locationID,
+        pickedSub.locationName || ""
+      );
+    }
+  }
+
+  if (!locationID) {
+    var locRes = mpApiGet_("/Locations/Get_locations", creds);
+    var locations =
+      (locRes.json && locRes.json.locationList) ||
+      (locRes.json && locRes.json.LocationList) ||
+      [];
+    var picked = pickMpLahoreLocation_(locations);
+    if (picked) {
+      locationID = String(picked.locationID);
+      log_("Using Get_locations", locationID, picked.locationName || "");
+    }
+  }
+
+  if (locationID) props.setProperty("MP_LOCATION_ID", locationID);
+  if (!returnLocation) {
+    returnLocation = locationID;
+    if (returnLocation) props.setProperty("MP_RETURN_LOCATION", returnLocation);
+  }
+
+  if (!locationID) {
+    return { error: "Could not resolve M&P locationID — set MP_LOCATION_ID" };
+  }
+  if (!subAccountId) {
+    return {
+      error: "Could not resolve M&P subAccountId — set MP_SUB_ACCOUNT_ID",
+    };
+  }
+  return {
+    locationID: locationID,
+    returnLocation: returnLocation,
+    subAccountId: subAccountId,
+  };
+}
+
+function pickMpLahoreLocation_(locations) {
+  if (!locations || !locations.length) return null;
+  for (var i = 0; i < locations.length; i++) {
+    if (String(locations[i].locationID || "") === "125467") return locations[i];
+  }
+  for (var j = 0; j < locations.length; j++) {
+    var name = String(locations[j].locationName || "").toUpperCase();
+    if (name.indexOf("LAHORE") >= 0) return locations[j];
+  }
+  return locations[0];
+}
+
+function pickMpSubAccount_(subs) {
+  for (var i = 0; i < subs.length; i++) {
+    var shipper = String(subs[i].shipperName || "").toUpperCase();
+    if (shipper.indexOf("1A1150") >= 0 || shipper.indexOf("ALBARAKAH") >= 0) {
+      return subs[i];
+    }
+  }
+  return null;
+}
+
+function insertMpBooking_(body) {
+  var url = CONFIG.MP_API.BASE + "/Booking/InsertBookingData";
+  var response = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true,
+  });
+  var text = response.getContentText();
+  log_("InsertBookingData HTTP", response.getResponseCode(), text.slice(0, 500));
+  var json = null;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    return { ok: false, message: "M&P returned non-JSON: " + text.slice(0, 180) };
+  }
+  var row = json;
+  if (Object.prototype.toString.call(json) === "[object Array]") {
+    row = json[0];
+  }
+  var success = isMpApiSuccess_(row);
+  var cn = row && row.orderReferenceId;
+  var apiMessage = (row && row.message) || "";
+  if (!success || !cn) {
+    return {
+      ok: false,
+      message: apiMessage || text.slice(0, 180) || "Booking failed",
+    };
+  }
+  return { ok: true, cn: String(cn), message: apiMessage };
+}
+
+function isMpApiSuccess_(row) {
+  if (!row) return false;
+  var v = row.isSuccess;
+  if (v === true || v === 1) return true;
+  var text = String(v || "").toLowerCase();
+  if (text !== "true") return false;
+  var message = String(row.message || "").toLowerCase();
+  if (!message) return true;
+  if (message.indexOf("already exist") >= 0) return false;
+  if (message.indexOf("fail") >= 0 || message.indexOf("error") >= 0) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Run once after updating Code.gs so old (possibly wrong) location IDs are refetched.
+ */
+function clearMpApiIdCache() {
+  var props = PropertiesService.getScriptProperties();
+  props.deleteProperty("MP_LOCATION_ID");
+  props.deleteProperty("MP_RETURN_LOCATION");
+  props.deleteProperty("MP_SUB_ACCOUNT_ID");
+  log_("Cleared MP_LOCATION_ID / MP_RETURN_LOCATION / MP_SUB_ACCOUNT_ID");
+}
+
+function installVerifyDropdown_() {
+  var sheet = getOrdersSheet_();
+  ensureTrackingHeaders_();
+  var cols = getHeaderMap_(sheet);
+  var verifyCol = cols[CONFIG.HEADERS.VERIFY];
+  if (!verifyCol) {
+    log_("Verify column missing — skip dropdown");
+    return;
+  }
+  var lastRow = Math.max(sheet.getLastRow() + 200, 50);
+  var maxRows = sheet.getMaxRows();
+  if (lastRow > maxRows) lastRow = maxRows;
+  var range = sheet.getRange(2, verifyCol, lastRow - 1, 1);
+  var rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(
+      [
+        CONFIG.VERIFY_VALUES.FALSE,
+        CONFIG.VERIFY_VALUES.TRUE,
+        CONFIG.VERIFY_VALUES.DONE,
+      ],
+      true
+    )
+    .setAllowInvalid(true)
+    .build();
+  range.setDataValidation(rule);
+  log_("Verify dropdown installed");
+}
+
+/**
+ * Run this from Apps Script to add the Verify column on the live sheet:
+ * header "Verify", dropdown false / true / already done, existing orders = false.
+ * Adds the column at the far right so Shopify webhook rows stay aligned until Vercel deploy.
+ */
+function addVerifyColumn() {
+  log_("===== addVerifyColumn START =====");
+  var sheet = getOrdersSheet_();
+  ensureTrackingHeaders_();
+  var cols = getHeaderMap_(sheet);
+  if (!cols[CONFIG.HEADERS.VERIFY]) {
+    appendVerifyColumn_(sheet);
+    cols = getHeaderMap_(sheet);
+  }
+  fillEmptyVerifyFalse_(sheet, cols);
+  installVerifyDropdown_();
+  log_("===== addVerifyColumn DONE =====");
+}
+
+function appendVerifyColumn_(sheet) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var startCol = headers.length + 1;
+  while (startCol > 1 && !String(headers[startCol - 2] || "").trim()) {
+    startCol--;
+  }
+  sheet.getRange(1, startCol).setValue(CONFIG.HEADERS.VERIFY);
+  log_("Added Verify column at column", startCol);
+}
+
+function fillEmptyVerifyFalse_(sheet, cols) {
+  var verifyCol = cols[CONFIG.HEADERS.VERIFY];
+  var orderCol = cols[CONFIG.HEADERS.ORDER_NUMBER];
+  if (!verifyCol || !orderCol) return;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  var orderVals = sheet.getRange(2, orderCol, lastRow - 1, 1).getValues();
+  var verifyVals = sheet.getRange(2, verifyCol, lastRow - 1, 1).getValues();
+  var writes = [];
+  for (var i = 0; i < orderVals.length; i++) {
+    var hasOrder = String(orderVals[i][0] || "").trim();
+    var current = String(verifyVals[i][0] || "").trim();
+    if (hasOrder && !current) {
+      writes.push({ row: i + 2, value: CONFIG.VERIFY_VALUES.FALSE });
+    }
+  }
+  for (var w = 0; w < writes.length; w++) {
+    sheet.getRange(writes[w].row, verifyCol).setValue(writes[w].value);
+  }
+  log_("Filled Verify=false on", writes.length, "order row(s)");
+}
+
+/**
+ * Run once after setting MP_PASSWORD. Should log isSucces / AccountNo list.
+ */
+function testMpApiLogin() {
+  log_("===== testMpApiLogin =====");
+  var creds = getMpApiCreds_();
+  if (creds.error) {
+    log_("ERROR", creds.error);
+    return;
+  }
+  var accounts = mpApiGet_("/UserManagement/GetAccounts", creds);
+  log_("GetAccounts HTTP", accounts.code, (accounts.text || "").slice(0, 800));
+  var cities = mpApiGet_("/Branches/Get_Cities", creds);
+  log_(
+    "Get_Cities HTTP",
+    cities.code,
+    "cities:",
+    extractMpCityNames_(cities.json).length
+  );
+  var ids = resolveMpLocationIds_(creds);
+  log_("Location IDs:", JSON.stringify(ids));
+  log_("===== testMpApiLogin DONE =====");
+}
+
 /** Manual helper: refresh one CN (paste into RUN with a test number). */
 function debugFetchOneTracking() {
   var cn = "545928110002811";
@@ -361,6 +1093,15 @@ function ensureTrackingHeaders_() {
     } else {
       log_("Contact column missing — Email not inserted");
     }
+  }
+
+  if (headerNames.indexOf(CONFIG.HEADERS.VERIFY) === -1) {
+    appendVerifyColumn_(sheet);
+    lastCol = Math.max(sheet.getLastColumn(), 1);
+    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    headerNames = headers.map(function (h) {
+      return String(h || "").trim();
+    });
   }
 
   var needed = [

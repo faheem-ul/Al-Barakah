@@ -24,7 +24,8 @@ No M&P COD portal login is required.
 | COD               | Shopify webhook (shipping)                          |
 | Total Amount      | Shopify webhook (Retail + COD)                      |
 | Order Status      | Webhook starts as `Pending`; script sets M&P status |
-| Tracking Number   | You (paste CN, min 7 digits)                        |
+| Verify            | Admin: `false` / `true` / `already done`            |
+| Tracking Number   | Script (after Verify=`true`) or paste CN            |
 | Tracking Location | Script                                              |
 | Tracking Detail   | Script                                              |
 
@@ -100,10 +101,23 @@ If some Order Status cells look uncoloured (common after bulk paste), in Apps Sc
 
 ## Daily usage
 
-1. Shopify order row appears at the **top** of the sheet.
-2. After you ship with M&P, paste the consignment number into **Tracking Number**.
-3. Status fills shortly after the edit; status also refreshes every hour until **Delivered**.
-4. When status becomes **Delivered**, Shopify is marked **Paid** (if unpaid) + **Fulfilled** automatically (if sync is configured).
+1. Shopify order row appears at the **top** of the sheet (`Verify` = `false`).
+2. Confirm name / address / city / phone, then set **Verify** to **`true`**.
+3. Script books M&P COD, writes the CN into **Tracking Number**, and changes Verify to **`already done`**.
+4. Print the slip in the M&P portal for that CN.
+5. Status fills shortly after; it also refreshes every hour until **Delivered**.
+6. When status becomes **Delivered**, Shopify is marked **Paid** (if unpaid) + **Fulfilled** automatically (if sync is configured).
+
+### M&P API password (required for Verify)
+
+In Apps Script: **Project Settings → Script properties** add:
+
+- `MP_PASSWORD` — portal / API password (do not put this in the sheet or git)
+- Optional: `MP_USERNAME` (default `ALBARAKAHONEY.COM_1A1150`), `MP_ACCOUNT_NO` (default `1A1150`), `MP_LOCATION_ID`, `MP_SUB_ACCOUNT_ID`, `MP_RETURN_LOCATION`
+
+Paste the latest `Code.gs` → Save → run **`installMpTrackingTriggers`**. Then run **`testMpApiLogin`**. Then set **Verify** to `true` on one test order.
+
+If booking fails, **Tracking Detail** shows `ERROR: …` and Verify stays `true` so you can fix the row and try again.
 
 ## Manual full refresh
 
