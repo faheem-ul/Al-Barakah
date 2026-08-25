@@ -22,6 +22,7 @@ export const ORDER_SHEET_HEADERS = [
   "COD",
   "Total Amount",
   "Order Status",
+  "Verify",
   "Tracking Number",
   "Tracking Location",
   "Tracking Detail",
@@ -218,7 +219,8 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
       isFirst ? String(cod) : "",
       isFirst ? String(orderTotal) : "",
       isFirst ? status : "",
-      "", // Tracking Number — ops paste
+      isFirst ? "false" : "", // Verify — admin types true after checking address
+      "", // Tracking Number — Apps Script after Verify=true
       "", // Tracking Location — Apps Script
       "", // Tracking Detail — Apps Script
     ];
@@ -237,6 +239,7 @@ export const ORDER_LEVEL_MERGE_HEADERS = [
   "COD",
   "Total Amount",
   "Order Status",
+  "Verify",
   "Tracking Number",
   "Tracking Location",
   "Tracking Detail",

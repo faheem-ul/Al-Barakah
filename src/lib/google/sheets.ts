@@ -313,6 +313,61 @@ async function ensureEmailColumn(
   return next;
 }
 
+/**
+ * Insert Verify after Order Status so existing rows stay aligned.
+ * Admin types false / true / already done; Apps Script books M&P on true.
+ */
+async function ensureVerifyColumn(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tab: TabMeta,
+  firstRow: string[]
+): Promise<string[]> {
+  if (firstRow.includes("Verify")) return firstRow;
+
+  const statusIdx = firstRow.indexOf("Order Status");
+  if (statusIdx < 0) {
+    console.warn(`${LOG} Order Status column missing — cannot insert Verify`);
+    return firstRow;
+  }
+
+  const insertAt = statusIdx + 1;
+  console.log(
+    `${LOG} Inserting Verify column at index ${insertAt} (after Order Status)`
+  );
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId: tab.sheetId,
+              dimension: "COLUMNS",
+              startIndex: insertAt,
+              endIndex: insertAt + 1,
+            },
+            inheritFromBefore: true,
+          },
+        },
+      ],
+    },
+  });
+
+  const colLetter = columnIndexToLetter_(insertAt);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: sheetRange(tab.title, `${colLetter}1`),
+    valueInputOption: "RAW",
+    requestBody: { values: [["Verify"]] },
+  });
+
+  const next = [...firstRow];
+  next.splice(insertAt, 0, "Verify");
+  return next;
+}
+
 /** 0-based column index → A1 letter(s). */
 function columnIndexToLetter_(index: number): string {
   let n = index + 1;
@@ -359,6 +414,7 @@ async function ensureHeaderRow(
   }
 
   firstRow = await ensureEmailColumn(sheets, spreadsheetId, tab, firstRow);
+  firstRow = await ensureVerifyColumn(sheets, spreadsheetId, tab, firstRow);
 
   console.log(
     `${LOG} Header already present (${firstRow.length} columns) — skip full rewrite`
