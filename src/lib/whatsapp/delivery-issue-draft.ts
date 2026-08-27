@@ -1,6 +1,9 @@
 const TRACKING_BASE = "https://www.mulphilog.com/tracking/";
 
-export type WhatsAppDraftType = "delivery_issue" | "order_placed";
+export type WhatsAppDraftType =
+  | "delivery_issue"
+  | "order_placed"
+  | "status_update";
 
 function formatOrderLabel(order?: string): string {
   let value = (order || "").trim();
@@ -39,6 +42,34 @@ export function buildDeliveryIssueWhatsAppDraft(params: {
   );
 }
 
+/**
+ * Same layout as delivery_issue, for normal tracking status changes
+ * (In-transit, Reached at Destination, Delivered, etc.).
+ */
+export function buildStatusUpdateWhatsAppDraft(params: {
+  name?: string;
+  order?: string;
+  status?: string;
+  cn?: string;
+}): string {
+  const name = (params.name || "Customer").trim() || "Customer";
+  const order = formatOrderLabel(params.order);
+  const status = (params.status || "").trim() || "Delivery update";
+  const cn = (params.cn || "").trim();
+  const trackingUrl = cn ? `${TRACKING_BASE}${cn}` : TRACKING_BASE;
+
+  return (
+    `Assalamualaikum ${name},\n\n` +
+    `Your Al Barakah Honey Order ${order} has a tracking update.\n\n` +
+    `📦 Delivery Status: ${status}\n` +
+    `🚚 Tracking No.: ${cn || "—"}\n\n` +
+    `📞 Please keep your mobile phone active and available for the courier's call.\n\n` +
+    `🔗 Track Your Shipment:\n` +
+    `${trackingUrl}\n\n` +
+    `Thank you for choosing Al Barakah Honey 🍯`
+  );
+}
+
 /** Pre-filled WhatsApp body when a new Shopify order is placed. */
 export function buildOrderPlacedWhatsAppDraft(params: {
   name?: string;
@@ -65,6 +96,9 @@ export function buildWhatsAppDraft(
 ): string {
   if (type === "order_placed") {
     return buildOrderPlacedWhatsAppDraft(params);
+  }
+  if (type === "status_update") {
+    return buildStatusUpdateWhatsAppDraft(params);
   }
   return buildDeliveryIssueWhatsAppDraft(params);
 }
