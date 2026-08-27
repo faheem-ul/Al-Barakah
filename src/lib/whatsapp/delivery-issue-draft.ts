@@ -1,9 +1,12 @@
-const TRACKING_BASE = "https://www.mulphilog.com/tracking/";
+import {
+  buildTrackingStatusWhatsAppDraft,
+} from "@/lib/whatsapp/tracking-status-drafts";
 
 export type WhatsAppDraftType =
   | "delivery_issue"
   | "order_placed"
-  | "status_update";
+  | "status_update"
+  | "tracking";
 
 function formatOrderLabel(order?: string): string {
   let value = (order || "").trim();
@@ -12,62 +15,6 @@ function formatOrderLabel(order?: string): string {
   }
   if (!value) return "your order";
   return value;
-}
-
-/**
- * Pre-filled WhatsApp body for failed / re-attempt delivery notices.
- * Built on the Next.js /wa redirect so emojis survive (Gmail mangles wa.me links).
- */
-export function buildDeliveryIssueWhatsAppDraft(params: {
-  name?: string;
-  order?: string;
-  status?: string;
-  cn?: string;
-}): string {
-  const name = (params.name || "Customer").trim() || "Customer";
-  const order = formatOrderLabel(params.order);
-  const status = (params.status || "").trim() || "Delivery update";
-  const cn = (params.cn || "").trim();
-  const trackingUrl = cn ? `${TRACKING_BASE}${cn}` : TRACKING_BASE;
-
-  return (
-    `Assalamualaikum ${name},\n\n` +
-    `Your Al Barakah Honey Order ${order} could not be delivered on the first attempt.\n\n` +
-    `📦 Delivery Status: ${status}\n` +
-    `🚚 Tracking No.: ${cn || "—"}\n\n` +
-    `📞 Please keep your mobile phone active and available for the courier's call. If the courier is unable to reach you, your parcel may be returned to us.\n\n` +
-    `🔗 Track Your Shipment:\n` +
-    `${trackingUrl}\n\n` +
-    `Thank you for choosing Al Barakah Honey 🍯`
-  );
-}
-
-/**
- * Same layout as delivery_issue, for normal tracking status changes
- * (In-transit, Reached at Destination, Delivered, etc.).
- */
-export function buildStatusUpdateWhatsAppDraft(params: {
-  name?: string;
-  order?: string;
-  status?: string;
-  cn?: string;
-}): string {
-  const name = (params.name || "Customer").trim() || "Customer";
-  const order = formatOrderLabel(params.order);
-  const status = (params.status || "").trim() || "Delivery update";
-  const cn = (params.cn || "").trim();
-  const trackingUrl = cn ? `${TRACKING_BASE}${cn}` : TRACKING_BASE;
-
-  return (
-    `Assalamualaikum ${name},\n\n` +
-    `Your Al Barakah Honey Order ${order} has a tracking update.\n\n` +
-    `📦 Delivery Status: ${status}\n` +
-    `🚚 Tracking No.: ${cn || "—"}\n\n` +
-    `📞 Please keep your mobile phone active and available for the courier's call.\n\n` +
-    `🔗 Track Your Shipment:\n` +
-    `${trackingUrl}\n\n` +
-    `Thank you for choosing Al Barakah Honey 🍯`
-  );
 }
 
 /** Pre-filled WhatsApp body when a new Shopify order is placed. */
@@ -85,6 +32,30 @@ export function buildOrderPlacedWhatsAppDraft(params: {
   );
 }
 
+/**
+ * @deprecated Prefer type=tracking — kept for old email links.
+ */
+export function buildDeliveryIssueWhatsAppDraft(params: {
+  name?: string;
+  order?: string;
+  status?: string;
+  cn?: string;
+}): string {
+  return buildTrackingStatusWhatsAppDraft(params);
+}
+
+/**
+ * @deprecated Prefer type=tracking — kept for old email links.
+ */
+export function buildStatusUpdateWhatsAppDraft(params: {
+  name?: string;
+  order?: string;
+  status?: string;
+  cn?: string;
+}): string {
+  return buildTrackingStatusWhatsAppDraft(params);
+}
+
 export function buildWhatsAppDraft(
   type: WhatsAppDraftType,
   params: {
@@ -97,10 +68,8 @@ export function buildWhatsAppDraft(
   if (type === "order_placed") {
     return buildOrderPlacedWhatsAppDraft(params);
   }
-  if (type === "status_update") {
-    return buildStatusUpdateWhatsAppDraft(params);
-  }
-  return buildDeliveryIssueWhatsAppDraft(params);
+  // tracking | status_update | delivery_issue → per-status drafts
+  return buildTrackingStatusWhatsAppDraft(params);
 }
 
 /** Digits-only international phone for wa.me (e.g. 923001234567). */

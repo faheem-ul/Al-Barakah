@@ -1528,7 +1528,7 @@ function sendTrackingStatusEmail_(
     "dd MMM yyyy, hh:mm a",
   );
 
-  // WhatsApp draft on every status-change email (same /wa delivery_issue message format)
+  // WhatsApp draft on every status-change email (per-status body via /wa?type=tracking)
   var waPhone = toWhatsAppPhone_(contactNumber);
   var waLink = "";
   var waBlockHtml = "";
@@ -1660,14 +1660,9 @@ function buildWhatsAppDraftSiteLink_(
       ? orderNumber
       : "#" + orderNumber
     : "";
-  var draftType = isWhatsAppDeliveryIssueStatus_(status)
-    ? "delivery_issue"
-    : "status_update";
   return (
     base +
-    "/wa?type=" +
-    encodeURIComponent(draftType) +
-    "&phone=" +
+    "/wa?type=tracking&phone=" +
     encodeURIComponent(phone) +
     "&name=" +
     encodeURIComponent(name) +
