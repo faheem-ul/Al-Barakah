@@ -179,13 +179,16 @@ export function buildTrackingStatusWhatsAppDraft(params: DraftParams): string {
         `Hope you enjoy every drop! 🍯\n\n`;
       break;
     case "delivered":
-      body =
+      return (
         `Hi ${name}! 🍯\n\n` +
         `Your Al Barakah Honey order ${order} has been successfully delivered. 🎉\n\n` +
         `We hope you enjoy your honey!\n\n` +
         `Please leave us a quick review:\n` +
-        `${GOOGLE_REVIEW_URL}\n\n`;
-      break;
+        `${GOOGLE_REVIEW_URL}\n\n` +
+        `If you'd like to order more, just call or WhatsApp us and we'll book your order:\n` +
+        `${SUPPORT_PHONE}\n\n` +
+        `Thank you for choosing Al Barakah Honey. ❤️`
+      );
     case "unsuccessful":
       body =
         `Hi ${name}! 🍯\n\n` +

@@ -168,6 +168,8 @@ Thank you for choosing Al Barakah Honey. ❤️
 
 ## 6. Delivered
 
+(No M&P tracking / helpline footer — order is complete.)
+
 ```
 Hi {{Customer Name}}! 🍯
 
@@ -178,15 +180,7 @@ We hope you enjoy your honey!
 Please leave us a quick review:
 https://g.page/r/Cb5ju-Dzbs1nEBM/review
 
-🔎 Want to track your parcel?
-You can check the latest tracking updates on the M&P tracking page.
-https://www.mulphilog.com/tracking/{{Tracking Number}}
-
-📞 For M&P Delivery Updates:
-You can contact the M&P Helpline at 042-111-202-202 for the latest update regarding your shipment.
-
-📞 Need further assistance?
-If you need any help regarding your order, please contact Al Barakah Honey:
+If you'd like to order more, just call or WhatsApp us and we'll book your order:
 0325-6957327
 
 Thank you for choosing Al Barakah Honey. ❤️
