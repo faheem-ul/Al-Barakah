@@ -8,8 +8,13 @@ import {
 
 /**
  * GET /wa?type=tracking|order_placed|delivery_issue|status_update&phone=&name=&order=&status=&cn=
- * Instant redirect → WhatsApp with emoji-safe prefilled message.
- * Admin tracking emails use type=tracking + status (per-status drafts).
+ *
+ * Builds the emoji message on the server (UTF-8), then opens WhatsApp.
+ * Email buttons must link here with ASCII-only query params — never put
+ * unicode in a Gmail wa.me href (Gmail corrupts emojis to).
+ *
+ * Uses a tiny UTF-8 HTML page (not a bare 302) so in-app browsers / WhatsApp
+ * Web keep emoji characters in the prefilled text.
  */
 export function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
@@ -37,5 +42,34 @@ export function GET(request: NextRequest) {
   });
 
   const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-  return NextResponse.redirect(waUrl, 302);
+  const safeHref = waUrl
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+
+  const html =
+    `<!DOCTYPE html><html lang="en"><head>` +
+    `<meta charset="utf-8"/>` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1"/>` +
+    `<title>Open WhatsApp</title>` +
+    `<style>` +
+    `body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#f7f4ef;color:#1f150a}` +
+    `a{display:inline-block;background:#25D366;color:#fff;text-decoration:none;padding:14px 22px;border-radius:8px;font-weight:700}` +
+    `p{margin:0 0 16px;text-align:center;max-width:280px}` +
+    `</style></head><body>` +
+    `<div style="text-align:center">` +
+    `<p>Opening WhatsApp with your message…</p>` +
+    `<p><a id="wa" href="${safeHref}">Open WhatsApp</a></p>` +
+    `</div>` +
+    `<script>` +
+    `location.replace(${JSON.stringify(waUrl)});` +
+    `</script></body></html>`;
+
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
 }
