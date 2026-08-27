@@ -6,12 +6,64 @@ import { unstable_cache } from "next/cache";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 export const GOOGLE_REVIEWS_CACHE_TAG = "google-reviews";
-const GOOGLE_REVIEWS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
+/** Firestore + Next.js cache TTL — reviews refresh after 2 days. */
+const GOOGLE_REVIEWS_CACHE_TTL_DAYS = 2;
+export const GOOGLE_REVIEWS_CACHE_TTL_SECONDS =
+  GOOGLE_REVIEWS_CACHE_TTL_DAYS * 24 * 60 * 60;
 export const GOOGLE_REVIEWS_CACHE_TTL_MS =
   GOOGLE_REVIEWS_CACHE_TTL_SECONDS * 1000;
 
 const GOOGLE_REVIEWS_COLLECTION = "googlereviews";
 const GOOGLE_REVIEWS_DOCUMENT = "cache";
+const LOG_PREFIX = "[GoogleReviews]";
+
+type SnapshotLogMeta = {
+  placeName: string;
+  rating: number;
+  totalReviews: number;
+  reviewCount: number;
+  fetchedAt: string;
+  expiresAt: string;
+  cacheAge: string;
+  ttlRemaining: string;
+  isExpired: boolean;
+};
+
+const formatDuration = (ms: number) => {
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
+  return `${(ms / 3_600_000).toFixed(1)}h`;
+};
+
+const formatSnapshotMeta = (
+  snapshot: GoogleReviewsSnapshot,
+  now = Date.now()
+): SnapshotLogMeta => ({
+  placeName: snapshot.placeName,
+  rating: snapshot.rating,
+  totalReviews: snapshot.totalReviews,
+  reviewCount: snapshot.reviews.length,
+  fetchedAt: new Date(snapshot.fetchedAt).toISOString(),
+  expiresAt: new Date(snapshot.expiresAt).toISOString(),
+  cacheAge: formatDuration(Math.max(0, now - snapshot.fetchedAt)),
+  ttlRemaining: formatDuration(Math.max(0, snapshot.expiresAt - now)),
+  isExpired: snapshot.expiresAt <= now,
+});
+
+export const logGoogleReviews = (
+  channel: "SYNC" | "READ" | "API" | "CRON",
+  message: string,
+  meta?: Record<string, unknown>
+) => {
+  if (meta && Object.keys(meta).length > 0) {
+    console.info(`${LOG_PREFIX} ${channel} | ${message}`, meta);
+    return;
+  }
+  console.info(`${LOG_PREFIX} ${channel} | ${message}`);
+};
+
+/** Set true when unstable_cache misses and reads Firestore (per request). */
+let firestoreReadOnCacheMiss = false;
 const GOOGLE_PLACES_FIELD_MASK = [
   "id",
   "displayName",
@@ -203,6 +255,13 @@ export const fetchGooglePlaceDetails = async (
   endpoint.searchParams.set("languageCode", "en");
   endpoint.searchParams.set("regionCode", "PK");
 
+  const startedAt = Date.now();
+  logGoogleReviews("API", "Calling Google Places API (Place Details)", {
+    placeId,
+    method: "GET",
+    fields: GOOGLE_PLACES_FIELD_MASK,
+  });
+
   const response = await fetch(endpoint, {
     cache: "no-store",
     headers: {
@@ -213,6 +272,12 @@ export const fetchGooglePlaceDetails = async (
 
   if (!response.ok) {
     const responseBody = await response.text();
+    logGoogleReviews("API", "Google Places API failed", {
+      placeId,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+      error: responseBody.slice(0, 300),
+    });
     throw new Error(
       `Google Places request failed (${response.status}): ${responseBody.slice(
         0,
@@ -221,49 +286,81 @@ export const fetchGooglePlaceDetails = async (
     );
   }
 
-  return (await response.json()) as GooglePlaceDetailsResponse;
+  const place = (await response.json()) as GooglePlaceDetailsResponse;
+
+  logGoogleReviews("API", "Google Places API succeeded", {
+    placeId,
+    durationMs: Date.now() - startedAt,
+    placeName: place.displayName?.text ?? "unknown",
+    rating: place.rating ?? null,
+    totalReviews: place.userRatingCount ?? null,
+    reviewsReturned: place.reviews?.length ?? 0,
+  });
+
+  return place;
 };
 
 // Sync the Google reviews
 export const syncGoogleReviews = async (
   now = Date.now()
 ): Promise<GoogleReviewsSyncResult> => {
+  logGoogleReviews("SYNC", "Sync started", {
+    ttlDays: GOOGLE_REVIEWS_CACHE_TTL_DAYS,
+    firestorePath: `${GOOGLE_REVIEWS_COLLECTION}/${GOOGLE_REVIEWS_DOCUMENT}`,
+  });
+
   const document = getSnapshotDocument();
   const existingDocument = await document.get();
   const existingData = existingDocument.data();
 
-  if (
-    isGoogleReviewsSnapshot(existingData) &&
-    isGoogleReviewsSnapshotFresh(existingData, now)
-  ) {
-    console.info(
-      "[Google Reviews] Sync skipped: using fresh Firestore data.",
-      {
-        reviewCount: existingData.reviews.length,
-        fetchedAt: new Date(existingData.fetchedAt).toISOString(),
-        expiresAt: new Date(existingData.expiresAt).toISOString(),
-      }
-    );
+  const hasValidCache = isGoogleReviewsSnapshot(existingData);
+  const cacheIsFresh =
+    hasValidCache && isGoogleReviewsSnapshotFresh(existingData, now);
+
+  if (hasValidCache) {
+    logGoogleReviews("SYNC", "Firestore read complete", {
+      ...formatSnapshotMeta(existingData, now),
+      cacheStatus: cacheIsFresh ? "fresh" : "stale",
+    });
+  } else {
+    logGoogleReviews("SYNC", "Firestore read complete — no valid cached snapshot", {
+      documentExists: existingDocument.exists,
+    });
+  }
+
+  if (cacheIsFresh) {
+    logGoogleReviews("SYNC", "Places API skipped — Firestore cache is still fresh", {
+      reason: "cache-fresh",
+      placesApiCalled: false,
+    });
+    logGoogleReviews("SYNC", "Sync finished", {
+      status: "skipped",
+      dataSource: "firestore",
+      placesApiCalled: false,
+      ...formatSnapshotMeta(existingData, now),
+    });
     return { status: "skipped", snapshot: existingData };
   }
 
-  console.info(
-    "[Google Reviews] Firestore data is missing or stale; starting a fresh Places API call."
-  );
+  logGoogleReviews("SYNC", "Firestore cache stale or missing — calling Places API", {
+    placesApiCalled: true,
+  });
 
   const place = await fetchGooglePlaceDetails();
   const snapshot = parseGooglePlaceDetails(place, now);
 
   await document.set(snapshot);
 
-  console.info(
-    "[Google Reviews] Fresh Places API data stored in Firestore.",
-    {
-      reviewCount: snapshot.reviews.length,
-      fetchedAt: new Date(snapshot.fetchedAt).toISOString(),
-      expiresAt: new Date(snapshot.expiresAt).toISOString(),
-    }
-  );
+  logGoogleReviews("SYNC", "Firestore write complete", {
+    ...formatSnapshotMeta(snapshot, now),
+  });
+
+  logGoogleReviews("SYNC", "Sync finished", {
+    status: "updated",
+    dataSource: "google-places-api → firestore",
+    placesApiCalled: true,
+    ...formatSnapshotMeta(snapshot, now),
+  });
 
   return { status: "updated", snapshot };
 };
@@ -271,10 +368,30 @@ export const syncGoogleReviews = async (
 // Read the Google reviews snapshot from the cache
 const readGoogleReviewsSnapshot = unstable_cache(
   async (): Promise<GoogleReviewsSnapshot | null> => {
+    firestoreReadOnCacheMiss = true;
+
+    logGoogleReviews("READ", "Next.js cache MISS — reading Firestore", {
+      layer: "next-unstable-cache",
+      firestorePath: `${GOOGLE_REVIEWS_COLLECTION}/${GOOGLE_REVIEWS_DOCUMENT}`,
+      revalidateSeconds: GOOGLE_REVIEWS_CACHE_TTL_SECONDS,
+    });
+
     const document = await getSnapshotDocument().get();
     const data = document.data();
 
-    return isGoogleReviewsSnapshot(data) ? data : null;
+    if (isGoogleReviewsSnapshot(data)) {
+      logGoogleReviews("READ", "Firestore document loaded", {
+        layer: "firestore",
+        ...formatSnapshotMeta(data),
+      });
+      return data;
+    }
+
+    logGoogleReviews("READ", "Firestore document missing or invalid", {
+      layer: "firestore",
+      documentExists: document.exists,
+    });
+    return null;
   },
   ["google-reviews-snapshot"],
   {
@@ -286,6 +403,12 @@ const readGoogleReviewsSnapshot = unstable_cache(
 // Get the Google reviews snapshot from the cache (deduped per request)
 export const getGoogleReviewsSnapshot = cache(
   async (): Promise<GoogleReviewsSnapshot | null> => {
+    firestoreReadOnCacheMiss = false;
+
+    logGoogleReviews("READ", "Page request started", {
+      flow: "getGoogleReviewsSnapshot",
+    });
+
     const hasFirebaseAdminConfig = [
       "FIREBASE_PROJECT_ID",
       "FIREBASE_CLIENT_EMAIL",
@@ -293,34 +416,58 @@ export const getGoogleReviewsSnapshot = cache(
     ].every((name) => Boolean(process.env[name]));
 
     if (!hasFirebaseAdminConfig) {
-      console.info(
-        "[Google Reviews] Source: fallback (Firebase Admin configuration is missing)."
-      );
+      logGoogleReviews("READ", "Request finished — using UI fallback", {
+        dataSource: "fallback",
+        reason: "firebase-admin-env-missing",
+        placesApiCalled: false,
+        firestoreRead: false,
+        nextCacheHit: false,
+      });
       return null;
     }
 
     try {
       const snapshot = await readGoogleReviewsSnapshot();
 
+      if (!firestoreReadOnCacheMiss && snapshot) {
+        logGoogleReviews("READ", "Next.js cache HIT — serving cached snapshot", {
+          layer: "next-unstable-cache",
+          revalidateSeconds: GOOGLE_REVIEWS_CACHE_TTL_SECONDS,
+          ...formatSnapshotMeta(snapshot),
+        });
+      }
+
       if (!snapshot?.reviews.length) {
-        console.info(
-          "[Google Reviews] Source: fallback (no valid Firestore reviews found)."
-        );
+        logGoogleReviews("READ", "Request finished — using UI fallback", {
+          dataSource: "fallback",
+          reason: snapshot ? "empty-reviews-array" : "no-firestore-snapshot",
+          placesApiCalled: false,
+          firestoreRead: firestoreReadOnCacheMiss,
+          nextCacheHit: !firestoreReadOnCacheMiss,
+        });
         return null;
       }
 
-      console.info("[Google Reviews] Source: Firestore.", {
-        reviewCount: snapshot.reviews.length,
-        fetchedAt: new Date(snapshot.fetchedAt).toISOString(),
-        expiresAt: new Date(snapshot.expiresAt).toISOString(),
+      logGoogleReviews("READ", "Request finished — snapshot served to page", {
+        dataSource: firestoreReadOnCacheMiss
+          ? "firestore (next-cache miss)"
+          : "next-js-cache (next-cache hit)",
+        placesApiCalled: false,
+        firestoreRead: firestoreReadOnCacheMiss,
+        nextCacheHit: !firestoreReadOnCacheMiss,
+        ...formatSnapshotMeta(snapshot),
       });
 
       return snapshot;
     } catch (error) {
-      console.error("Failed to read cached Google reviews", error);
-      console.info(
-        "[Google Reviews] Source: fallback (Firestore read failed)."
-      );
+      console.error(`${LOG_PREFIX} READ | Firestore read failed`, error);
+      logGoogleReviews("READ", "Request finished — using UI fallback", {
+        dataSource: "fallback",
+        reason: "firestore-read-error",
+        placesApiCalled: false,
+        firestoreRead: firestoreReadOnCacheMiss,
+        nextCacheHit: !firestoreReadOnCacheMiss,
+      });
       return null;
     }
   }
