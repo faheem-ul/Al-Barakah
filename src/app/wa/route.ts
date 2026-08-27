@@ -7,7 +7,7 @@ import {
 } from "@/lib/whatsapp/delivery-issue-draft";
 
 /**
- * GET /wa?type=delivery_issue|order_placed&phone=&name=&order=&status=&cn=
+ * GET /wa?type=delivery_issue|order_placed|status_update&phone=&name=&order=&status=&cn=
  * Instant redirect → WhatsApp with emoji-safe prefilled message.
  * Email buttons link here (ASCII query only) so Gmail cannot corrupt emojis.
  */
@@ -23,8 +23,9 @@ export function GET(request: NextRequest) {
   }
 
   const typeParam = (sp.get("type") || "delivery_issue").trim().toLowerCase();
-  const type: WhatsAppDraftType =
-    typeParam === "order_placed" ? "order_placed" : "delivery_issue";
+  let type: WhatsAppDraftType = "delivery_issue";
+  if (typeParam === "order_placed") type = "order_placed";
+  else if (typeParam === "status_update") type = "status_update";
 
   const text = buildWhatsAppDraft(type, {
     name: sp.get("name") || undefined,

@@ -157,6 +157,7 @@ function fixOrderStatusColors() {
  * Run this once if Tracking Status shows:
  * "ERROR: ... script.external_request"
  * It forces Google to ask for permission to call external URLs (UrlFetchApp).
+ * Also touches MailApp so Gmail send stays authorized for status emails.
  */
 function authorizeExternalRequests() {
   log_("===== authorizeExternalRequests START =====");
@@ -165,9 +166,30 @@ function authorizeExternalRequests() {
   var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
   log_("HTTP status:", response.getResponseCode());
   log_("Body bytes:", response.getContentText().length);
+  // Force mail scope re-prompt if missing (hourly triggers can lose send_mail auth)
+  log_("Mail remaining daily quota:", MailApp.getRemainingDailyQuota());
   log_(
     "===== authorizeExternalRequests DONE — now re-run refresh or re-edit CN =====",
   );
+}
+
+/**
+ * Run once when logs show:
+ * ADMIN EMAIL FAILED: You do not have permission to call MailApp.sendEmail
+ * Review → Allow, then check inbox for the test message.
+ */
+function authorizeMailSend() {
+  log_("===== authorizeMailSend START =====");
+  var to = CONFIG.NOTIFY_EMAIL;
+  MailApp.sendEmail({
+    to: to,
+    subject: "Al Barakah — mail permission OK",
+    body:
+      "Apps Script can send mail again. Status-change emails will resume on the next real status change.",
+    name: "Al Barakah Honey Tracking",
+  });
+  log_("Test email sent to", to, "| remaining quota:", MailApp.getRemainingDailyQuota());
+  log_("===== authorizeMailSend DONE =====");
 }
 
 /** Removes triggers created by installMpTrackingTriggers. */
@@ -1506,14 +1528,12 @@ function sendTrackingStatusEmail_(
     "dd MMM yyyy, hh:mm a",
   );
 
-  // WhatsApp draft only for failed / re-attempt delivery statuses (not every update)
-  var showWhatsAppButton = isWhatsAppDeliveryIssueStatus_(status);
-
+  // WhatsApp draft on every status-change email (same /wa delivery_issue message format)
   var waPhone = toWhatsAppPhone_(contactNumber);
   var waLink = "";
   var waBlockHtml = "";
   var waBlockPlain = "";
-  if (showWhatsAppButton && waPhone) {
+  if (waPhone) {
     // Site redirect builds the emoji message — Gmail corrupts direct wa.me?text= unicode
     waLink = buildWhatsAppDraftSiteLink_(
       waPhone,
@@ -1531,7 +1551,7 @@ function sendTrackingStatusEmail_(
       '<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with a ready message (via albarakahoney.com). Tap <strong>Send</strong> to deliver it.</p>';
     waBlockPlain = "\nSend WhatsApp update to customer:\n" + waLink + "\n";
     log_("WhatsApp draft link added for", waPhone, "| status:", status);
-  } else if (showWhatsAppButton && !waPhone) {
+  } else {
     log_("WhatsApp link skipped — no valid Contact phone on row", row);
   }
 
@@ -1640,9 +1660,14 @@ function buildWhatsAppDraftSiteLink_(
       ? orderNumber
       : "#" + orderNumber
     : "";
+  var draftType = isWhatsAppDeliveryIssueStatus_(status)
+    ? "delivery_issue"
+    : "status_update";
   return (
     base +
-    "/wa?type=delivery_issue&phone=" +
+    "/wa?type=" +
+    encodeURIComponent(draftType) +
+    "&phone=" +
     encodeURIComponent(phone) +
     "&name=" +
     encodeURIComponent(name) +
