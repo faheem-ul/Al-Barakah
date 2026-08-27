@@ -7,9 +7,9 @@ import {
 } from "@/lib/whatsapp/delivery-issue-draft";
 
 /**
- * GET /wa?type=delivery_issue|order_placed|status_update&phone=&name=&order=&status=&cn=
+ * GET /wa?type=tracking|order_placed|delivery_issue|status_update&phone=&name=&order=&status=&cn=
  * Instant redirect → WhatsApp with emoji-safe prefilled message.
- * Email buttons link here (ASCII query only) so Gmail cannot corrupt emojis.
+ * Admin tracking emails use type=tracking + status (per-status drafts).
  */
 export function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
@@ -22,10 +22,12 @@ export function GET(request: NextRequest) {
     );
   }
 
-  const typeParam = (sp.get("type") || "delivery_issue").trim().toLowerCase();
-  let type: WhatsAppDraftType = "delivery_issue";
+  const typeParam = (sp.get("type") || "tracking").trim().toLowerCase();
+  let type: WhatsAppDraftType = "tracking";
   if (typeParam === "order_placed") type = "order_placed";
+  else if (typeParam === "delivery_issue") type = "delivery_issue";
   else if (typeParam === "status_update") type = "status_update";
+  else type = "tracking";
 
   const text = buildWhatsAppDraft(type, {
     name: sp.get("name") || undefined,
