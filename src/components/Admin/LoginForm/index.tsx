@@ -28,7 +28,7 @@ const LoginForm: React.FC = () => {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      router.replace("/admin/reviews");
+      router.replace("/admin/sales");
     } catch {
       setError("Invalid email or password.");
     } finally {

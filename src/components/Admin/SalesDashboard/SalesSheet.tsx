@@ -13,27 +13,24 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import type { SalesTab } from "@/lib/sales/types";
 import logo from "@/public/logo.png";
-import { ProductFilter } from "./constants";
-import ProductNav from "./ProductNav";
 
-type ProductSheetProps = {
+import SalesTabNav from "./SalesTabNav";
+
+type SalesSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  productFilter: ProductFilter;
-  totalCount: number;
-  productCounts: Map<string, number>;
-  onSelect: (id: ProductFilter) => void;
+  tab: SalesTab;
+  onTabChange: (tab: SalesTab) => void;
   onLogout: () => void;
 };
 
-const ProductSheet: React.FC<ProductSheetProps> = ({
+const SalesSheet: React.FC<SalesSheetProps> = ({
   open,
   onOpenChange,
-  productFilter,
-  totalCount,
-  productCounts,
-  onSelect,
+  tab,
+  onTabChange,
   onLogout,
 }) => (
   <Sheet open={open} onOpenChange={onOpenChange}>
@@ -42,12 +39,13 @@ const ProductSheet: React.FC<ProductSheetProps> = ({
       className="sheet-slide-left w-[280px] max-w-[85vw] p-0 gap-0 bg-white flex flex-col h-full"
     >
       <SheetHeader className="px-4 py-4 border-b border-black/10 text-left shrink-0">
-        <SheetTitle className="sr-only">Products</SheetTitle>
+        <SheetTitle className="sr-only">Sales Dashboard</SheetTitle>
         <SheetDescription className="sr-only">
-          Filter reviews by product
+          Sales dashboard navigation
         </SheetDescription>
         <Image src={logo} alt="Albaraka Honey" className="w-[105px]" />
       </SheetHeader>
+
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-light px-3 py-4">
         <Text className="text-[12px] font-semibold uppercase tracking-wide text-[#6B6B6B] px-2 mb-3">
           Admin
@@ -59,15 +57,15 @@ const ProductSheet: React.FC<ProductSheetProps> = ({
         />
 
         <Text className="text-[12px] font-semibold uppercase tracking-wide text-[#6B6B6B] px-2 mb-3">
-          Products
+          Sales Dashboard
         </Text>
-        <ProductNav
-          productFilter={productFilter}
-          totalCount={totalCount}
-          productCounts={productCounts}
-          onSelect={onSelect}
+        <SalesTabNav
+          tab={tab}
+          onSelect={onTabChange}
+          onNavigate={() => onOpenChange(false)}
         />
       </div>
+
       <div className="shrink-0 border-t border-black/10 p-4">
         <Button
           type="button"
@@ -84,4 +82,4 @@ const ProductSheet: React.FC<ProductSheetProps> = ({
   </Sheet>
 );
 
-export default ProductSheet;
+export default SalesSheet;

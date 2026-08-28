@@ -1,9 +1,10 @@
 "use client";
 
 import React from "react";
+import { LayoutGrid, Package } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { ADMIN_PRODUCTS } from "@/lib/admin-products";
+import { AdminSidebarButton } from "@/components/Admin/AdminSidebarItem";
 import { ProductFilter } from "./constants";
 
 type ProductNavProps = {
@@ -20,33 +21,25 @@ const ProductNav: React.FC<ProductNavProps> = ({
   onSelect,
 }) => (
   <nav className="flex flex-col gap-1">
-    <button
-      type="button"
+    <AdminSidebarButton
+      label={`All (${totalCount})`}
+      icon={LayoutGrid}
+      active={productFilter === "all"}
       onClick={() => onSelect("all")}
-      className={cn(
-        "w-full text-left px-3 py-2.5 text-[13px] font-medium rounded-md transition-colors cursor-pointer",
-        productFilter === "all"
-          ? "bg-black text-white"
-          : "text-black hover:bg-black/5",
-      )}
-    >
-      All ({totalCount})
-    </button>
+    />
     {ADMIN_PRODUCTS.map((p) => (
-      <button
+      <AdminSidebarButton
         key={p.id}
-        type="button"
+        label={
+          <>
+            <span className="line-clamp-3">{p.label}</span>
+            <span className="opacity-70"> ({productCounts.get(p.id) || 0})</span>
+          </>
+        }
+        icon={Package}
+        active={productFilter === p.id}
         onClick={() => onSelect(p.id)}
-        className={cn(
-          "w-full text-left px-3 py-2.5 text-[13px] font-medium rounded-md transition-colors cursor-pointer",
-          productFilter === p.id
-            ? "bg-black text-white"
-            : "text-black hover:bg-black/5",
-        )}
-      >
-        <span className="line-clamp-3">{p.label}</span>
-        <span className="opacity-70"> ({productCounts.get(p.id) || 0})</span>
-      </button>
+      />
     ))}
   </nav>
 );

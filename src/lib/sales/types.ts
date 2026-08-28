@@ -1,0 +1,109 @@
+export type SalesTab = "dashboard" | "orders" | "reports" | "settings";
+
+export type OrderStatus = "delivered" | "returned" | "pending";
+export type CourierService = "overnight" | "secondDay";
+export type CourierZone = "withinCity" | "sameZone" | "diffZone";
+
+export type SalesSettings = {
+  p_m500: number;
+  c_m500: number;
+  p_m1000: number;
+  c_m1000: number;
+  p_f500: number;
+  c_f500: number;
+  p_f1000: number;
+  c_f1000: number;
+  p_s500: number;
+  c_s500: number;
+  p_s1000: number;
+  c_s1000: number;
+  freeThreshold: number;
+  ship1: number;
+  ship3: number;
+  ship4: number;
+  packing: number;
+  courierSecondDay: number;
+  courierSecondDayAdditional: number;
+  fac: number;
+  updatedAt?: number;
+};
+
+export type SalesOrderProduct = {
+  product: string;
+  variant: string;
+  key: string;
+  qty: number;
+};
+
+export type SalesOrderCalculation = {
+  productRevenue: number;
+  shipping: number;
+  weight: number;
+  units: number;
+  honeyCost: number;
+  packing: number;
+  courier: number;
+  revenue: number;
+  expenses: number;
+  netProfit: number;
+};
+
+export type SalesOrder = {
+  id: string;
+  orderNumber: string;
+  date: string;
+  status: OrderStatus;
+  courierService: CourierService;
+  zone: CourierZone;
+  products: SalesOrderProduct[];
+  calculation: SalesOrderCalculation;
+  createdAt: number;
+};
+
+export type SalesOrderPayload = Omit<SalesOrder, "id">;
+
+export type OrderDraftProduct = {
+  product: string;
+  variant: string;
+  qty: number;
+};
+
+export type OrderDraft = {
+  orderNumber: string;
+  date: string;
+  status: OrderStatus;
+  courierService: CourierService;
+  zone: CourierZone;
+  products: OrderDraftProduct[];
+};
+
+export type ProductLineInput = {
+  key: string;
+  qty: number;
+};
+
+export type OrderPreviewResult = {
+  productRevenue: number;
+  honeyCost: number;
+  weight: number;
+  units: number;
+  customerShipping: number;
+  packing: number;
+  courier: number;
+  revenue: number;
+  expenses: number;
+  netProfit: number;
+};
+
+export type ProductReportRow = {
+  product: string;
+  variant: string;
+  qty: number;
+  revenue: number;
+};
+
+export type ReturnedReportRow = {
+  product: string;
+  variant: string;
+  qty: number;
+};
