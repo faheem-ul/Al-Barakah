@@ -186,15 +186,14 @@ const CartPage = () => {
                           )}
 
                           <div className="md:hidden block">
-                            {Number(variant?.compareAtPrice?.amount || 0) >
-                              0 && (
+                            {/* {Number(variant?.compareAtPrice?.amount || 0) > 0 && (
                               <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px]">
                                 was:{" "}
                                 {formatNumberNoCurrency(
                                   variant?.compareAtPrice?.amount as string
                                 )}
                               </Text>
-                            )}
+                            )} */}
                             <div className="flex items-center gap-3 mt-2">
                               <Text className="text-accent text-[18px] font-semibold ">
                                 Rs.{" "}
@@ -225,14 +224,14 @@ const CartPage = () => {
                     {formatPrice(product?.priceRange?.minVariantPrice?.amount)}
                   </Text> */}
                   <div className="md:block hidden">
-                    {Number(variant?.compareAtPrice?.amount || 0) > 0 && (
+                    {/* {Number(variant?.compareAtPrice?.amount || 0) > 0 && (
                       <Text className="line-through text-black/50 text-[13.2px] font-poppins font-semibold mb-[-3px] mt-4 ">
                         was:{" "}
                         {formatNumberNoCurrency(
                           variant?.compareAtPrice?.amount as string
                         )}
                       </Text>
-                    )}
+                    )} */}
 
                     <Text className="text-accent text-[20px] font-semibold">
                       Rs.{" "}

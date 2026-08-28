@@ -23,7 +23,7 @@ const TopBar = () => {
     <div className={cn("w-full hidden", isProductRoute && "block")}>
       <div className="bg-black px-1 py-2 flex justify-center items-center">
         <Text className="text-white text-center text-[11px] md:text-[13px] uppercase font-normal">
-          Free Home Delivery is applied to orders above Rs. 3000
+          Free Home Delivery is applied to orders above Rs. 3500
         </Text>
       </div>
     </div>

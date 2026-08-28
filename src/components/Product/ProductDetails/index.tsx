@@ -49,14 +49,9 @@ const ProductDescription = (props: PropTypes) => {
   }, [product.variants, selectedVariantId]);
   const currentPriceAmount =
     selectedVariant?.price?.amount || product.priceRange.minVariantPrice.amount;
-  const comparePriceAmount =
-    selectedVariant?.compareAtPrice?.amount ||
-    product.compareAtPriceRange.maxVariantPrice.amount;
-
-  // const percentageOff = calculatePercentageOff(
-  //   product?.priceRange?.minVariantPrice?.amount,
-  //   product?.compareAtPriceRange?.maxVariantPrice?.amount,
-  // );
+  // const comparePriceAmount =
+  //   selectedVariant?.compareAtPrice?.amount ||
+  //   product.compareAtPriceRange.maxVariantPrice.amount;
 
   return (
     <div>
@@ -96,7 +91,11 @@ const ProductDescription = (props: PropTypes) => {
           <Text className="text-[18px] text-black font-semibold w-[75px]">
             Price:
           </Text>
-          {Number(comparePriceAmount) > 0 && (
+          <Text className="text-black text-[20px] font-semibold">
+            Rs. {productData.formatPrice(currentPriceAmount)}
+          </Text>
+
+          {/* {Number(comparePriceAmount) > 0 && (
             <div className="">
               <Text className="text-[15px] text-black/50 font-medium">
                 was:{" "}
@@ -104,11 +103,8 @@ const ProductDescription = (props: PropTypes) => {
                   {productData.formatPrice(comparePriceAmount)}
                 </span>
               </Text>
-              <Text className="text-black text-[20px] font-semibold">
-                Rs. {productData.formatPrice(currentPriceAmount)}
-              </Text>
             </div>
-          )}
+          )} */}
         </div>
       </div>
       {/* Price */}
