@@ -61,7 +61,7 @@ const AzadiSaleProductCard = ({
     hoverImage,
     sizes,
     currentPrice,
-    comparePrice,
+    // comparePrice, // uncomment with discount / was-price UI below
     urduTitle,
     englishTitle,
     isInterleavedTitle,
@@ -83,49 +83,36 @@ const AzadiSaleProductCard = ({
   // price amount for the card (product card)
   const cardPriceAmount = halfKgVariant?.price?.amount || currentPrice;
 
-  // compare price for the card (product card)
-  const cardCompareAmount =
-    halfKgVariant?.compareAtPrice?.amount || comparePrice;
-
-  // half kg label for the card (product card)
   const halfKgLabel = halfKgVariant?.selectedOptions.find(
     (o) => o.name.toLowerCase() === weightOptionName
   )?.value;
 
-  // calculate discount percentage for the card (product card)
-  const calculateDiscountPercentage = (
-    currentPrice: string,
-    comparePrice: string
-  ) => {
-    const current = parseFloat(currentPrice);
-    const compare = parseFloat(comparePrice);
-
-    if (compare <= 0 || current >= compare) {
-      return 0;
-    }
-
-    const discount = ((compare - current) / compare) * 100;
-    return Math.round(discount * 10) / 10;
-  };
-
-  // calculate discount percentage for the card (product card)
-  const cardDiscountPercentage = calculateDiscountPercentage(
-    cardPriceAmount,
-    cardCompareAmount
-  );
+  // Hidden for now — uncomment to show discount badges / was price on cards
+  // const cardCompareAmount =
+  //   halfKgVariant?.compareAtPrice?.amount || comparePrice;
+  // const calculateDiscountPercentage = (
+  //   currentPrice: string,
+  //   comparePrice: string
+  // ) => {
+  //   const current = parseFloat(currentPrice);
+  //   const compare = parseFloat(comparePrice);
+  //   if (compare <= 0 || current >= compare) return 0;
+  //   return Math.round(((compare - current) / compare) * 100 * 10) / 10;
+  // };
+  // const cardDiscountPercentage = calculateDiscountPercentage(
+  //   cardPriceAmount,
+  //   cardCompareAmount
+  // );
 
   return (
     <div className="relative w-full">
-      <div className="absolute top-0 left-1/2 z-50 w-fit -translate-x-1/2 -translate-y-1/2 md:hidden">
-        {/* discount percentage for the card (product card) */}
-        {cardDiscountPercentage > 0 && (
+      {/* {cardDiscountPercentage > 0 && (
+        <div className="absolute top-0 left-1/2 z-50 w-fit -translate-x-1/2 -translate-y-1/2 md:hidden">
           <Text className="rounded-[20px] border border-[#e7e7e7] bg-white px-3 py-1 text-center text-[12px] font-semibold whitespace-nowrap md:text-[14px]">
             Discount {cardDiscountPercentage}% Off
           </Text>
-        )}
-      </div>
-
-      {/* product image */}
+        </div>
+      )} */}
       <div
         className="relative flex w-full justify-center overflow-hidden rounded-[24px]"
         onMouseEnter={() => setIsHovered(true)}
@@ -150,19 +137,18 @@ const AzadiSaleProductCard = ({
           />
         </div>
 
-        {/* discount percentage badge */}
-        <div className="absolute bottom-7 left-1/2 hidden w-fit -translate-x-1/2 md:block">
-          {cardDiscountPercentage > 0 && (
+        {/* {cardDiscountPercentage > 0 && (
+          <div className="absolute bottom-7 left-1/2 hidden w-fit -translate-x-1/2 md:block">
             <Text className="rounded-[20px] bg-white px-4 py-2 text-center text-[12px] font-semibold whitespace-nowrap md:text-[14px]">
               Discount {cardDiscountPercentage}% Off
             </Text>
-          )}
-        </div>
+          </div>
+        )} */}
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <div className="mb-2 flex flex-col items-start justify-between md:mt-4 md:flex-row md:items-center">
-        <div className="mt-3 max-w-[260px] md:mt-0">
+      <div className="mt-3 mb-2 flex flex-col items-start justify-between md:mt-4 md:flex-row md:items-center">
+        <div className="max-w-[260px] md:mt-0">
           {/* deal number and twin pack text */}
           <Text className="font-poppins mb-1 text-left text-[12px] font-semibold text-black/50 md:text-[13.2px]">
             Deal {dealNumber}: Twin Pack
@@ -178,21 +164,20 @@ const AzadiSaleProductCard = ({
             mixedClassName="text-primary-foreground text-[14px] md:text-[19px] font-bold mb-1 md:text-left"
             weightClassName="text-[14px]"
           />
-          {/* was price text */}
-          {Number(cardCompareAmount) > 0 && (
-            <Text className="font-poppins text-left text-[12px] font-semibold text-black/50 line-through md:hidden md:mt-4 md:mb-[-3px]">
-                was: {formatPrice(cardCompareAmount)}
-              </Text>
-            )}
-          </div>
 
-          {/* price amount and half kg label */}
+          {/* {Number(cardCompareAmount) > 0 && (
+            <Text className="font-poppins text-left text-[12px] font-semibold text-black/50 line-through md:hidden md:mt-4 md:mb-[-3px]">
+              was: {formatPrice(cardCompareAmount)}
+            </Text>
+          )} */}
+        </div>
+
         <div className="mt-1 flex shrink-0 flex-col items-end justify-between gap-0 md:mt-0">
-          {Number(cardCompareAmount) > 0 && (
+          {/* {Number(cardCompareAmount) > 0 && (
             <Text className="hidden font-poppins text-right text-[13.2px] font-semibold text-black/50 line-through md:block">
               was: {formatPrice(cardCompareAmount)}
             </Text>
-          )}
+          )} */}
           <Text className="text-primary-foreground text-center text-[19px] font-semibold md:text-right">
             Rs. {formatPrice(cardPriceAmount)}
           </Text>

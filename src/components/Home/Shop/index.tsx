@@ -54,7 +54,7 @@ const ProductCard = ({ product }: { product: Product }) => {
     hoverImage,
     sizes,
     currentPrice,
-    comparePrice,
+    // comparePrice, // uncomment with discount / was-price UI below
     urduTitle,
     englishTitle,
     isInterleavedTitle,
@@ -71,41 +71,36 @@ const ProductCard = ({ product }: { product: Product }) => {
     )
   );
   const cardPriceAmount = halfKgVariant?.price?.amount || currentPrice;
-  const cardCompareAmount =
-    halfKgVariant?.compareAtPrice?.amount || comparePrice;
   const halfKgLabel = halfKgVariant?.selectedOptions.find(
     (o) => o.name.toLowerCase() === weightOptionName
   )?.value;
 
-  const calculateDiscountPercentage = (
-    currentPrice: string,
-    comparePrice: string
-  ) => {
-    const current = parseFloat(currentPrice);
-    const compare = parseFloat(comparePrice);
-
-    if (compare <= 0 || current >= compare) {
-      return 0;
-    }
-
-    const discount = ((compare - current) / compare) * 100;
-    return Math.round(discount);
-  };
-
-  const cardDiscountPercentage = calculateDiscountPercentage(
-    cardPriceAmount,
-    cardCompareAmount
-  );
+  // Hidden for now — uncomment to show discount badges / was price on cards
+  // const cardCompareAmount =
+  //   halfKgVariant?.compareAtPrice?.amount || comparePrice;
+  // const calculateDiscountPercentage = (
+  //   currentPrice: string,
+  //   comparePrice: string
+  // ) => {
+  //   const current = parseFloat(currentPrice);
+  //   const compare = parseFloat(comparePrice);
+  //   if (compare <= 0 || current >= compare) return 0;
+  //   return Math.round(((compare - current) / compare) * 100);
+  // };
+  // const cardDiscountPercentage = calculateDiscountPercentage(
+  //   cardPriceAmount,
+  //   cardCompareAmount
+  // );
 
   return (
     <div className="relative w-full">
-      <div className="relative bottom-[-4px] left-[17%] z-50 w-fit md:hidden">
-        {cardDiscountPercentage > 0 && (
+      {/* {cardDiscountPercentage > 0 && (
+        <div className="relative bottom-[-4px] left-[17%] z-50 w-fit md:hidden">
           <Text className="rounded-[20px] border border-[#e7e7e7] bg-white px-3 py-1 text-[12px] font-semibold md:text-[14px]">
             Discount {cardDiscountPercentage}% Off
           </Text>
-        )}
-      </div>
+        </div>
+      )} */}
       <div
         className="relative flex w-full justify-center overflow-hidden rounded-[24px]"
         onMouseEnter={() => setIsHovered(true)}
@@ -130,31 +125,31 @@ const ProductCard = ({ product }: { product: Product }) => {
           />
         </div>
 
-        <div className="absolute bottom-7 hidden w-fit md:block">
-          {cardDiscountPercentage > 0 && (
+        {/* {cardDiscountPercentage > 0 && (
+          <div className="absolute bottom-7 hidden w-fit md:block">
             <Text className="rounded-[20px] bg-white px-4 py-2 text-[12px] font-semibold md:text-[14px]">
               Discount {cardDiscountPercentage}% Off
             </Text>
-          )}
-        </div>
+          </div>
+        )} */}
         <Sizes product={product} sizes={sizes} />
       </div>
 
-      <div className="mt-3 mb-3 hidden items-center justify-between md:mt-0 md:mb-0 md:block">
-        {Number(cardCompareAmount) > 0 && (
+      <div className="mt-3 mb-3 hidden min-h-0 items-center justify-between md:mt-4 md:mb-0 md:block">
+        {/* Spacer row — was price lived here on desktop; keep mt for layout */}
+        {/* {Number(cardCompareAmount) > 0 && (
           <Text className="font-poppins text-right text-[13.2px] font-semibold text-black/50 line-through md:mt-4 md:mb-[-3px]">
             was: {formatPrice(cardCompareAmount)}
           </Text>
-        )}
-
+        )} */}
         {halfKgVariant && (
           <Text className="block text-right text-[12px] font-semibold text-black/60 md:hidden">
             ({halfKgLabel})
           </Text>
         )}
       </div>
-      <div className="mb-2 flex flex-col items-start justify-between md:flex-row">
-        <div className="mt-3 flex flex-col md:mt-0">
+      <div className="mt-3 mb-2 flex flex-col items-start justify-between md:mt-0 md:flex-row">
+        <div className="flex flex-col md:mt-0">
           <ProductTitle
             urduTitle={urduTitle}
             englishTitle={englishTitle}
@@ -165,11 +160,11 @@ const ProductCard = ({ product }: { product: Product }) => {
             mixedClassName="text-primary-foreground text-[14px] md:text-[19px] font-bold mb-1 md:text-left"
           />
 
-          {Number(cardCompareAmount) > 0 && (
+          {/* {Number(cardCompareAmount) > 0 && (
             <Text className="font-poppins text-left text-[12px] font-semibold text-black/50 line-through md:mt-4 md:mb-[-3px] md:hidden">
               was: {formatPrice(cardCompareAmount)}
             </Text>
-          )}
+          )} */}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
           <Text className="text-primary-foreground text-center text-[19px] font-semibold md:text-right">
