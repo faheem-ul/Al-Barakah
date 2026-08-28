@@ -1,0 +1,24 @@
+import type { SalesSettings } from "./types";
+
+export const DEFAULT_SALES_SETTINGS: SalesSettings = {
+  p_m500: 1100,
+  c_m500: 450,
+  p_m1000: 2200,
+  c_m1000: 900,
+  p_f500: 1730,
+  c_f500: 1075,
+  p_f1000: 3460,
+  c_f1000: 2150,
+  p_s500: 1850,
+  c_s500: 1200,
+  p_s1000: 3700,
+  c_s1000: 2400,
+  freeThreshold: 3500,
+  ship1: 200,
+  ship3: 300,
+  ship4: 400,
+  packing: 110,
+  courierSecondDay: 300,
+  courierSecondDayAdditional: 85,
+  fac: 10,
+};

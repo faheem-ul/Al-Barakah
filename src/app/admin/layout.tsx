@@ -20,13 +20,13 @@ function AdminGate({ children }: { children: React.ReactNode }) {
     if (!user && !isLogin) {
       router.replace("/admin/login");
     } else if (user && isLogin) {
-      router.replace("/admin/reviews");
+      router.replace("/admin/sales");
     }
   }, [user, loading, isLogin, router]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F7F7] overflow-y-scroll">
+      <div className="h-screen flex items-center justify-center bg-[#F7F7F7] overflow-hidden">
         <Spinner fill="#000000" />
       </div>
     );

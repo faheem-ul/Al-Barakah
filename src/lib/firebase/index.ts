@@ -19,6 +19,7 @@ import {
   Timestamp,
   updateDoc,
   deleteDoc,
+  setDoc,
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -52,6 +53,7 @@ export {
   Timestamp,
   updateDoc,
   deleteDoc,
+  setDoc,
 };
 
 // Export Auth methods
