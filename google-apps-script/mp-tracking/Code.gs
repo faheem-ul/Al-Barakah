@@ -69,6 +69,7 @@ var CONFIG = {
     ADDRESS: "Address",
     CITY: "City",
     PRODUCT_DETAIL: "Product Detail",
+    BOTTLE_SIZE: "Bottle Size",
     QUANTITY: "Quantity",
     COD: "COD",
     TOTAL_AMOUNT: "Total Amount",
@@ -80,13 +81,20 @@ var CONFIG = {
   },
   /**
    * M&P COD API. Password is Script property MP_PASSWORD only (never commit it).
+   * Service: Overnight for ≤1 kg; Second Day when total bottle weight is above 1 kg.
    */
   MP_API: {
     BASE: "https://mnpcourier.com/mycodapi/api",
     USERNAME: "ALBARAKAHONEY.COM_1A1150",
     ACCOUNT_NO: "1A1150",
-    WEIGHT: 1,
-    SERVICE: "Overnight",
+    DEFAULT_WEIGHT: 1,
+    SERVICE_OVERNIGHT: "Overnight",
+    SERVICE_SECOND_DAY: "Second Day",
+    /** Orders heavier than this (kg) book as Second Day */
+    SECOND_DAY_ABOVE_KG: 1,
+    /** Same rider note on every booking (any weight / service) */
+    REMARKS:
+      "Must call before delivery. Deliver as soon as possible. Attempted 3 times to deliver. In case of any problem , call our helpline number 03256957327.",
   },
 };
 
@@ -621,21 +629,44 @@ function buildMpBookingPayload_(sheet, cols, row) {
 
   var qtyCol = cols[CONFIG.HEADERS.QUANTITY];
   var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
+  var sizeCol = cols[CONFIG.HEADERS.BOTTLE_SIZE];
   var pieces = 0;
   var products = [];
+  var weightKg = 0;
   for (var i = 0; i < block.count; i++) {
     var r = block.start + i;
+    var q = 0;
     if (qtyCol) {
-      var q = Number(sheet.getRange(r, qtyCol).getValue() || 0);
+      q = Number(sheet.getRange(r, qtyCol).getValue() || 0);
       if (isFinite(q) && q > 0) pieces += q;
+      else q = 0;
     }
     if (productCol) {
       var p = String(sheet.getRange(r, productCol).getValue() || "").trim();
       if (p) products.push(p);
     }
+    if (sizeCol) {
+      var sizeRaw = String(sheet.getRange(r, sizeCol).getValue() || "").trim();
+      var unitKg = parseBottleSizeKg_(sizeRaw);
+      if (unitKg > 0 && q > 0) weightKg += unitKg * q;
+    }
   }
   if (pieces < 1) pieces = 1;
   if (pieces > 99) pieces = 99;
+  if (!(weightKg > 0)) {
+    weightKg = CONFIG.MP_API.DEFAULT_WEIGHT;
+  }
+  // M&P weight is typically whole kg; round up so 1.5 → 2
+  var weightForApi = Math.max(1, Math.ceil(weightKg));
+  var service = pickMpService_(weightKg);
+  log_(
+    "M&P weight",
+    weightKg,
+    "kg → API weight",
+    weightForApi,
+    "service",
+    service
+  );
 
   if (!name) return { error: "Name is empty" };
   if (!address) return { error: "Address is empty" };
@@ -666,13 +697,13 @@ function buildMpBookingPayload_(sheet, cols, row) {
     consigneeEmail: email.slice(0, 50),
     destinationCityName: cityMatch.name,
     pieces: pieces,
-    weight: CONFIG.MP_API.WEIGHT,
+    weight: weightForApi,
     codAmount: codAmount,
     custRefNo: orderNumber.slice(0, 50),
     productDetails: asciiProductDetails_(products),
     fragile: "No",
-    service: CONFIG.MP_API.SERVICE,
-    remarks: "Al Barakah Honey",
+    service: service,
+    remarks: CONFIG.MP_API.REMARKS,
     insuranceValue: "0",
     locationID: String(ids.locationID),
     AccountNo: creds.accountNo,
@@ -686,6 +717,56 @@ function buildMpBookingPayload_(sheet, cols, row) {
     body.InsertType = Number(insertTypeRaw);
   }
   return { body: body };
+}
+
+/**
+ * Parse sheet "Bottle Size" (e.g. "1/2 kg", "1 kg", "500g") → kg number.
+ */
+function parseBottleSizeKg_(raw) {
+  var s = String(raw || "")
+    .toLowerCase()
+    .replace(/,/g, ".")
+    .trim();
+  if (!s) return 0;
+
+  if (
+    /\b1\s*\/\s*2\s*(kg|kgs|kilo|kilogram)?\b/.test(s) ||
+    /\bhalf\s*(kg|kilo)?\b/.test(s)
+  ) {
+    return 0.5;
+  }
+
+  var grams = s.match(/\b(\d+(?:\.\d+)?)\s*(g|gm|grams?)\b/);
+  if (grams) {
+    var g = Number(grams[1]);
+    return isFinite(g) && g > 0 ? g / 1000 : 0;
+  }
+
+  var kg = s.match(/\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilo|kilogram)\b/);
+  if (kg) {
+    var k = Number(kg[1]);
+    return isFinite(k) && k > 0 ? k : 0;
+  }
+
+  // Bare number like "1" or "0.5" treated as kg
+  if (/^\d+(?:\.\d+)?$/.test(s)) {
+    var n = Number(s);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+
+  return 0;
+}
+
+/**
+ * Portal options: Overnight (≤1 kg) or Second Day (>1 kg).
+ */
+function pickMpService_(weightKg) {
+  var limit = Number(CONFIG.MP_API.SECOND_DAY_ABOVE_KG);
+  if (!isFinite(limit)) limit = 1;
+  if (Number(weightKg) > limit) {
+    return CONFIG.MP_API.SERVICE_SECOND_DAY;
+  }
+  return CONFIG.MP_API.SERVICE_OVERNIGHT;
 }
 
 function asciiProductDetails_(products) {
