@@ -1,8 +1,11 @@
 import type { GoogleReview, GoogleReviewsSnapshot } from "./types";
 
-// Google reviews URL
+// Google reviews URL (opens Albarakahoney reviews on Google)
 export const GOOGLE_REVIEWS_URL =
-  "https://www.google.com/search?q=albaraka+honey#lrd=0x85f3813785102667:0x67cd6ef3e0bb63be,1,,,,";
+  "https://www.google.com/search?q=Albarakahoney&stick=H4sIAAAAAAAA_-NgU1I1qLAwTTO2MDQ2tzA1NDAyMzO3MqgwM09OMUtNM041SEoyM05KXcTK65iTlFiUmJ2YkZ-XWgkAsxoljDkAAAA&hl=en&mat=CczGenslMjjRElcBa0lj_-KXNyOjmf8lrRhzZCkpnMb_db4-odPRRGPwCJ-sKx8A5eaXgAm0DYYpkDaW7CODOa3gD_1E4f8DAcNZgouVFYPZlMJiRjTBXhul3lLBhSjHuvI#mpd=~15075854889189557964/customers/reviews&lrd=0x85f3813785102667:0x67cd6ef3e0bb63be,1,,,,";
+
+export const getGoogleReviewPageUrl = (review: GoogleReview) =>
+  review.googleMapsUri || GOOGLE_REVIEWS_URL;
 
 // Google write review URL
 export const GOOGLE_WRITE_REVIEW_URL =

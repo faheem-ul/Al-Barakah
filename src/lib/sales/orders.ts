@@ -10,10 +10,23 @@ import {
 } from "@/lib/firebase";
 
 import type {
+  OrderStatus,
   SalesOrder,
   SalesOrderCalculation,
   SalesOrderPayload,
 } from "./types";
+
+function normalizeStatus(status?: string): OrderStatus {
+  if (
+    status === "delivered" ||
+    status === "returned" ||
+    status === "pending" ||
+    status === "promotional"
+  ) {
+    return status;
+  }
+  return "pending";
+}
 
 function mapCalculation(
   calculation?: Partial<SalesOrderCalculation> & { netOutcome?: number },
@@ -38,7 +51,7 @@ function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrder {
     id,
     orderNumber: data.orderNumber ?? "",
     date: data.date ?? "",
-    status: data.status ?? "pending",
+    status: normalizeStatus(data.status),
     courierService: data.courierService ?? "overnight",
     zone: data.zone ?? "withinCity",
     products: data.products ?? [],

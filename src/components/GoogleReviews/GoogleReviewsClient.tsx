@@ -99,6 +99,7 @@ const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
         <Swiper
           modules={[A11y]}
           onSwiper={setSwiper}
+          noSwipingClass="swiper-no-swiping"
           slidesPerView={1.08}
           spaceBetween={12}
           loop={canLoop}

@@ -14,29 +14,38 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
   if (!result || result.units <= 0) return null;
 
   const profitLabel =
-    status === "returned" ? "Return Loss" : "Order Profit";
+    status === "returned"
+      ? "Return Loss"
+      : status === "promotional"
+        ? "Giveaway Expense"
+        : "Order Profit";
+
+  const previewItems = [
+    { label: "Product Total", value: money(result.productRevenue) },
+    ...(status === "promotional"
+      ? [{ label: "Actual Product Cost", value: money(result.honeyCost) }]
+      : []),
+    { label: "Total Weight", value: `${result.weight.toFixed(2)} kg` },
+    {
+      label: "Customer Shipping",
+      value:
+        result.customerShipping === 0
+          ? "FREE"
+          : money(result.customerShipping),
+    },
+    {
+      label: "COD Amount",
+      value: status === "delivered" ? money(result.revenue) : "Rs. 0",
+    },
+    { label: "Packing", value: money(result.packing) },
+    { label: "Actual Courier", value: money(result.courier) },
+    { label: "Expenses", value: money(result.expenses) },
+  ];
 
   return (
     <div className="mt-4 space-y-3">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Product Total", value: money(result.productRevenue) },
-          { label: "Total Weight", value: `${result.weight.toFixed(2)} kg` },
-          {
-            label: "Customer Shipping",
-            value:
-              result.customerShipping === 0
-                ? "FREE"
-                : money(result.customerShipping),
-          },
-          {
-            label: "COD Amount",
-            value: status === "delivered" ? money(result.revenue) : "Rs. 0",
-          },
-          { label: "Packing", value: money(result.packing) },
-          { label: "Actual Courier", value: money(result.courier) },
-          { label: "Expenses", value: money(result.expenses) },
-        ].map((item) => (
+        {previewItems.map((item) => (
           <div
             key={item.label}
             className="rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3"

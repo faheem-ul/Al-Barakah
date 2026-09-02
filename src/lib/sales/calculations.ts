@@ -6,6 +6,7 @@ import type {
   OrderStatus,
   ProductLineInput,
   ProductReportRow,
+  PromotionalReportRow,
   ReturnedReportRow,
   SalesOrder,
   SalesOrderCalculation,
@@ -133,6 +134,12 @@ export function calculateOrderPreview(
     netProfit = -expenses;
   }
 
+  if (status === "promotional") {
+    revenue = 0;
+    expenses = honeyCost + packing + courier;
+    netProfit = -expenses;
+  }
+
   return {
     productRevenue,
     honeyCost,
@@ -183,6 +190,7 @@ export function buildDashboardStats(orders: SalesOrder[], date: string) {
   let delivered = 0;
   let returned = 0;
   let pending = 0;
+  let promotional = 0;
   let sales = 0;
   let shipping = 0;
   let expenses = 0;
@@ -192,6 +200,7 @@ export function buildDashboardStats(orders: SalesOrder[], date: string) {
     if (order.status === "delivered") delivered += 1;
     if (order.status === "returned") returned += 1;
     if (order.status === "pending") pending += 1;
+    if (order.status === "promotional") promotional += 1;
 
     if (order.status === "delivered") {
       sales += Number(order.calculation.productRevenue) || 0;
@@ -208,6 +217,7 @@ export function buildDashboardStats(orders: SalesOrder[], date: string) {
     delivered,
     returned,
     pending,
+    promotional,
     sales,
     shipping,
     expenses,
@@ -231,6 +241,9 @@ export function buildMonthlyReport(
 
   const productStats: Record<string, ProductReportRow> = {};
   const returnedStats: Record<string, ReturnedReportRow> = {};
+  const promotionalStats: Record<string, PromotionalReportRow> = {};
+  let promotionalExpense = 0;
+  let returnedExpense = 0;
 
   for (const order of monthOrders) {
     const calculation = order.calculation;
@@ -265,6 +278,8 @@ export function buildMonthlyReport(
     }
 
     if (status === "returned") {
+      returnedExpense += Number(calculation.expenses) || 0;
+
       for (const item of order.products) {
         const qty = Number(item.qty) || 0;
         if (qty <= 0) continue;
@@ -283,6 +298,34 @@ export function buildMonthlyReport(
       }
     }
 
+    if (status === "promotional") {
+      promotionalExpense += Number(calculation.expenses) || 0;
+
+      for (const item of order.products) {
+        const qty = Number(item.qty) || 0;
+        if (qty <= 0) continue;
+
+        const key = item.key || `${item.product}|${item.variant}`;
+
+        if (!promotionalStats[key]) {
+          promotionalStats[key] = {
+            product: item.product || "Unknown",
+            variant: item.variant || "",
+            qty: 0,
+            expense: 0,
+          };
+        }
+
+        promotionalStats[key].qty += qty;
+
+        const product = getProductByKey(item.key);
+        if (product) {
+          promotionalStats[key].expense +=
+            qty * getSetting(settings, product.costKey);
+        }
+      }
+    }
+
     expenses += Number(calculation.expenses) || 0;
     netProfit += Number(calculation.netProfit) || 0;
   }
@@ -294,5 +337,8 @@ export function buildMonthlyReport(
     netProfit,
     productRows: Object.values(productStats),
     returnedRows: Object.values(returnedStats),
+    returnedExpense,
+    promotionalRows: Object.values(promotionalStats),
+    promotionalExpense,
   };
 }

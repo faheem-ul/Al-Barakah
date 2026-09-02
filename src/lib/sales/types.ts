@@ -1,6 +1,11 @@
-export type SalesTab = "dashboard" | "orders" | "reports" | "settings";
+export type SalesTab =
+  | "dashboard"
+  | "orders"
+  | "reports"
+  | "stock"
+  | "settings";
 
-export type OrderStatus = "delivered" | "returned" | "pending";
+export type OrderStatus = "delivered" | "returned" | "pending" | "promotional";
 export type CourierService = "overnight" | "secondDay";
 export type CourierZone = "withinCity" | "sameZone" | "diffZone";
 
@@ -107,3 +112,24 @@ export type ReturnedReportRow = {
   variant: string;
   qty: number;
 };
+
+export type PromotionalReportRow = {
+  product: string;
+  variant: string;
+  qty: number;
+  expense: number;
+};
+
+export type StockPurchase = {
+  id: string;
+  date: string;
+  product: string;
+  variant: string;
+  key: string;
+  qty: number;
+  unitPrice: number;
+  totalCost: number;
+  createdAt: number;
+};
+
+export type StockPurchasePayload = Omit<StockPurchase, "id">;
