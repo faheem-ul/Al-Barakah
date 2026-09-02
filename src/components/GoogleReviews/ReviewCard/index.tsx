@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { FcGoogle } from "react-icons/fc";
 
-import type { GoogleReview } from "@/lib/google-reviews";
+import type { GoogleReview } from "../types";
 import { RatingStarIcon } from "@/ui/Icons";
 
 import { GOOGLE_REVIEWS_URL } from "../constants";

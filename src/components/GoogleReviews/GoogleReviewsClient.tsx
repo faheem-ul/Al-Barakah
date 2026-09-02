@@ -6,21 +6,17 @@ import type { Swiper as SwiperType } from "swiper";
 import { A11y } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 
-import type { GoogleReviewsSnapshot } from "@/lib/google-reviews";
 import { GoogleWordmarkIcon } from "@/ui/Icons";
 
-import {
-  FALLBACK_SNAPSHOT,
-  GOOGLE_REVIEWS_URL,
-  GOOGLE_WRITE_REVIEW_URL,
-} from "./constants";
+import { GOOGLE_REVIEWS_URL, GOOGLE_WRITE_REVIEW_URL } from "./constants";
+import type { GoogleReviewsSnapshot } from "./types";
 import ReviewCard, { Stars } from "./ReviewCard";
 
 import "swiper/css";
 import "swiper/css/a11y";
 
 type GoogleReviewsClientProps = {
-  snapshot: GoogleReviewsSnapshot | null;
+  snapshot: GoogleReviewsSnapshot;
 };
 
 /** Largest slidesPerView breakpoint — Swiper loop needs at least 2x this many slides. */
@@ -47,8 +43,7 @@ const buildLoopSlides = (reviews: GoogleReviewsSnapshot["reviews"]) => {
 
 const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
   const [swiper, setSwiper] = useState<SwiperType | null>(null);
-  const data = snapshot?.reviews.length ? snapshot : FALLBACK_SNAPSHOT;
-  const slides = buildLoopSlides(data.reviews);
+  const slides = buildLoopSlides(snapshot.reviews);
   const canLoop = slides.length >= MIN_LOOP_SLIDES;
 
   return (
@@ -60,7 +55,7 @@ const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
         id="google-reviews-heading"
         className="mb-6 text-center text-[28px] font-bold text-[#302A25] md:mb-8 md:text-[40px]"
       >
-        {data.rating.toFixed(1)}★ Rated — See What They&apos;re Saying
+        {snapshot.rating.toFixed(1)}★ Rated — See What They&apos;re Saying
       </h2>
 
       <div className="rounded-[8px] bg-[#F5F5F5] px-5 py-5 md:flex md:items-center md:justify-between md:px-6">
@@ -76,16 +71,16 @@ const GoogleReviewsClient = ({ snapshot }: GoogleReviewsClientProps) => {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="text-[18px] font-semibold text-[#302A25]">
-              {data.rating.toFixed(1)}
+              {snapshot.rating.toFixed(1)}
             </span>
-            <Stars rating={data.rating} />
+            <Stars rating={snapshot.rating} />
             <a
-              href={data.googleMapsUri || GOOGLE_REVIEWS_URL}
+              href={snapshot.googleMapsUri || GOOGLE_REVIEWS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-[11px] text-[#858585] hover:underline"
             >
-              {data.totalReviews} reviews
+              {snapshot.totalReviews} reviews
             </a>
           </div>
         </div>
