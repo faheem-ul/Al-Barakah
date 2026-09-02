@@ -1070,18 +1070,21 @@ function clearMpApiIdCache() {
 }
 
 function installVerifyDropdown_() {
-  var sheet = getOrdersSheet_();
-  ensureTrackingHeaders_();
-  var cols = getHeaderMap_(sheet);
+  installVerifyDropdownOnSheet_(getOrdersSheet_());
+}
+
+function installVerifyDropdownOnSheet_(sheet) {
+  ensureTrackingHeadersOnSheet_(sheet);
+  var cols = getHeaderMapOnSheet_(sheet);
   var verifyCol = cols[CONFIG.HEADERS.VERIFY];
   if (!verifyCol) {
-    log_("Verify column missing — skip dropdown");
+    log_("Verify column missing on", sheet.getName(), "— skip dropdown");
     return;
   }
-  var lastRow = Math.max(sheet.getLastRow() + 200, 50);
+  var endRow = Math.max(sheet.getLastRow() + 500, 1000);
   var maxRows = sheet.getMaxRows();
-  if (lastRow > maxRows) lastRow = maxRows;
-  var range = sheet.getRange(2, verifyCol, lastRow - 1, 1);
+  if (endRow > maxRows) endRow = maxRows;
+  var range = sheet.getRange(2, verifyCol, endRow, verifyCol);
   var rule = SpreadsheetApp.newDataValidation()
     .requireValueInList(
       [
@@ -1094,7 +1097,7 @@ function installVerifyDropdown_() {
     .setAllowInvalid(true)
     .build();
   range.setDataValidation(rule);
-  log_("Verify dropdown installed");
+  log_("Verify dropdown installed on", sheet.getName(), "rows 2–" + endRow);
 }
 
 /**
@@ -1105,14 +1108,14 @@ function installVerifyDropdown_() {
 function addVerifyColumn() {
   log_("===== addVerifyColumn START =====");
   var sheet = getOrdersSheet_();
-  ensureTrackingHeaders_();
-  var cols = getHeaderMap_(sheet);
+  ensureTrackingHeadersOnSheet_(sheet);
+  var cols = getHeaderMapOnSheet_(sheet);
   if (!cols[CONFIG.HEADERS.VERIFY]) {
     appendVerifyColumn_(sheet);
-    cols = getHeaderMap_(sheet);
+    cols = getHeaderMapOnSheet_(sheet);
   }
   fillEmptyVerifyFalse_(sheet, cols);
-  installVerifyDropdown_();
+  installVerifyDropdownOnSheet_(sheet);
   log_("===== addVerifyColumn DONE =====");
 }
 
@@ -1250,6 +1253,8 @@ function defaultOrdersHeaders_() {
 function ensureCurrentMonthSheet() {
   log_("===== ensureCurrentMonthSheet START =====");
   var sheet = ensureCurrentMonthSheet_();
+  ensureTrackingHeadersOnSheet_(sheet);
+  installVerifyDropdownOnSheet_(sheet);
   log_("Active orders tab:", sheet.getName());
   log_("===== ensureCurrentMonthSheet DONE =====");
 }
@@ -1274,6 +1279,7 @@ function ensureCurrentMonthSheet_() {
   ]);
   sheet.getRange(1, 1, 1, defaultOrdersHeaders_().length).setFontWeight("bold");
   sheet.setFrozenRows(1);
+  installVerifyDropdownOnSheet_(sheet);
   return sheet;
 }
 

@@ -261,7 +261,8 @@ async function createTabWithHeaders(
     requestBody: { values: [headers] },
   });
   await applySheetPresentation_(sheets, spreadsheetId, sheetId);
-  console.log(`${LOG} Created monthly tab "${title}" with ops headers`);
+  await ensureVerifyDropdown_(sheets, spreadsheetId, tab, headers);
+  console.log(`${LOG} Created monthly tab "${title}" with ops headers + Verify dropdown`);
   return tab;
 }
 
@@ -477,16 +478,73 @@ async function ensureHeaderRow(
       requestBody: { values: [headers] },
     });
     await applySheetPresentation_(sheets, spreadsheetId, tab.sheetId);
+    await ensureVerifyDropdown_(sheets, spreadsheetId, tab, headers);
     console.log(`${LOG} Header row written (${headers.length} columns)`);
     return;
   }
 
   firstRow = await ensureEmailColumn(sheets, spreadsheetId, tab, firstRow);
   firstRow = await ensureVerifyColumn(sheets, spreadsheetId, tab, firstRow);
+  await ensureVerifyDropdown_(sheets, spreadsheetId, tab, firstRow);
 
   console.log(
     `${LOG} Header already present (${firstRow.length} columns) — skip full rewrite`
   );
+}
+
+const VERIFY_DROPDOWN_VALUES = ["false", "true", "already done"] as const;
+
+/** List dropdown on Verify column (same as Apps Script). */
+async function ensureVerifyDropdown_(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tab: TabMeta,
+  headerRow: string[]
+) {
+  const verifyIdx = headerRow.indexOf("Verify");
+  if (verifyIdx < 0) {
+    console.warn(`${LOG} Verify column missing — skip dropdown`);
+    return;
+  }
+
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            setDataValidation: {
+              range: {
+                sheetId: tab.sheetId,
+                startRowIndex: 1, // row 2
+                endRowIndex: 2000,
+                startColumnIndex: verifyIdx,
+                endColumnIndex: verifyIdx + 1,
+              },
+              rule: {
+                condition: {
+                  type: "ONE_OF_LIST",
+                  values: VERIFY_DROPDOWN_VALUES.map((v) => ({
+                    userEnteredValue: v,
+                  })),
+                },
+                showCustomUi: true,
+                strict: false,
+              },
+            },
+          },
+        ],
+      },
+    });
+    console.log(
+      `${LOG} Verify dropdown set on "${tab.title}" (col ${verifyIdx + 1})`
+    );
+  } catch (error) {
+    console.warn(
+      `${LOG} Verify dropdown failed:`,
+      error instanceof Error ? error.message : error
+    );
+  }
 }
 
 /** Freeze header, bold it, apply zebra banding once (ignore if banding already exists). */
