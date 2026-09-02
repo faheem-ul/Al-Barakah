@@ -1,4 +1,5 @@
 import { google, sheets_v4 } from "googleapis";
+import { currentMonthTabName } from "@/lib/google/monthly-tab";
 import {
   ORDER_LEVEL_MERGE_HEADERS,
   ORDER_SHEET_HEADERS,
@@ -145,8 +146,11 @@ function getSheetsClient() {
 
 function getSpreadsheetConfig() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID?.trim();
-  const preferredTab =
-    process.env.GOOGLE_SHEETS_TAB_NAME?.trim() || "Sheet1";
+  /**
+   * Optional forced tab override (debug only).
+   * Leave unset in production — tab is computed as "September 2026" etc.
+   */
+  const tabOverride = process.env.GOOGLE_SHEETS_TAB_NAME?.trim() || "";
 
   if (!spreadsheetId) {
     console.error(`${LOG} Missing GOOGLE_SHEETS_SPREADSHEET_ID`);
@@ -154,9 +158,11 @@ function getSpreadsheetConfig() {
   }
 
   console.log(`${LOG} Spreadsheet ID:`, spreadsheetId);
-  console.log(`${LOG} Preferred tab name:`, preferredTab);
+  if (tabOverride) {
+    console.log(`${LOG} Tab override (GOOGLE_SHEETS_TAB_NAME):`, tabOverride);
+  }
 
-  return { spreadsheetId, preferredTab };
+  return { spreadsheetId, tabOverride };
 }
 
 /** A1 ranges require quotes when the tab name has spaces or special chars. */
@@ -181,20 +187,17 @@ type TabMeta = {
   sheetId: number;
 };
 
-/**
- * Document title (top of browser) is NOT the tab name (bottom tabs).
- */
-async function resolveTab(
+type ListedTab = TabMeta & { index?: number | null };
+
+async function listTabs(
   sheets: sheets_v4.Sheets,
-  spreadsheetId: string,
-  preferredTab: string
-): Promise<TabMeta> {
+  spreadsheetId: string
+): Promise<{ docTitle?: string | null; tabs: ListedTab[] }> {
   const meta = await sheets.spreadsheets.get({
     spreadsheetId,
     fields: "properties.title,sheets.properties(sheetId,title,index)",
   });
 
-  const docTitle = meta.data.properties?.title;
   const tabs =
     meta.data.sheets
       ?.map((s) => s.properties)
@@ -205,43 +208,109 @@ async function resolveTab(
         index: p!.index,
       })) ?? [];
 
+  return { docTitle: meta.data.properties?.title, tabs };
+}
+
+async function findTabByTitle(
+  tabs: ListedTab[],
+  title: string
+): Promise<TabMeta | null> {
+  const exact = tabs.find((t) => t.title === title);
+  if (exact) return { title: exact.title, sheetId: exact.sheetId };
+  const ci = tabs.find(
+    (t) => t.title.toLowerCase() === title.toLowerCase()
+  );
+  if (ci) return { title: ci.title, sheetId: ci.sheetId };
+  return null;
+}
+
+async function createTabWithHeaders(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  title: string
+): Promise<TabMeta> {
+  const created = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          addSheet: {
+            properties: {
+              title,
+              index: 0,
+              gridProperties: { frozenRowCount: 1 },
+            },
+          },
+        },
+      ],
+    },
+  });
+
+  const sheetId =
+    created.data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+  if (sheetId == null) {
+    throw new Error(`Failed to create sheet tab "${title}"`);
+  }
+
+  const tab: TabMeta = { title, sheetId };
+  const headers = ORDER_SHEET_HEADERS as unknown as string[];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: sheetRange(title, "A1"),
+    valueInputOption: "RAW",
+    requestBody: { values: [headers] },
+  });
+  await applySheetPresentation_(sheets, spreadsheetId, sheetId);
+  await ensureVerifyDropdown_(sheets, spreadsheetId, tab, headers);
+  console.log(`${LOG} Created monthly tab "${title}" with ops headers + Verify dropdown`);
+  return tab;
+}
+
+/**
+ * Resolve the orders tab for writes:
+ * 1) Optional GOOGLE_SHEETS_TAB_NAME override
+ * 2) Current month tab ("September 2026") if it exists
+ * 3) Otherwise create the monthly tab with headers
+ *
+ * Legacy Sheet1 is never renamed — it stays as the archive of older mixed months.
+ *
+ * Document title (browser) is NOT the tab name (bottom tabs).
+ */
+async function resolveOrCreateOrdersTab(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tabOverride: string
+): Promise<TabMeta> {
+  const { docTitle, tabs } = await listTabs(sheets, spreadsheetId);
   console.log(`${LOG} Document title:`, docTitle);
   console.log(
     `${LOG} Available tabs:`,
     tabs.map((t) => `"${t.title}" (gid=${t.sheetId})`).join(", ") || "(none)"
   );
 
-  const exact = tabs.find((t) => t.title === preferredTab);
-  if (exact) {
-    console.log(`${LOG} Using tab (exact match):`, exact.title);
-    return { title: exact.title, sheetId: exact.sheetId };
-  }
-
-  const caseInsensitive = tabs.find(
-    (t) => t.title.toLowerCase() === preferredTab.toLowerCase()
-  );
-  if (caseInsensitive) {
-    console.log(
-      `${LOG} Using tab (case-insensitive match):`,
-      caseInsensitive.title
-    );
-    return {
-      title: caseInsensitive.title,
-      sheetId: caseInsensitive.sheetId,
-    };
-  }
-
-  const first = tabs[0];
-  if (first) {
+  if (tabOverride) {
+    const forced = await findTabByTitle(tabs, tabOverride);
+    if (forced) {
+      console.log(`${LOG} Using override tab:`, forced.title);
+      return forced;
+    }
     console.warn(
-      `${LOG} Tab "${preferredTab}" not found. Falling back to first tab: "${first.title}"`
+      `${LOG} Override tab "${tabOverride}" missing — creating it`
     );
-    return { title: first.title, sheetId: first.sheetId };
+    return createTabWithHeaders(sheets, spreadsheetId, tabOverride);
   }
 
-  throw new Error(
-    `No sheets found in spreadsheet ${spreadsheetId}. Available tabs: (none)`
-  );
+  const monthly = currentMonthTabName();
+  console.log(`${LOG} Current month tab:`, monthly);
+
+  const existing = await findTabByTitle(tabs, monthly);
+  if (existing) {
+    console.log(`${LOG} Using monthly tab:`, existing.title);
+    return existing;
+  }
+
+  console.log(`${LOG} Monthly tab missing — creating "${monthly}"`);
+  return createTabWithHeaders(sheets, spreadsheetId, monthly);
 }
 
 function headersMatchOpsLayout(firstRow: string[]): boolean {
@@ -409,16 +478,73 @@ async function ensureHeaderRow(
       requestBody: { values: [headers] },
     });
     await applySheetPresentation_(sheets, spreadsheetId, tab.sheetId);
+    await ensureVerifyDropdown_(sheets, spreadsheetId, tab, headers);
     console.log(`${LOG} Header row written (${headers.length} columns)`);
     return;
   }
 
   firstRow = await ensureEmailColumn(sheets, spreadsheetId, tab, firstRow);
   firstRow = await ensureVerifyColumn(sheets, spreadsheetId, tab, firstRow);
+  await ensureVerifyDropdown_(sheets, spreadsheetId, tab, firstRow);
 
   console.log(
     `${LOG} Header already present (${firstRow.length} columns) — skip full rewrite`
   );
+}
+
+const VERIFY_DROPDOWN_VALUES = ["false", "true", "already done"] as const;
+
+/** List dropdown on Verify column (same as Apps Script). */
+async function ensureVerifyDropdown_(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tab: TabMeta,
+  headerRow: string[]
+) {
+  const verifyIdx = headerRow.indexOf("Verify");
+  if (verifyIdx < 0) {
+    console.warn(`${LOG} Verify column missing — skip dropdown`);
+    return;
+  }
+
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            setDataValidation: {
+              range: {
+                sheetId: tab.sheetId,
+                startRowIndex: 1, // row 2
+                endRowIndex: 2000,
+                startColumnIndex: verifyIdx,
+                endColumnIndex: verifyIdx + 1,
+              },
+              rule: {
+                condition: {
+                  type: "ONE_OF_LIST",
+                  values: VERIFY_DROPDOWN_VALUES.map((v) => ({
+                    userEnteredValue: v,
+                  })),
+                },
+                showCustomUi: true,
+                strict: false,
+              },
+            },
+          },
+        ],
+      },
+    });
+    console.log(
+      `${LOG} Verify dropdown set on "${tab.title}" (col ${verifyIdx + 1})`
+    );
+  } catch (error) {
+    console.warn(
+      `${LOG} Verify dropdown failed:`,
+      error instanceof Error ? error.message : error
+    );
+  }
 }
 
 /** Freeze header, bold it, apply zebra banding once (ignore if banding already exists). */
@@ -571,8 +697,12 @@ export async function appendOrderRows(
 
   try {
     const sheets = getSheetsClient();
-    const { spreadsheetId, preferredTab } = getSpreadsheetConfig();
-    const tab = await resolveTab(sheets, spreadsheetId, preferredTab);
+    const { spreadsheetId, tabOverride } = getSpreadsheetConfig();
+    const tab = await resolveOrCreateOrdersTab(
+      sheets,
+      spreadsheetId,
+      tabOverride
+    );
 
     await ensureHeaderRow(sheets, spreadsheetId, tab);
 
@@ -696,8 +826,12 @@ export async function updateOrderStatuses(
   }
 
   const sheets = getSheetsClient();
-  const { spreadsheetId, preferredTab } = getSpreadsheetConfig();
-  const tab = await resolveTab(sheets, spreadsheetId, preferredTab);
+  const { spreadsheetId, tabOverride } = getSpreadsheetConfig();
+  const tab = await resolveOrCreateOrdersTab(
+    sheets,
+    spreadsheetId,
+    tabOverride
+  );
 
   await ensureHeaderRow(sheets, spreadsheetId, tab);
 

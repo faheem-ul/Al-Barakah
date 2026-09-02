@@ -99,6 +99,18 @@ Order Status / Location / Detail should fill with real M&P data.
 
 If some Order Status cells look uncoloured (common after bulk paste), in Apps Script run **`fixOrderStatusColors`** once.
 
+## Monthly order tabs
+
+Orders are written to a **month-named tab** (Asia/Karachi), e.g. `September 2026`, `October 2026`.
+
+- On the **1st** (daily Apps Script job) — or on the **first order** of the month — the new tab is created automatically with the same headers.
+- **`Sheet1` is never renamed** — it stays as the archive of older / mixed-month orders. Verify + tracking still work on `Sheet1`.
+- New Shopify orders only go to the **current month** tab (not Sheet1).
+- Hourly tracking refresh covers **current month**, **previous month**, and **Sheet1**.
+- Optional debug override: set `GOOGLE_SHEETS_TAB_NAME` in Next.js env to force a fixed tab (leave unset in production).
+
+After pasting this `Code.gs`, run **`installMpTrackingTriggers`** once (adds the daily `ensureCurrentMonthSheet` trigger). You can also run **`ensureCurrentMonthSheet`** manually to create today’s month tab immediately.
+
 ## Daily usage
 
 1. Shopify order row appears at the **top** of the sheet (`Verify` = `false`).

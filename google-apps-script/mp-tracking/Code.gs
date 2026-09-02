@@ -13,8 +13,12 @@
 var LOG_PREFIX = "[M&P Tracking]";
 
 var CONFIG = {
-  /** Tab name at the bottom of the spreadsheet (usually Sheet1) */
-  SHEET_NAME: "Sheet1",
+  /**
+   * New orders go to a month tab ("September 2026", Asia/Karachi).
+   * LEGACY_SHEET_NAME (Sheet1) is never renamed — archive of older orders.
+   */
+  LEGACY_SHEET_NAME: "Sheet1",
+  TIMEZONE: "Asia/Karachi",
   TRACKING_BASE_URL: "https://www.mulphilog.com/tracking/",
   /** Skip refresh when status already equals this (case-insensitive) */
   DELIVERED_STATUS: "Delivered",
@@ -119,6 +123,7 @@ function log_() {
  */
 function installMpTrackingTriggers() {
   log_("===== installMpTrackingTriggers START =====");
+  ensureCurrentMonthSheet_();
   ensureTrackingHeaders_();
   removeMpTrackingTriggers_();
 
@@ -127,6 +132,14 @@ function installMpTrackingTriggers() {
     .everyHours(1)
     .create();
   log_("Installed hourly trigger → refreshAllMpTrackingStatuses");
+
+  ScriptApp.newTrigger("ensureCurrentMonthSheet")
+    .timeBased()
+    .everyDays(1)
+    .atHour(0)
+    .nearMinute(15)
+    .create();
+  log_("Installed daily trigger → ensureCurrentMonthSheet");
 
   ScriptApp.newTrigger("handleTrackingNumberEdit")
     .forSpreadsheet(SpreadsheetApp.getActive())
@@ -209,7 +222,8 @@ function removeMpTrackingTriggers_() {
     var fn = t.getHandlerFunction();
     if (
       fn === "refreshAllMpTrackingStatuses" ||
-      fn === "handleTrackingNumberEdit"
+      fn === "handleTrackingNumberEdit" ||
+      fn === "ensureCurrentMonthSheet"
     ) {
       ScriptApp.deleteTrigger(t);
       removed++;
@@ -233,8 +247,8 @@ function handleTrackingNumberEdit(e) {
   var sheetName = sheet.getName();
   log_("Edited sheet:", sheetName, "| cell:", e.range.getA1Notation());
 
-  if (sheetName !== CONFIG.SHEET_NAME) {
-    log_("Ignored — expected sheet", CONFIG.SHEET_NAME);
+  if (!isOrdersTabName_(sheetName)) {
+    log_("Ignored — not an orders month tab (or Sheet1):", sheetName);
     return;
   }
   if (e.range.getRow() === 1) {
@@ -282,28 +296,39 @@ function handleTrackingNumberEdit(e) {
 
 /**
  * Hourly (or manual) refresh for rows that have a CN and are not Delivered.
+ * Runs on the current month tab + previous month (in-transit across month boundary).
  */
 function refreshAllMpTrackingStatuses() {
   log_(
     "===== refreshAllMpTrackingStatuses START =====",
     new Date().toISOString(),
   );
-  var sheet = getOrdersSheet_();
-  ensureTrackingHeaders_();
-  var cols = getHeaderMap_(sheet);
+  ensureCurrentMonthSheet_();
+  var sheetsToRefresh = getTrackingRefreshSheets_();
+  for (var s = 0; s < sheetsToRefresh.length; s++) {
+    refreshMpTrackingOnSheet_(sheetsToRefresh[s]);
+  }
+  log_("===== refreshAllMpTrackingStatuses DONE =====");
+}
+
+function refreshMpTrackingOnSheet_(sheet) {
+  ensureTrackingHeadersOnSheet_(sheet);
+  var cols = getHeaderMapOnSheet_(sheet);
   var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
   var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
   if (!numberCol || !statusCol) {
     log_(
-      "ERROR — Tracking headers missing — run ensureTrackingHeaders_ / installMpTrackingTriggers",
+      "ERROR — Tracking headers missing on",
+      sheet.getName(),
+      "— run ensureTrackingHeaders_ / installMpTrackingTriggers",
     );
     return;
   }
 
   var lastRow = sheet.getLastRow();
-  log_("Sheet:", CONFIG.SHEET_NAME, "| lastRow:", lastRow);
+  log_("Sheet:", sheet.getName(), "| lastRow:", lastRow);
   if (lastRow < 2) {
-    log_("No data rows — exit");
+    log_("No data rows on", sheet.getName(), "— skip");
     return;
   }
 
@@ -342,10 +367,8 @@ function refreshAllMpTrackingStatuses() {
       status || "(blank)",
       "— refreshing",
     );
-    var beforeFail = failed;
     try {
       refreshRowMpTracking_(sheet, cols, row, cn, false);
-      // refreshRow logs errors; approximate success via status cell after
       var newStatus = String(
         sheet.getRange(row, statusCol).getValue() || "",
       ).trim();
@@ -362,7 +385,9 @@ function refreshAllMpTrackingStatuses() {
   }
 
   log_(
-    "Summary — refreshed:",
+    "Summary",
+    sheet.getName(),
+    "— refreshed:",
     refreshed,
     "| skipped empty:",
     skippedEmpty,
@@ -372,10 +397,7 @@ function refreshAllMpTrackingStatuses() {
     failed,
   );
 
-  // Keep colours consistent even when status text was written without styling
   paintAllOrderStatusColors_(sheet, statusCol);
-
-  log_("===== refreshAllMpTrackingStatuses DONE =====");
 }
 
 function normalizeVerifyValue_(value) {
@@ -1048,18 +1070,21 @@ function clearMpApiIdCache() {
 }
 
 function installVerifyDropdown_() {
-  var sheet = getOrdersSheet_();
-  ensureTrackingHeaders_();
-  var cols = getHeaderMap_(sheet);
+  installVerifyDropdownOnSheet_(getOrdersSheet_());
+}
+
+function installVerifyDropdownOnSheet_(sheet) {
+  ensureTrackingHeadersOnSheet_(sheet);
+  var cols = getHeaderMapOnSheet_(sheet);
   var verifyCol = cols[CONFIG.HEADERS.VERIFY];
   if (!verifyCol) {
-    log_("Verify column missing — skip dropdown");
+    log_("Verify column missing on", sheet.getName(), "— skip dropdown");
     return;
   }
-  var lastRow = Math.max(sheet.getLastRow() + 200, 50);
+  var endRow = Math.max(sheet.getLastRow() + 500, 1000);
   var maxRows = sheet.getMaxRows();
-  if (lastRow > maxRows) lastRow = maxRows;
-  var range = sheet.getRange(2, verifyCol, lastRow - 1, 1);
+  if (endRow > maxRows) endRow = maxRows;
+  var range = sheet.getRange(2, verifyCol, endRow, verifyCol);
   var rule = SpreadsheetApp.newDataValidation()
     .requireValueInList(
       [
@@ -1072,7 +1097,7 @@ function installVerifyDropdown_() {
     .setAllowInvalid(true)
     .build();
   range.setDataValidation(rule);
-  log_("Verify dropdown installed");
+  log_("Verify dropdown installed on", sheet.getName(), "rows 2–" + endRow);
 }
 
 /**
@@ -1083,14 +1108,14 @@ function installVerifyDropdown_() {
 function addVerifyColumn() {
   log_("===== addVerifyColumn START =====");
   var sheet = getOrdersSheet_();
-  ensureTrackingHeaders_();
-  var cols = getHeaderMap_(sheet);
+  ensureTrackingHeadersOnSheet_(sheet);
+  var cols = getHeaderMapOnSheet_(sheet);
   if (!cols[CONFIG.HEADERS.VERIFY]) {
     appendVerifyColumn_(sheet);
-    cols = getHeaderMap_(sheet);
+    cols = getHeaderMapOnSheet_(sheet);
   }
   fillEmptyVerifyFalse_(sheet, cols);
-  installVerifyDropdown_();
+  installVerifyDropdownOnSheet_(sheet);
   log_("===== addVerifyColumn DONE =====");
 }
 
@@ -1160,26 +1185,152 @@ function debugFetchOneTracking() {
   log_("===== debugFetchOneTracking DONE =====");
 }
 
-// -------------------- internals --------------------
+// -------------------- monthly tabs --------------------
+
+/**
+ * Same rule as Next.js `src/lib/google/monthly-tab.ts`:
+ * "September 2026" in Asia/Karachi.
+ */
+function currentMonthTabName_(optDate) {
+  var tz = CONFIG.TIMEZONE || "Asia/Karachi";
+  return Utilities.formatDate(optDate || new Date(), tz, "MMMM yyyy");
+}
+
+function previousMonthTabName_(optDate) {
+  var tz = CONFIG.TIMEZONE || "Asia/Karachi";
+  var base = optDate || new Date();
+  var y = Number(Utilities.formatDate(base, tz, "yyyy"));
+  var m = Number(Utilities.formatDate(base, tz, "M")); // 1–12
+  if (m === 1) {
+    return Utilities.formatDate(
+      new Date(y - 1, 11, 1),
+      tz,
+      "MMMM yyyy"
+    );
+  }
+  return Utilities.formatDate(new Date(y, m - 2, 1), tz, "MMMM yyyy");
+}
+
+function isMonthlyOrdersTabName_(name) {
+  return /^(January|February|March|April|May|June|July|August|September|October|November|December) \d{4}$/.test(
+    String(name || "").trim()
+  );
+}
+
+function isOrdersTabName_(name) {
+  var n = String(name || "").trim();
+  if (n === CONFIG.LEGACY_SHEET_NAME) return true;
+  return isMonthlyOrdersTabName_(n);
+}
+
+/** Standard ops header row (keep in sync with Next.js ORDER_SHEET_HEADERS). */
+function defaultOrdersHeaders_() {
+  return [
+    "Order Number",
+    "Date",
+    "Name",
+    "Address",
+    "City",
+    "Contact",
+    "Email",
+    "Product Detail",
+    "Bottle Size",
+    "Quantity",
+    "Retail Price",
+    "COD",
+    "Total Amount",
+    "Order Status",
+    "Verify",
+    "Tracking Number",
+    "Tracking Location",
+    "Tracking Detail",
+  ];
+}
+
+/**
+ * Time-driven entry point (daily). Also safe to run manually.
+ */
+function ensureCurrentMonthSheet() {
+  log_("===== ensureCurrentMonthSheet START =====");
+  var sheet = ensureCurrentMonthSheet_();
+  ensureTrackingHeadersOnSheet_(sheet);
+  installVerifyDropdownOnSheet_(sheet);
+  log_("Active orders tab:", sheet.getName());
+  log_("===== ensureCurrentMonthSheet DONE =====");
+}
+
+/**
+ * Ensure the current month tab exists (e.g. "September 2026").
+ * Never renames Sheet1 — that tab stays as the archive of older orders.
+ */
+function ensureCurrentMonthSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var monthly = currentMonthTabName_();
+  var sheet = ss.getSheetByName(monthly);
+  if (sheet) {
+    log_("Monthly tab exists:", monthly);
+    return sheet;
+  }
+
+  log_("Creating monthly tab:", monthly);
+  sheet = ss.insertSheet(monthly, 0);
+  sheet.getRange(1, 1, 1, defaultOrdersHeaders_().length).setValues([
+    defaultOrdersHeaders_(),
+  ]);
+  sheet.getRange(1, 1, 1, defaultOrdersHeaders_().length).setFontWeight("bold");
+  sheet.setFrozenRows(1);
+  installVerifyDropdownOnSheet_(sheet);
+  return sheet;
+}
+
+function getTrackingRefreshSheets_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Current + previous month, plus legacy Sheet1 (older in-transit orders)
+  var names = [
+    currentMonthTabName_(),
+    previousMonthTabName_(),
+    CONFIG.LEGACY_SHEET_NAME,
+  ];
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < names.length; i++) {
+    var n = names[i];
+    if (seen[n]) continue;
+    seen[n] = true;
+    var sh = ss.getSheetByName(n);
+    if (sh) out.push(sh);
+    else log_("Refresh skip — tab missing:", n);
+  }
+  if (!out.length) out.push(ensureCurrentMonthSheet_());
+  return out;
+}
 
 function getOrdersSheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  log_("Spreadsheet:", ss.getName(), "| looking for tab:", CONFIG.SHEET_NAME);
-  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-  if (!sheet) {
-    log_("ERROR — sheet not found:", CONFIG.SHEET_NAME);
-    throw new Error('Sheet "' + CONFIG.SHEET_NAME + '" not found');
-  }
+  var sheet = ensureCurrentMonthSheet_();
+  log_("Spreadsheet orders tab:", sheet.getName());
   return sheet;
 }
 
 function ensureTrackingHeaders_() {
-  var sheet = getOrdersSheet_();
+  ensureTrackingHeadersOnSheet_(getOrdersSheet_());
+}
+
+function ensureTrackingHeadersOnSheet_(sheet) {
   var lastCol = Math.max(sheet.getLastColumn(), 1);
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var headerNames = headers.map(function (h) {
     return String(h || "").trim();
   });
+
+  // Empty new tab — write full ops headers
+  if (!headerNames[0]) {
+    var defaults = defaultOrdersHeaders_();
+    sheet.getRange(1, 1, 1, defaults.length).setValues([defaults]);
+    sheet.getRange(1, 1, 1, defaults.length).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+    log_("Wrote default ops headers on", sheet.getName());
+    return;
+  }
 
   // Physically insert Email after Contact so existing rows stay aligned.
   if (headerNames.indexOf(CONFIG.HEADERS.EMAIL) === -1) {
@@ -1187,7 +1338,7 @@ function ensureTrackingHeaders_() {
     if (contactIdx >= 0) {
       sheet.insertColumnAfter(contactIdx + 1);
       sheet.getRange(1, contactIdx + 2).setValue(CONFIG.HEADERS.EMAIL);
-      log_("Inserted Email column after Contact");
+      log_("Inserted Email column after Contact on", sheet.getName());
       lastCol = Math.max(sheet.getLastColumn(), 1);
       headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
       headerNames = headers.map(function (h) {
@@ -1219,7 +1370,7 @@ function ensureTrackingHeaders_() {
     if (headerNames.indexOf(needed[i]) === -1) missing.push(needed[i]);
   }
   if (!missing.length) {
-    log_("Tracking headers already present");
+    log_("Tracking headers already present on", sheet.getName());
     return;
   }
 
@@ -1229,11 +1380,22 @@ function ensureTrackingHeaders_() {
   }
 
   sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
-  log_("Added tracking headers at column", startCol, "→", missing.join(", "));
+  log_(
+    "Added tracking headers on",
+    sheet.getName(),
+    "at column",
+    startCol,
+    "→",
+    missing.join(", "),
+  );
 }
 
 function getHeaderMap_(sheet) {
-  ensureTrackingHeaders_();
+  return getHeaderMapOnSheet_(sheet);
+}
+
+function getHeaderMapOnSheet_(sheet) {
+  ensureTrackingHeadersOnSheet_(sheet);
   // Use a wide header range so late columns like "Additional Note" are found
   // even if most data rows leave them blank (getLastColumn can miss them).
   var lastCol = Math.max(sheet.getLastColumn(), 20);
@@ -1244,7 +1406,9 @@ function getHeaderMap_(sheet) {
     if (name) map[name] = c + 1;
   }
   log_(
-    "Header map:",
+    "Header map (",
+    sheet.getName(),
+    "):",
     CONFIG.HEADERS.TRACKING_NUMBER + "=" + map[CONFIG.HEADERS.TRACKING_NUMBER],
     CONFIG.HEADERS.ORDER_STATUS + "=" + map[CONFIG.HEADERS.ORDER_STATUS],
     CONFIG.HEADERS.ADDITIONAL_NOTE +
@@ -1253,6 +1417,8 @@ function getHeaderMap_(sheet) {
   );
   return map;
 }
+
+// (end monthly tab helpers)
 
 function isDelivered_(status) {
   return (
@@ -2275,8 +2441,7 @@ function sendCustomerTrackingEmail_(
  */
 function testCustomerTrackingEmails() {
   var to = CONFIG.NOTIFY_EMAIL;
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  var sheet = getOrdersSheet_();
   var cols = getHeaderMap_(sheet);
   var contact = {
     email: to,
