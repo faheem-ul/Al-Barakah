@@ -1,13 +1,8 @@
-import { getGoogleReviewsSnapshot } from "@/lib/google-reviews";
-
 import GoogleReviewsClient from "./GoogleReviewsClient";
+import { GOOGLE_REVIEWS_SNAPSHOT } from "./constants";
 
-// Google Reviews Component
-const GoogleReviews = async () => {
-  const snapshot = await getGoogleReviewsSnapshot();
-
-  // Render the Google Reviews Client
-  return <GoogleReviewsClient snapshot={snapshot} />;
-};
+const GoogleReviews = () => (
+  <GoogleReviewsClient snapshot={GOOGLE_REVIEWS_SNAPSHOT} />
+);
 
 export default GoogleReviews;

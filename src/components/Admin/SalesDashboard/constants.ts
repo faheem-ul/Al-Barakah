@@ -6,5 +6,6 @@ export const SALES_TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "orders", label: "Orders" },
   { id: "reports", label: "Reports" },
+  { id: "stock", label: "Stock" },
   { id: "settings", label: "Settings" },
 ] as const;

@@ -14,6 +14,21 @@ type ReportsTabProps = {
   orders: SalesOrder[];
 };
 
+function SectionTotal({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <p className="text-[14px] text-[#6b7280]">
+      {label}:{" "}
+      <span className="font-semibold text-black">{value}</span>
+    </p>
+  );
+}
+
 const ReportsTab: React.FC<ReportsTabProps> = ({ settings, orders }) => {
   const [month, setMonth] = useState(currentMonthValue());
 
@@ -67,9 +82,15 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ settings, orders }) => {
       </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
-        <h2 className="text-[19px] font-semibold mb-4">
-          Delivered Product Sales
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[19px] font-semibold">Delivered Product Sales</h2>
+          {report.sales > 0 && (
+            <SectionTotal
+              label="Total Product Sales"
+              value={money(report.sales)}
+            />
+          )}
+        </div>
         {!report.productRows.length ? (
           <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280]">
             No delivered product sales found for this month.
@@ -103,8 +124,16 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ settings, orders }) => {
         )}
       </div>
 
-      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
-        <h2 className="text-[19px] font-semibold mb-4">Returned Products</h2>
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[19px] font-semibold">Returned Products</h2>
+          {report.returnedExpense > 0 && (
+            <SectionTotal
+              label="Total Return Expense"
+              value={money(report.returnedExpense)}
+            />
+          )}
+        </div>
         {!report.returnedRows.length ? (
           <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280]">
             No returned products found for this month.
@@ -128,6 +157,49 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ settings, orders }) => {
                     <td className="py-3 pr-3">{item.product}</td>
                     <td className="py-3 pr-3">{item.variant}</td>
                     <td className="py-3">{item.qty}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[19px] font-semibold">Promotional Giveaways</h2>
+          {report.promotionalExpense > 0 && (
+            <SectionTotal
+              label="Total PR Expense"
+              value={money(report.promotionalExpense)}
+            />
+          )}
+        </div>
+        {!report.promotionalRows.length ? (
+          <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280]">
+            No promotional giveaways found for this month.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-[14px]">
+              <thead>
+                <tr className="border-b border-[#e5e7eb] text-[#6b7280]">
+                  <th className="py-3 pr-3 font-medium">Product</th>
+                  <th className="py-3 pr-3 font-medium">Variant</th>
+                  <th className="py-3 pr-3 font-medium">Units Given Away</th>
+                  <th className="py-3 font-medium">Expense</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.promotionalRows.map((item) => (
+                  <tr
+                    key={`${item.product}-${item.variant}`}
+                    className="border-b border-[#f3f4f6]"
+                  >
+                    <td className="py-3 pr-3">{item.product}</td>
+                    <td className="py-3 pr-3">{item.variant}</td>
+                    <td className="py-3 pr-3">{item.qty}</td>
+                    <td className="py-3">{money(item.expense)}</td>
                   </tr>
                 ))}
               </tbody>

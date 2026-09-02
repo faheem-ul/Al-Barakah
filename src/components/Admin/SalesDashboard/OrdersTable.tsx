@@ -3,6 +3,10 @@
 import React from "react";
 
 import { money } from "@/lib/sales/calculations";
+import {
+  formatOrderStatus,
+  orderStatusBadgeClass,
+} from "@/lib/sales/status";
 import type { SalesOrder } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
@@ -11,12 +15,6 @@ type OrdersTableProps = {
   onDelete: (id: string) => void;
   deletingId: string | null;
 };
-
-function statusBadgeClass(status: string) {
-  if (status === "delivered") return "bg-[#ecfdf5] text-[#047857]";
-  if (status === "returned") return "bg-[#fef2f2] text-[#b91c1c]";
-  return "bg-[#fffbeb] text-[#b45309]";
-}
 
 const OrdersTable: React.FC<OrdersTableProps> = ({
   orders,
@@ -73,9 +71,9 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                 </td>
                 <td className="py-3 pr-3">
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold capitalize ${statusBadgeClass(order.status)}`}
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${orderStatusBadgeClass(order.status)}`}
                   >
-                    {order.status}
+                    {formatOrderStatus(order.status)}
                   </span>
                 </td>
                 <td className="py-3">

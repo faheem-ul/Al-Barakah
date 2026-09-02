@@ -4,6 +4,7 @@ import React from "react";
 import {
   BarChart3,
   LayoutDashboard,
+  Package,
   Settings,
   ShoppingBag,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const TAB_ICONS: Record<SalesTab, LucideIcon> = {
   dashboard: LayoutDashboard,
   orders: ShoppingBag,
   reports: BarChart3,
+  stock: Package,
   settings: Settings,
 };
 

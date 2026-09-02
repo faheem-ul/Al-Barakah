@@ -232,6 +232,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
             <option value="delivered">Delivered</option>
             <option value="pending">Pending</option>
             <option value="returned">Returned</option>
+            <option value="promotional">Promotional Giveaway</option>
           </select>
         </label>
       </div>

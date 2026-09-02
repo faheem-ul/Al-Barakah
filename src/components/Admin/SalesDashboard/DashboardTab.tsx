@@ -7,6 +7,7 @@ import {
   money,
   todayIsoDate,
 } from "@/lib/sales/calculations";
+import { formatOrderStatus } from "@/lib/sales/status";
 import type { SalesOrder } from "@/lib/sales/types";
 
 type DashboardTabProps = {
@@ -23,6 +24,10 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ orders }) => {
     { label: "Today's Orders", value: String(stats.totalOrders) },
     { label: "Delivered", value: String(stats.delivered) },
     { label: "Returned", value: String(stats.returned), danger: true },
+    {
+      label: "Promotional Giveaways",
+      value: String(stats.promotional),
+    },
     { label: "Pending", value: String(stats.pending) },
     { label: "Product Sales", value: money(stats.sales) },
     { label: "Shipping Collected", value: money(stats.shipping) },
@@ -62,7 +67,7 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ orders }) => {
         <div>
           <p className="text-[12px] opacity-80">Today&apos;s Net Profit</p>
           <p className="text-[14px] opacity-90">
-            After honey, packing, courier and return expenses
+            After honey, packing, courier, return, and promotional expenses
           </p>
         </div>
         <strong className="text-[28px]">{money(stats.netProfit)}</strong>
@@ -101,7 +106,9 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ orders }) => {
                     <td className="py-3 pr-3">
                       {order.calculation.weight.toFixed(2)} kg
                     </td>
-                    <td className="py-3 pr-3 capitalize">{order.status}</td>
+                    <td className="py-3 pr-3">
+                      {formatOrderStatus(order.status)}
+                    </td>
                     <td className="py-3">
                       {money(order.calculation.netProfit)}
                     </td>
