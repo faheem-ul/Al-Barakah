@@ -1,11 +1,17 @@
 import { google, sheets_v4 } from "googleapis";
-import { currentMonthTabName } from "@/lib/google/monthly-tab";
+import {
+  currentMonthTabName,
+  isMonthlyOrdersTabName,
+} from "@/lib/google/monthly-tab";
 import {
   ORDER_LEVEL_MERGE_HEADERS,
   ORDER_SHEET_HEADERS,
 } from "@/lib/shopify/orders-to-sheet-rows";
 
 const LOG = "[Google Sheets]";
+
+/** Archive tab for older / mixed-month orders — never renamed. */
+const LEGACY_TAB_NAME = "Sheet1";
 
 /** Light beige / white zebra like the ops screenshot */
 const BANDING_COLORS = {
@@ -222,6 +228,26 @@ async function findTabByTitle(
   );
   if (ci) return { title: ci.title, sheetId: ci.sheetId };
   return null;
+}
+
+/** Sheet1 + every "September 2026"-style month tab. */
+function ordersTabsFromList(tabs: ListedTab[]): TabMeta[] {
+  return tabs
+    .filter(
+      (t) =>
+        t.title === LEGACY_TAB_NAME || isMonthlyOrdersTabName(t.title)
+    )
+    .map((t) => ({ title: t.title, sheetId: t.sheetId }));
+}
+
+function normalizeOrderKey(value: string | number): string {
+  return String(value ?? "")
+    .trim()
+    .replace(/^#/, "");
+}
+
+function orderKeysMatch(cell: string, orderKey: string): boolean {
+  return normalizeOrderKey(cell) === normalizeOrderKey(orderKey);
 }
 
 async function createTabWithHeaders(
@@ -630,7 +656,7 @@ async function applySheetPresentation_(
   }
 }
 
-/** Column A = Order Number */
+/** Column A = Order Number — one tab */
 async function orderNumberAlreadyExists(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
@@ -644,11 +670,40 @@ async function orderNumberAlreadyExists(
   });
 
   const values = result.data.values ?? [];
-  const exists = values.some(
-    (row) => String(row?.[0] ?? "").trim() === orderNumber
+  const exists = values.some((row) =>
+    orderKeysMatch(String(row?.[0] ?? ""), orderNumber)
   );
-  console.log(`${LOG} Order Number ${orderNumber} already in sheet:`, exists);
+  console.log(
+    `${LOG} Order Number ${orderNumber} already in "${tabName}":`,
+    exists
+  );
   return exists;
+}
+
+/**
+ * True if the order already exists on Sheet1 or any month tab.
+ * Prevents Shopify update webhooks from re-inserting archive orders into the current month.
+ */
+async function orderNumberExistsOnAnyOrdersTab(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  orderNumber: string
+): Promise<{ exists: boolean; tabTitle?: string }> {
+  const { tabs } = await listTabs(sheets, spreadsheetId);
+  const orderTabs = ordersTabsFromList(tabs);
+  for (const tab of orderTabs) {
+    if (
+      await orderNumberAlreadyExists(
+        sheets,
+        spreadsheetId,
+        tab.title,
+        orderNumber
+      )
+    ) {
+      return { exists: true, tabTitle: tab.title };
+    }
+  }
+  return { exists: false };
 }
 
 /** Prevent concurrent webhook retries for the same order in this process. */
@@ -676,7 +731,7 @@ export async function appendOrderRows(
     return { written: false, skipped: true, reason: "no_rows" };
   }
 
-  const orderKey = String(orderNumber).trim();
+  const orderKey = normalizeOrderKey(orderNumber);
   if (!orderKey) {
     throw new Error("orderNumber is required for idempotent sheet writes");
   }
@@ -706,11 +761,14 @@ export async function appendOrderRows(
 
     await ensureHeaderRow(sheets, spreadsheetId, tab);
 
-    if (
-      await orderNumberAlreadyExists(sheets, spreadsheetId, tab.title, orderKey)
-    ) {
+    const anywhere = await orderNumberExistsOnAnyOrdersTab(
+      sheets,
+      spreadsheetId,
+      orderKey
+    );
+    if (anywhere.exists) {
       console.log(
-        `${LOG} Skipping duplicate — order ${orderKey} already in sheet`
+        `${LOG} Skipping duplicate — order ${orderKey} already on "${anywhere.tabTitle}" (not re-inserting into "${tab.title}")`
       );
       return {
         written: false,
@@ -814,67 +872,35 @@ export type UpdateOrderStatusResult = {
 };
 
 /**
- * Updates Order Status on every sheet row matching the order number.
+ * Updates Order Status on matching rows across Sheet1 + all month tabs.
+ * Does not create a new row if the order only exists on an older tab.
  */
 export async function updateOrderStatuses(
   orderNumber: string | number,
   orderStatus: string
 ): Promise<UpdateOrderStatusResult> {
-  const orderKey = String(orderNumber).trim();
+  const orderKey = normalizeOrderKey(orderNumber);
   if (!orderKey) {
     return { updated: false, rowsUpdated: 0, reason: "missing_order_number" };
   }
 
   const sheets = getSheetsClient();
   const { spreadsheetId, tabOverride } = getSpreadsheetConfig();
-  const tab = await resolveOrCreateOrdersTab(
-    sheets,
-    spreadsheetId,
-    tabOverride
-  );
 
-  await ensureHeaderRow(sheets, spreadsheetId, tab);
+  const { tabs: allTabs } = await listTabs(sheets, spreadsheetId);
+  let orderTabs = ordersTabsFromList(allTabs);
 
-  const headerRes = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: sheetRange(tab.title, "A1:AZ1"),
-  });
-  const headers = (headerRes.data.values?.[0] ?? []).map((h) =>
-    String(h || "").trim()
-  );
-  const statusCol = headers.indexOf("Order Status") + 1;
-
-  if (!statusCol) {
-    console.error(`${LOG} Order Status column missing in header row`);
-    return { updated: false, rowsUpdated: 0, reason: "missing_status_columns" };
-  }
-
-  const colA = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: sheetRange(tab.title, "A:A"),
-    majorDimension: "ROWS",
-  });
-  const values = colA.data.values ?? [];
-  const rowIndexes: number[] = [];
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i]?.[0] ?? "").trim() === orderKey) {
-      rowIndexes.push(i + 1);
+  if (tabOverride) {
+    const forced = await findTabByTitle(allTabs, tabOverride);
+    if (forced && !orderTabs.some((t) => t.sheetId === forced.sheetId)) {
+      orderTabs = [forced, ...orderTabs];
     }
   }
 
-  if (!rowIndexes.length) {
-    console.log(`${LOG} No rows found for order ${orderKey} to update status`);
+  if (!orderTabs.length) {
+    await resolveOrCreateOrdersTab(sheets, spreadsheetId, tabOverride);
     return { updated: false, rowsUpdated: 0, reason: "not_found" };
   }
-
-  // Don't overwrite M&P-driven statuses (Delivered / in-transit) with generic Pending
-  const statusLetter = columnToLetter(statusCol);
-  const existingStatusRes = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId,
-    ranges: rowIndexes.map(
-      (row) => sheetRange(tab.title, `${statusLetter}${row}`)
-    ),
-  });
 
   const protectedStatuses = new Set([
     "delivered",
@@ -884,56 +910,117 @@ export async function updateOrderStatuses(
     "re-attempt advice",
   ]);
 
-  const data: { range: string; values: string[][] }[] = [];
-  for (let i = 0; i < rowIndexes.length; i++) {
-    const current = String(
-      existingStatusRes.data.valueRanges?.[i]?.values?.[0]?.[0] ?? ""
-    )
-      .trim()
-      .toLowerCase();
-    if (protectedStatuses.has(current) || current.startsWith("error:")) {
-      console.log(
-        `${LOG} Skipping Order Status overwrite on row ${rowIndexes[i]} (current: ${current})`
+  let totalUpdated = 0;
+  let foundAnywhere = false;
+  let onlyProtected = false;
+
+  for (const tab of orderTabs) {
+    await ensureHeaderRow(sheets, spreadsheetId, tab);
+
+    const headerRes = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: sheetRange(tab.title, "A1:AZ1"),
+    });
+    const headers = (headerRes.data.values?.[0] ?? []).map((h) =>
+      String(h || "").trim()
+    );
+    const statusCol = headers.indexOf("Order Status") + 1;
+    if (!statusCol) {
+      console.warn(
+        `${LOG} Order Status column missing on "${tab.title}" — skip`
       );
       continue;
     }
-    data.push({
-      range: sheetRange(tab.title, `${statusLetter}${rowIndexes[i]}`),
-      values: [[orderStatus]],
+
+    const colA = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: sheetRange(tab.title, "A:A"),
+      majorDimension: "ROWS",
     });
+    const values = colA.data.values ?? [];
+    const rowIndexes: number[] = [];
+    for (let i = 1; i < values.length; i++) {
+      if (orderKeysMatch(String(values[i]?.[0] ?? ""), orderKey)) {
+        rowIndexes.push(i + 1);
+      }
+    }
+
+    if (!rowIndexes.length) continue;
+    foundAnywhere = true;
+    console.log(
+      `${LOG} Found order ${orderKey} on "${tab.title}" (${rowIndexes.length} row(s))`
+    );
+
+    const statusLetter = columnToLetter(statusCol);
+    const existingStatusRes = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId,
+      ranges: rowIndexes.map(
+        (row) => sheetRange(tab.title, `${statusLetter}${row}`)
+      ),
+    });
+
+    const data: { range: string; values: string[][] }[] = [];
+    for (let i = 0; i < rowIndexes.length; i++) {
+      const current = String(
+        existingStatusRes.data.valueRanges?.[i]?.values?.[0]?.[0] ?? ""
+      )
+        .trim()
+        .toLowerCase();
+      if (protectedStatuses.has(current) || current.startsWith("error:")) {
+        console.log(
+          `${LOG} Skipping Order Status overwrite on "${tab.title}" row ${rowIndexes[i]} (current: ${current})`
+        );
+        onlyProtected = true;
+        continue;
+      }
+      data.push({
+        range: sheetRange(tab.title, `${statusLetter}${rowIndexes[i]}`),
+        values: [[orderStatus]],
+      });
+    }
+
+    if (!data.length) continue;
+
+    console.log(
+      `${LOG} Updating Order Status for order ${orderKey} on "${tab.title}" (${data.length} row(s)):`,
+      orderStatus
+    );
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        valueInputOption: "USER_ENTERED",
+        data,
+      },
+    });
+
+    await paintOrderStatusCells(
+      sheets,
+      spreadsheetId,
+      tab.sheetId,
+      data.map((item) => {
+        const match = item.range.match(/![A-Z]+(\d+)$/i);
+        const row1Based = match ? Number(match[1]) : 0;
+        return {
+          rowIndex0: Math.max(row1Based - 1, 0),
+          status: orderStatus,
+        };
+      })
+    );
+
+    totalUpdated += data.length;
   }
 
-  if (!data.length) {
+  if (!foundAnywhere) {
+    console.log(
+      `${LOG} No rows found for order ${orderKey} on any orders tab (Sheet1 / month tabs)`
+    );
+    return { updated: false, rowsUpdated: 0, reason: "not_found" };
+  }
+
+  if (!totalUpdated && onlyProtected) {
     return { updated: true, rowsUpdated: 0, reason: "protected_status" };
   }
 
-  console.log(
-    `${LOG} Updating Order Status for order ${orderKey} on ${data.length} row(s):`,
-    orderStatus
-  );
-
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      valueInputOption: "USER_ENTERED",
-      data,
-    },
-  });
-
-  await paintOrderStatusCells(
-    sheets,
-    spreadsheetId,
-    tab.sheetId,
-    data.map((item) => {
-      // ranges like 'Sheet1'!M12 → row 12
-      const match = item.range.match(/![A-Z]+(\d+)$/i);
-      const row1Based = match ? Number(match[1]) : 0;
-      return {
-        rowIndex0: Math.max(row1Based - 1, 0),
-        status: orderStatus,
-      };
-    })
-  );
-
-  return { updated: true, rowsUpdated: data.length };
+  return { updated: true, rowsUpdated: totalUpdated };
 }
