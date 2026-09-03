@@ -7,6 +7,7 @@ import {
   orderBy,
   doc,
   deleteDoc,
+  updateDoc,
 } from "@/lib/firebase";
 
 import type {
@@ -50,6 +51,7 @@ function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrder {
   return {
     id,
     orderNumber: data.orderNumber ?? "",
+    buyerName: data.buyerName ?? "",
     date: data.date ?? "",
     status: normalizeStatus(data.status),
     courierService: data.courierService ?? "overnight",
@@ -78,4 +80,11 @@ export async function createSalesOrder(
 
 export async function deleteSalesOrder(id: string): Promise<void> {
   await deleteDoc(doc(db, "sales-orders", id));
+}
+
+export async function updateSalesOrder(
+  id: string,
+  payload: SalesOrderPayload,
+): Promise<void> {
+  await updateDoc(doc(db, "sales-orders", id), { ...payload });
 }

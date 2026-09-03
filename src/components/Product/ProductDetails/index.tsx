@@ -10,6 +10,7 @@ import ReviewsSummary from "@/components/Product/ProductReviews/ReviewsSummary";
 // import { calculatePercentageOff } from "@/lib/utils";
 import { useProductData } from "@/hooks/useProductData";
 import { getReviews } from "@/lib/reviews";
+import { isPremiumProduct } from "@/lib/admin-products";
 import ProductTitle from "@/ui/ProductTitle";
 
 // import ProductAccordion from "./Accordion";
@@ -49,9 +50,9 @@ const ProductDescription = (props: PropTypes) => {
   }, [product.variants, selectedVariantId]);
   const currentPriceAmount =
     selectedVariant?.price?.amount || product.priceRange.minVariantPrice.amount;
-  // const comparePriceAmount =
-  //   selectedVariant?.compareAtPrice?.amount ||
-  //   product.compareAtPriceRange.maxVariantPrice.amount;
+  const comparePriceAmount =
+    selectedVariant?.compareAtPrice?.amount ||
+    product.compareAtPriceRange.maxVariantPrice.amount;
 
   return (
     <div>
@@ -82,8 +83,15 @@ const ProductDescription = (props: PropTypes) => {
         isInterleavedTitle={productData.isInterleavedTitle}
         titleSegments={productData.titleSegments}
         urduClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black font-arabic md:mt-0 mt-7"
-        englishClassName="mb-2 text-[16px] md:text-[20px] font-semibold text-black"
+        englishClassName="text-[16px] md:text-[20px] font-semibold text-black"
         mixedClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black md:mt-0 mt-7"
+        englishBadge={
+          isPremiumProduct(product.id) ? (
+            <span className="rounded-full bg-[#F6C854] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-black md:text-[12px]">
+              Premium
+            </span>
+          ) : undefined
+        }
       />
       {/* Price */}
       <div className="mb-4 pt-4">
@@ -95,7 +103,7 @@ const ProductDescription = (props: PropTypes) => {
             Rs. {productData.formatPrice(currentPriceAmount)}
           </Text>
 
-          {/* {Number(comparePriceAmount) > 0 && (
+          {Number(comparePriceAmount) > 0 && (
             <div className="">
               <Text className="text-[15px] text-black/50 font-medium">
                 was:{" "}
@@ -104,7 +112,7 @@ const ProductDescription = (props: PropTypes) => {
                 </span>
               </Text>
             </div>
-          )} */}
+          )}
         </div>
       </div>
       {/* Price */}

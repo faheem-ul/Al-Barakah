@@ -7,6 +7,7 @@ import { Button } from "@/ui/button";
 import { Product } from "@/lib/shopify/types";
 import useShoppingCart from "@/hooks/useShoppingCart";
 import Tag from "@/ui/Tag";
+import Text from "@/ui/Text";
 import { cn } from "@/lib/utils";
 
 import ProductAccordion from "./Accordion";
@@ -122,7 +123,11 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      <div className="mt-4 flex flex-col items-stretch gap-3 pt-10 md:flex-row md:items-center md:gap-4">
+      <Text className="mt-5 text-sm text-black">
+        🚚 Free Home Delivery — Pay When You Receive
+      </Text>
+
+      <div className="mt-15 flex flex-col items-stretch gap-3 md:flex-row md:items-center md:gap-4">
         <div className="flex w-full items-center justify-center gap-5 rounded-[62px] bg-[#F0F0F0] px-4 py-3 md:w-fit md:gap-[50px] md:px-[22px] md:py-[17px]">
           <MinusIcon className="cursor-pointer" onClick={onDecrease} />
           <span className="min-w-[1.25rem] text-center">{itemQuantity}</span>

@@ -56,6 +56,7 @@ export type SalesOrderCalculation = {
 export type SalesOrder = {
   id: string;
   orderNumber: string;
+  buyerName: string;
   date: string;
   status: OrderStatus;
   courierService: CourierService;
@@ -75,6 +76,7 @@ export type OrderDraftProduct = {
 
 export type OrderDraft = {
   orderNumber: string;
+  buyerName: string;
   date: string;
   status: OrderStatus;
   courierService: CourierService;

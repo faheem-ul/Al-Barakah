@@ -184,8 +184,12 @@ export function calculateSavedProducts(
   };
 }
 
-export function buildDashboardStats(orders: SalesOrder[], date: string) {
-  const todaysOrders = orders.filter((order) => order.date === date);
+export function buildDashboardStats(orders: SalesOrder[], month: string) {
+  const monthOrders = orders
+    .filter((order) => String(order.date || "").startsWith(month))
+    .sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
 
   let delivered = 0;
   let returned = 0;
@@ -196,7 +200,7 @@ export function buildDashboardStats(orders: SalesOrder[], date: string) {
   let expenses = 0;
   let netProfit = 0;
 
-  for (const order of todaysOrders) {
+  for (const order of monthOrders) {
     if (order.status === "delivered") delivered += 1;
     if (order.status === "returned") returned += 1;
     if (order.status === "pending") pending += 1;
@@ -213,7 +217,7 @@ export function buildDashboardStats(orders: SalesOrder[], date: string) {
   }
 
   return {
-    orders: todaysOrders,
+    orders: monthOrders,
     delivered,
     returned,
     pending,
@@ -222,7 +226,7 @@ export function buildDashboardStats(orders: SalesOrder[], date: string) {
     shipping,
     expenses,
     netProfit,
-    totalOrders: todaysOrders.length,
+    totalOrders: monthOrders.length,
   };
 }
 
