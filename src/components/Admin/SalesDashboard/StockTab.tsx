@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { currentMonthValue, money } from "@/lib/sales/calculations";
 import {
@@ -17,6 +18,22 @@ type StockTabProps = {
   purchases: StockPurchase[];
   onPurchasesChange: (purchases: StockPurchase[]) => void;
 };
+
+function shiftMonth(month: string, delta: number): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const date = new Date(year, monthIndex - 1 + delta, 1);
+  const nextYear = date.getFullYear();
+  const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
+}
+
+function formatMonthLabel(month: string): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  return new Date(year, monthIndex - 1, 1).toLocaleDateString("en-PK", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
 const StockTab: React.FC<StockTabProps> = ({
   purchases,
@@ -148,6 +165,36 @@ const StockTab: React.FC<StockTabProps> = ({
           onDelete={handleDelete}
           deletingId={deletingId}
         />
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[13px] text-[#6b7280]">
+            {filteredPurchases.length
+              ? `${filteredPurchases.length} purchase${filteredPurchases.length === 1 ? "" : "s"} in ${formatMonthLabel(month)}`
+              : `No purchases in ${formatMonthLabel(month)}`}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMonth((current) => shiftMonth(current, -1))}
+              aria-label="Previous month"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e7eb] text-[#374151] transition-opacity hover:bg-[#f9fafb]"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <span className="min-w-[140px] text-center text-[13px] font-medium text-[#374151]">
+              {formatMonthLabel(month)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMonth((current) => shiftMonth(current, 1))}
+              aria-label="Next month"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e7eb] text-[#374151] transition-opacity hover:bg-[#f9fafb]"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

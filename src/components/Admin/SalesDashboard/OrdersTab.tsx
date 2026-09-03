@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { calculateSavedProducts } from "@/lib/sales/calculations";
-import { createSalesOrder, deleteSalesOrder } from "@/lib/sales/orders";
+import {
+  createSalesOrder,
+  deleteSalesOrder,
+  updateSalesOrder,
+} from "@/lib/sales/orders";
 import { getProductByKey } from "@/lib/sales/products";
 import type {
   CourierService,
@@ -22,13 +26,25 @@ type OrdersTabProps = {
   onOrdersChange: (orders: SalesOrder[]) => void;
 };
 
+type OrderDraftInput = {
+  orderNumber: string;
+  buyerName: string;
+  date: string;
+  status: OrderStatus;
+  courierService: CourierService;
+  zone: CourierZone;
+  lines: { key: string; qty: number }[];
+};
+
 const OrdersTab: React.FC<OrdersTabProps> = ({
   settings,
   orders,
   onOrdersChange,
 }) => {
+  const formRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
 
   const sortedOrders = useMemo(
     () =>
@@ -38,61 +54,89 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     [orders],
   );
 
+  const buildOrderPayload = useCallback(
+    (draft: OrderDraftInput, createdAt: number) => {
+      const productsData = draft.lines
+        .map((line) => {
+          const product = getProductByKey(line.key);
+          if (!product) return null;
+          return {
+            product: product.product,
+            variant: product.variant,
+            key: product.key,
+            qty: line.qty,
+          };
+        })
+        .filter(Boolean) as SalesOrder["products"];
+
+      const calculation = calculateSavedProducts(
+        settings,
+        productsData,
+        draft.status,
+        draft.courierService,
+        draft.zone,
+      );
+
+      return {
+        orderNumber: draft.orderNumber,
+        buyerName: draft.buyerName,
+        date: draft.date,
+        status: draft.status,
+        courierService: draft.courierService,
+        zone: draft.zone,
+        products: productsData,
+        calculation,
+        createdAt,
+      };
+    },
+    [settings],
+  );
+
   const handleSave = useCallback(
-    async (draft: {
-      orderNumber: string;
-      date: string;
-      status: OrderStatus;
-      courierService: CourierService;
-      zone: CourierZone;
-      lines: { key: string; qty: number }[];
-    }) => {
+    async (draft: OrderDraftInput) => {
       setSaving(true);
       try {
-        const productsData = draft.lines
-          .map((line) => {
-            const product = getProductByKey(line.key);
-            if (!product) return null;
-            return {
-              product: product.product,
-              variant: product.variant,
-              key: product.key,
-              qty: line.qty,
-            };
-          })
-          .filter(Boolean) as SalesOrder["products"];
+        if (editingOrder) {
+          const payload = buildOrderPayload(draft, editingOrder.createdAt);
+          await updateSalesOrder(editingOrder.id, payload);
+          onOrdersChange(
+            orders.map((order) =>
+              order.id === editingOrder.id
+                ? { id: editingOrder.id, ...payload }
+                : order,
+            ),
+          );
+          setEditingOrder(null);
+          window.alert("Order updated successfully.");
+          return;
+        }
 
-        const calculation = calculateSavedProducts(
-          settings,
-          productsData,
-          draft.status,
-          draft.courierService,
-          draft.zone,
-        );
-
-        const payload = {
-          orderNumber: draft.orderNumber,
-          date: draft.date,
-          status: draft.status,
-          courierService: draft.courierService,
-          zone: draft.zone,
-          products: productsData,
-          calculation,
-          createdAt: Date.now(),
-        };
-
+        const payload = buildOrderPayload(draft, Date.now());
         const id = await createSalesOrder(payload);
         onOrdersChange([{ id, ...payload }, ...orders]);
         window.alert("Order saved successfully.");
       } catch (error) {
         console.error("Failed to save order", error);
-        window.alert("Failed to save order. Please try again.");
+        window.alert(
+          editingOrder
+            ? "Failed to update order. Please try again."
+            : "Failed to save order. Please try again.",
+        );
       } finally {
         setSaving(false);
       }
     },
-    [settings, orders, onOrdersChange],
+    [buildOrderPayload, editingOrder, orders, onOrdersChange],
   );
+
+  const handleEdit = (order: SalesOrder) => {
+    setEditingOrder(order);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingOrder(null);
+  };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this order?")) return;
@@ -100,6 +144,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     try {
       await deleteSalesOrder(id);
       onOrdersChange(orders.filter((order) => order.id !== id));
+      if (editingOrder?.id === id) {
+        setEditingOrder(null);
+      }
     } catch (error) {
       console.error("Failed to delete order", error);
       window.alert("Failed to delete order. Please try again.");
@@ -110,13 +157,23 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
 
   return (
     <div>
-      <OrderForm settings={settings} onSave={handleSave} saving={saving} />
+      <div ref={formRef}>
+        <OrderForm
+          settings={settings}
+          editOrder={editingOrder}
+          onCancelEdit={handleCancelEdit}
+          onSave={handleSave}
+          saving={saving}
+        />
+      </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
         <h2 className="text-[19px] font-semibold mb-4">All Orders</h2>
         <OrdersTable
           orders={sortedOrders}
+          onEdit={handleEdit}
           onDelete={handleDelete}
+          editingId={editingOrder?.id ?? null}
           deletingId={deletingId}
         />
       </div>

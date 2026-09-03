@@ -17,11 +17,12 @@ import type {
   CourierZone,
   OrderDraft,
   OrderStatus,
+  SalesOrder,
   SalesSettings,
 } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
-import { ORDER_DRAFT_KEY } from "./constants";
+import { BUYER_NAME_MAX_LENGTH, ORDER_DRAFT_KEY } from "./constants";
 import OrderPreview from "./OrderPreview";
 
 type ProductRow = {
@@ -32,8 +33,11 @@ type ProductRow = {
 
 type OrderFormProps = {
   settings: SalesSettings;
+  editOrder?: SalesOrder | null;
+  onCancelEdit?: () => void;
   onSave: (draft: {
     orderNumber: string;
+    buyerName: string;
     date: string;
     status: OrderStatus;
     courierService: CourierService;
@@ -68,8 +72,25 @@ function clearDraft() {
   localStorage.removeItem(ORDER_DRAFT_KEY);
 }
 
-const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
+function orderToRows(order: SalesOrder): ProductRow[] {
+  if (!order.products.length) return [emptyRow()];
+
+  return order.products.map((item) => ({
+    product: item.product,
+    variantKey: item.key,
+    qty: item.qty,
+  }));
+}
+
+const OrderForm: React.FC<OrderFormProps> = ({
+  settings,
+  editOrder = null,
+  onCancelEdit,
+  onSave,
+  saving,
+}) => {
   const [orderNumber, setOrderNumber] = useState("");
+  const [buyerName, setBuyerName] = useState("");
   const [date, setDate] = useState(todayIsoDate());
   const [status, setStatus] = useState<OrderStatus>("delivered");
   const [courierService, setCourierService] =
@@ -79,9 +100,22 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (editOrder) {
+      setOrderNumber(editOrder.orderNumber);
+      setBuyerName(editOrder.buyerName);
+      setDate(editOrder.date);
+      setStatus(editOrder.status);
+      setCourierService(editOrder.courierService);
+      setZone(editOrder.zone);
+      setRows(orderToRows(editOrder));
+      setInitialized(true);
+      return;
+    }
+
     const draft = loadDraft();
     if (draft) {
       setOrderNumber(draft.orderNumber || "");
+      setBuyerName(draft.buyerName || "");
       setDate(draft.date || todayIsoDate());
       setStatus(draft.status || "delivered");
       setCourierService(draft.courierService || "overnight");
@@ -98,12 +132,13 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
       }
     }
     setInitialized(true);
-  }, []);
+  }, [editOrder]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || editOrder) return;
     saveDraft({
       orderNumber,
+      buyerName,
       date,
       status,
       courierService,
@@ -116,12 +151,14 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
     });
   }, [
     orderNumber,
+    buyerName,
     date,
     status,
     courierService,
     zone,
     rows,
     initialized,
+    editOrder,
   ]);
 
   const lines = useMemo(
@@ -156,13 +193,13 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
 
   const removeRow = (index: number) => {
-    setRows((prev) =>
-      prev.length <= 1 ? prev : prev.filter((_, i) => i !== index),
-    );
+    if (index === 0) return;
+    setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const resetForm = () => {
     setOrderNumber("");
+    setBuyerName("");
     setDate(todayIsoDate());
     setStatus("delivered");
     setCourierService("overnight");
@@ -176,6 +213,10 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
       window.alert("Please enter order number.");
       return;
     }
+    if (!buyerName.trim()) {
+      window.alert("Please enter buyer name.");
+      return;
+    }
     if (!lines.length) {
       window.alert("Please select a product and variant.");
       return;
@@ -183,6 +224,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
 
     await onSave({
       orderNumber: orderNumber.trim(),
+      buyerName: buyerName.trim(),
       date,
       status,
       courierService,
@@ -190,14 +232,23 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
       lines,
     });
 
+    if (!editOrder) {
+      resetForm();
+    }
+  };
+
+  const handleCancelEdit = () => {
     resetForm();
+    onCancelEdit?.();
   };
 
   return (
     <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
-      <h2 className="text-[19px] font-semibold mb-4">Add New Order</h2>
+      <h2 className="text-[19px] font-semibold mb-4">
+        {editOrder ? "Edit Order" : "Add New Order"}
+      </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">
             Order Number
@@ -218,6 +269,23 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Buyer Name
+          </span>
+          <input
+            value={buyerName}
+            onChange={(e) =>
+              setBuyerName(
+                e.target.value.slice(0, BUYER_NAME_MAX_LENGTH),
+              )
+            }
+            maxLength={BUYER_NAME_MAX_LENGTH}
+            placeholder="Customer name"
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           />
         </label>
@@ -362,14 +430,16 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
 
               <div className="flex flex-col justify-end">
                 <div className="flex h-[42px] items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(index)}
-                    aria-label="Remove product"
-                    className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full bg-[#b91c1c] text-white hover:opacity-90"
-                  >
-                    <X className="size-3.5 shrink-0" strokeWidth={2.5} />
-                  </button>
+                  {index > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(index)}
+                      aria-label="Remove product"
+                      className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full bg-[#b91c1c] text-white hover:opacity-90"
+                    >
+                      <X className="size-3.5 shrink-0" strokeWidth={2.5} />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -387,15 +457,25 @@ const OrderForm: React.FC<OrderFormProps> = ({ settings, onSave, saving }) => {
 
       <OrderPreview result={preview} status={status} />
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap gap-3">
         <Button
           type="button"
           onClick={handleSave}
           isLoading={saving}
           className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90"
         >
-          Save Order
+          {editOrder ? "Update Order" : "Save Order"}
         </Button>
+        {editOrder && (
+          <Button
+            type="button"
+            onClick={handleCancelEdit}
+            disabled={saving}
+            className="rounded-lg bg-[#f3f4f6] text-[#374151] px-5 py-2.5 text-[14px] hover:opacity-90"
+          >
+            Cancel
+          </Button>
+        )}
       </div>
     </div>
   );

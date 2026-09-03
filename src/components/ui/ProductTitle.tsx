@@ -16,6 +16,7 @@ interface PropTypes {
   mixedClassName?: string;
   /** Applied to "( … kg )" weight labels only (e.g. Azadi Sale text-[17px]) */
   weightClassName?: string;
+  englishBadge?: React.ReactNode;
 }
 
 const MixedTitleLine = ({
@@ -74,6 +75,7 @@ const ProductTitle = (props: PropTypes) => {
     englishClassName,
     mixedClassName,
     weightClassName,
+    englishBadge,
   } = props;
 
   if (isInterleavedTitle) {
@@ -123,7 +125,10 @@ const ProductTitle = (props: PropTypes) => {
         <Text className={cn(urduClassName)}>{urduTitle}</Text>
       ) : null}
       {englishTitle ? (
-        <Text className={cn(englishClassName)}>{englishTitle}</Text>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Text className={cn(englishClassName, "mb-0")}>{englishTitle}</Text>
+          {englishBadge}
+        </div>
       ) : null}
     </>
   );

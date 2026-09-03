@@ -15,6 +15,8 @@ export const ADMIN_PRODUCTS = [
 
 export type AdminProductId = (typeof ADMIN_PRODUCTS)[number]["id"];
 
+export const PREMIUM_PRODUCT_ID = "8251610857612";
+
 /** Normalize Shopify GID or bare ID to numeric product id. */
 export function numericProductId(productId?: string): string {
   if (!productId) return "";
@@ -25,4 +27,8 @@ export function numericProductId(productId?: string): string {
 export function adminProductLabel(productId?: string): string | undefined {
   const id = numericProductId(productId);
   return ADMIN_PRODUCTS.find((p) => p.id === id)?.label;
+}
+
+export function isPremiumProduct(productId?: string): boolean {
+  return numericProductId(productId) === PREMIUM_PRODUCT_ID;
 }

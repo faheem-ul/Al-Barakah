@@ -9,7 +9,7 @@ export function formatOrderStatus(status: OrderStatus | string): string {
     case "pending":
       return "Pending";
     case "promotional":
-      return "Promotional Giveaway";
+      return "PR Giveaway";
     default:
       return status;
   }
