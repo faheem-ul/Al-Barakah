@@ -123,7 +123,7 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      <Text className="mt-5 text-sm text-black">
+      <Text className="mt-5 text-[16px] text-black">
         🚚 Free Home Delivery — Pay When You Receive
       </Text>
 
