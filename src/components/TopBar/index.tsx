@@ -11,7 +11,6 @@ const TopBar = () => {
   const pathname = usePathname();
 
   const isProductRoute =
-    pathname !== "/" &&
     pathname !== "/about-us" &&
     pathname !== "/contact-us" &&
     pathname !== "/cart" &&
