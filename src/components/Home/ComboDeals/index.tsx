@@ -60,7 +60,7 @@ const ComboDeals = ({ categories }: ComboDealsProps) => {
   const hasAnyProducts = availableCategoryIds.length > 0;
 
   return (
-    <section className="my-10  px-5 pt-12 md:my-16 md:px-0 pb-4 md:pb-6 md:pt-16">
+    <section className="mb-10  px-5  md:mb-16 md:px-0 pb-4 md:pb-6 ">
       <div className="text-center">
         <Text as="h1" className="text-center text-[32px] md:text-[40px]">
           Combo Deals & Bundles

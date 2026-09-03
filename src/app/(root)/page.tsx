@@ -29,7 +29,6 @@ const HomePage = async () => {
 
   return (
     <div className="mx-auto pb-1 md:max-w-7xl md:pb-20">
-      <Shop products={products.data as Product[]} />
       <ComboDeals
         categories={{
           duo: (duo.data as Product[]) ?? [],
@@ -38,6 +37,7 @@ const HomePage = async () => {
           gift: (gift.data as Product[]) ?? [],
         }}
       />
+      <Shop products={products.data as Product[]} />
       <GoogleReviews />
       {/* <Services /> */}
     </div>
