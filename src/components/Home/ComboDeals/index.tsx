@@ -1,17 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import Text from "@/ui/Text";
 import { Product } from "@/lib/shopify/types";
 
 import ComboCategory from "./ComboCategory";
-import ComboTabs from "./ComboTabs";
 import {
   COMBO_CATEGORIES,
   ComboCategoryId,
-  PROMO_ITEMS,
-  TRUST_ITEMS,
 } from "./comboConfig";
 
 export interface ComboDealsCategories {
@@ -36,31 +33,19 @@ const CATEGORY_PRODUCTS_KEY: Record<
 };
 
 const ComboDeals = ({ categories }: ComboDealsProps) => {
-  const availableCategoryIds = useMemo(
+  const sections = useMemo(
     () =>
-      COMBO_CATEGORIES.filter(
-        (config) => categories[CATEGORY_PRODUCTS_KEY[config.id]]?.length > 0
-      ).map((config) => config.id),
+      COMBO_CATEGORIES.map((config) => ({
+        config,
+        products: categories[CATEGORY_PRODUCTS_KEY[config.id]] ?? [],
+      })).filter((section) => section.products.length > 0),
     [categories]
   );
 
-  const defaultCategory =
-    availableCategoryIds[0] ?? COMBO_CATEGORIES[0].id;
-
-  const [activeCategory, setActiveCategory] =
-    useState<ComboCategoryId>(defaultCategory);
-
-  const activeConfig =
-    COMBO_CATEGORIES.find((config) => config.id === activeCategory) ??
-    COMBO_CATEGORIES[0];
-
-  const activeProducts =
-    categories[CATEGORY_PRODUCTS_KEY[activeCategory]] ?? [];
-
-  const hasAnyProducts = availableCategoryIds.length > 0;
+  const hasAnyProducts = sections.length > 0;
 
   return (
-    <section className="mb-10  px-5  md:mb-16 md:px-0 pb-4 md:pb-6 ">
+    <section className="mb-10 px-5 pb-4 md:mb-16 md:px-0 md:pb-6">
       <div className="text-center">
         <Text as="h1" className="text-center text-[32px] md:text-[40px]">
           Combo Deals & Bundles
@@ -69,36 +54,22 @@ const ComboDeals = ({ categories }: ComboDealsProps) => {
           زیادہ بچت — ملا کر خریدیں
         </Text>
         <Text className="mx-auto mt-3 max-w-xl text-[14px] text-black/60 md:text-[15px]">
-          Save more when you buy together — every combo ships with free
-          delivery.
+          <span className="font-bold text-black">
+            Every combo ships with Free Delivery
+          </span>
         </Text>
       </div>
 
-      <div className="mt-5 flex flex-wrap justify-center gap-2 md:mt-6">
-        {PROMO_ITEMS.map((item) => (
-          <span
-            key={item.label}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#e7e7e7] bg-white px-3 py-1.5 text-[12px] font-medium text-black md:text-[13px]"
-          >
-            <span aria-hidden="true">{item.icon}</span>
-            {item.label}
-          </span>
-        ))}
-      </div>
-
       {hasAnyProducts ? (
-        <>
-          <div className="mt-8">
-            <ComboTabs
-              categories={COMBO_CATEGORIES}
-              activeCategory={activeCategory}
-              onCategoryChange={setActiveCategory}
-              availableCategoryIds={availableCategoryIds}
+        <div className="mt-10 flex flex-col gap-12 md:mt-12 md:gap-16">
+          {sections.map(({ config, products }) => (
+            <ComboCategory
+              key={config.id}
+              config={config}
+              products={products}
             />
-          </div>
-
-          <ComboCategory config={activeConfig} products={activeProducts} />
-        </>
+          ))}
+        </div>
       ) : (
         <div className="mt-10 py-8 text-center">
           <Text className="text-black/50">
@@ -106,18 +77,6 @@ const ComboDeals = ({ categories }: ComboDealsProps) => {
           </Text>
         </div>
       )}
-
-      <div className="mt-12 flex flex-wrap justify-center gap-4 border-t border-[#e7e7e7] pt-8 md:mt-14 md:gap-7">
-        {TRUST_ITEMS.map((item) => (
-          <Text
-            key={item}
-            className="flex items-center gap-2 text-[13px] font-semibold text-black md:text-[14px]"
-          >
-            <span className="font-bold text-[#2E7D32]">✓</span>
-            {item}
-          </Text>
-        ))}
-      </div>
     </section>
   );
 };
