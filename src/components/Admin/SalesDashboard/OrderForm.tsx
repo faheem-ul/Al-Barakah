@@ -179,9 +179,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
             0,
             courierService,
             zone,
+            editOrder ? (editOrder.calculation.customExpenses ?? []) : undefined,
           )
         : null,
-    [settings, lines, status, courierService, zone],
+    [settings, lines, status, courierService, zone, editOrder],
   );
 
   const updateRow = (index: number, patch: Partial<ProductRow>) => {

@@ -1,12 +1,12 @@
-import type { SalesSettings } from "./types";
+import type { NumericSettingsKey, SalesSettings } from "./types";
 
 export type ProductCatalogItem = {
   key: string;
   product: string;
   variant: string;
   weight: number;
-  priceKey: keyof SalesSettings;
-  costKey: keyof SalesSettings;
+  priceKey: NumericSettingsKey;
+  costKey: NumericSettingsKey;
 };
 
 export const PRODUCTS: ProductCatalogItem[] = [

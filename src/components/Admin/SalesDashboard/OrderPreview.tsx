@@ -20,13 +20,14 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
         ? "Giveaway Expense"
         : "Order Profit";
 
-  const previewItems = [
-    { label: "Product Total", value: money(result.productRevenue) },
+  const previewItems: { key: string; label: string; value: string }[] = [
+    { key: "product-total", label: "Product Total", value: money(result.productRevenue) },
     ...(status === "promotional"
-      ? [{ label: "Actual Product Cost", value: money(result.honeyCost) }]
+      ? [{ key: "product-cost", label: "Actual Product Cost", value: money(result.honeyCost) }]
       : []),
-    { label: "Total Weight", value: `${result.weight.toFixed(2)} kg` },
+    { key: "weight", label: "Total Weight", value: `${result.weight.toFixed(2)} kg` },
     {
+      key: "customer-shipping",
       label: "Customer Shipping",
       value:
         result.customerShipping === 0
@@ -34,12 +35,20 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
           : money(result.customerShipping),
     },
     {
+      key: "cod",
       label: "COD Amount",
       value: status === "delivered" ? money(result.revenue) : "Rs. 0",
     },
-    { label: "Packing", value: money(result.packing) },
-    { label: "Actual Courier", value: money(result.courier) },
-    { label: "Expenses", value: money(result.expenses) },
+    { key: "packing", label: "Packing", value: money(result.packing) },
+    { key: "courier", label: "Actual Courier", value: money(result.courier) },
+    ...(result.customExpenses.length
+      ? result.customExpenses.map((expense) => ({
+          key: expense.id,
+          label: expense.name,
+          value: money(expense.amount),
+        }))
+      : []),
+    { key: "expenses", label: "Expenses", value: money(result.expenses) },
   ];
 
   return (
@@ -47,7 +56,7 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {previewItems.map((item) => (
           <div
-            key={item.label}
+            key={item.key}
             className="rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3"
           >
             <p className="text-[12px] text-[#6b7280]">{item.label}</p>

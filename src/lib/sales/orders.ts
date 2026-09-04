@@ -44,6 +44,7 @@ function mapCalculation(
     revenue: base.revenue ?? 0,
     expenses: base.expenses ?? 0,
     netProfit: base.netProfit ?? base.netOutcome ?? 0,
+    customExpenses: base.customExpenses ?? [],
   };
 }
 

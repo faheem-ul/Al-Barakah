@@ -9,6 +9,19 @@ export type OrderStatus = "delivered" | "returned" | "pending" | "promotional";
 export type CourierService = "overnight" | "secondDay";
 export type CourierZone = "withinCity" | "sameZone" | "diffZone";
 
+export type CustomExpense = {
+  id: string;
+  name: string;
+  amount: number;
+  enabled: boolean;
+};
+
+export type AppliedCustomExpense = {
+  id: string;
+  name: string;
+  amount: number;
+};
+
 export type SalesSettings = {
   p_m500: number;
   c_m500: number;
@@ -30,8 +43,14 @@ export type SalesSettings = {
   courierSecondDay: number;
   courierSecondDayAdditional: number;
   fac: number;
+  customExpenses: CustomExpense[];
   updatedAt?: number;
 };
+
+export type NumericSettingsKey = Exclude<
+  keyof SalesSettings,
+  "customExpenses" | "updatedAt"
+>;
 
 export type SalesOrderProduct = {
   product: string;
@@ -51,6 +70,7 @@ export type SalesOrderCalculation = {
   revenue: number;
   expenses: number;
   netProfit: number;
+  customExpenses?: AppliedCustomExpense[];
 };
 
 export type SalesOrder = {
@@ -100,6 +120,8 @@ export type OrderPreviewResult = {
   revenue: number;
   expenses: number;
   netProfit: number;
+  customExpenses: AppliedCustomExpense[];
+  customExpensesTotal: number;
 };
 
 export type ProductReportRow = {

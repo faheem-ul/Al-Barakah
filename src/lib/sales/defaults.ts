@@ -21,4 +21,5 @@ export const DEFAULT_SALES_SETTINGS: SalesSettings = {
   courierSecondDay: 300,
   courierSecondDayAdditional: 85,
   fac: 10,
+  customExpenses: [],
 };

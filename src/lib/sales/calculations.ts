@@ -1,5 +1,6 @@
 import { getProductByKey } from "./products";
 import type {
+  AppliedCustomExpense,
   CourierService,
   CourierZone,
   OrderPreviewResult,
@@ -12,6 +13,7 @@ import type {
   SalesOrderCalculation,
   SalesOrderProduct,
   SalesSettings,
+  NumericSettingsKey,
 } from "./types";
 
 export function money(value: number | undefined | null): string {
@@ -26,9 +28,55 @@ export function currentMonthValue(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
-function getSetting(settings: SalesSettings, key: keyof SalesSettings): number {
+function getSetting(settings: SalesSettings, key: NumericSettingsKey): number {
   const value = settings[key];
   return typeof value === "number" ? value : Number(value) || 0;
+}
+
+export function getEnabledCustomExpenses(
+  settings: SalesSettings,
+): AppliedCustomExpense[] {
+  return (settings.customExpenses ?? [])
+    .filter((expense) => expense.enabled && expense.name.trim() && expense.amount > 0)
+    .map(({ id, name, amount }) => ({
+      id,
+      name: name.trim(),
+      amount,
+    }));
+}
+
+function sumCustomExpenses(customExpenses: AppliedCustomExpense[]): number {
+  return customExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+}
+
+function applyPreservedCustomExpenses(
+  preview: OrderPreviewResult,
+  preservedCustomExpenses: AppliedCustomExpense[],
+  status: OrderStatus,
+): OrderPreviewResult {
+  const customExpensesTotal = sumCustomExpenses(preservedCustomExpenses);
+  const baseExpenses = preview.expenses - preview.customExpensesTotal;
+  const expenses = baseExpenses + customExpensesTotal;
+
+  let netProfit = preview.netProfit;
+
+  if (status === "delivered") {
+    netProfit = preview.revenue - expenses;
+  } else if (
+    status === "returned" ||
+    status === "promotional" ||
+    status === "pending"
+  ) {
+    netProfit = -expenses;
+  }
+
+  return {
+    ...preview,
+    customExpenses: preservedCustomExpenses,
+    customExpensesTotal,
+    expenses,
+    netProfit,
+  };
 }
 
 export function calculateCourier(
@@ -81,6 +129,7 @@ export function calculateOrderPreview(
   courierOverride = 0,
   service: CourierService = "overnight",
   zone: CourierZone = "withinCity",
+  preservedCustomExpenses?: AppliedCustomExpense[],
 ): OrderPreviewResult {
   let productRevenue = 0;
   let honeyCost = 0;
@@ -122,25 +171,40 @@ export function calculateOrderPreview(
   let revenue = 0;
   let expenses = 0;
   let netProfit = 0;
+  let customExpenses: AppliedCustomExpense[] = [];
+  let customExpensesTotal = 0;
+
+  const appliesCustomExpenses =
+    status === "delivered" ||
+    status === "returned" ||
+    status === "promotional";
+
+  if (appliesCustomExpenses) {
+    customExpenses = getEnabledCustomExpenses(settings);
+    customExpensesTotal = customExpenses.reduce(
+      (sum, expense) => sum + expense.amount,
+      0,
+    );
+  }
 
   if (status === "delivered") {
     revenue = productRevenue + customerShipping;
-    expenses = honeyCost + packing + courier;
+    expenses = honeyCost + packing + courier + customExpensesTotal;
     netProfit = revenue - expenses;
   }
 
   if (status === "returned") {
-    expenses = packing + courier;
+    expenses = packing + courier + customExpensesTotal;
     netProfit = -expenses;
   }
 
   if (status === "promotional") {
     revenue = 0;
-    expenses = honeyCost + packing + courier;
+    expenses = honeyCost + packing + courier + customExpensesTotal;
     netProfit = -expenses;
   }
 
-  return {
+  const preview: OrderPreviewResult = {
     productRevenue,
     honeyCost,
     weight,
@@ -151,7 +215,15 @@ export function calculateOrderPreview(
     revenue,
     expenses,
     netProfit,
+    customExpenses,
+    customExpensesTotal,
   };
+
+  if (preservedCustomExpenses !== undefined) {
+    return applyPreservedCustomExpenses(preview, preservedCustomExpenses, status);
+  }
+
+  return preview;
 }
 
 export function calculateSavedProducts(
@@ -160,6 +232,7 @@ export function calculateSavedProducts(
   status: OrderStatus,
   service: CourierService = "overnight",
   zone: CourierZone = "withinCity",
+  preservedCustomExpenses?: AppliedCustomExpense[],
 ): SalesOrderCalculation {
   const preview = calculateOrderPreview(
     settings,
@@ -168,6 +241,7 @@ export function calculateSavedProducts(
     0,
     service,
     zone,
+    preservedCustomExpenses,
   );
 
   return {
@@ -181,6 +255,7 @@ export function calculateSavedProducts(
     revenue: preview.revenue,
     expenses: preview.expenses,
     netProfit: preview.netProfit,
+    customExpenses: preview.customExpenses,
   };
 }
 
