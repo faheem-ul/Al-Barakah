@@ -1,7 +1,9 @@
 import { Product } from "@/lib/shopify/types";
 
-const URDU_RUN_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+/g;
-const URDU_BLOCK_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s]+/;
+const URDU_CHAR =
+  "\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF\\u200C\\u200D";
+const URDU_RUN_REGEX = new RegExp(`[${URDU_CHAR}]+`, "g");
+const URDU_BLOCK_REGEX = new RegExp(`[${URDU_CHAR}\\s]+`);
 
 export type TitleSegment = {
   text: string;
@@ -24,13 +26,18 @@ interface ProcessedProductData {
   formatPrice: (priceAmount: string) => string;
 }
 
+/**
+ * Split mixed Latin/Urdu text. Keeps spaces inside an Urdu phrase in one segment
+ * so Arabic letter shaping (e.g. final د in شہد) stays correct.
+ */
 export const splitTitleSegments = (title: string): TitleSegment[] => {
+  const urduChunk = new RegExp(`([${URDU_CHAR}][${URDU_CHAR}\\s]*)`, "g");
   return title
-    .split(/([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]+)/)
+    .split(urduChunk)
     .filter((part) => part.length > 0)
     .map((text) => ({
       text,
-      isUrdu: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text),
+      isUrdu: new RegExp(`[${URDU_CHAR}]`).test(text),
     }));
 };
 
