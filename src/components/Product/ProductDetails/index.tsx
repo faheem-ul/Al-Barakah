@@ -12,6 +12,14 @@ import { useProductData } from "@/hooks/useProductData";
 import { getReviews } from "@/lib/reviews";
 import { isPremiumProduct } from "@/lib/admin-products";
 import ProductTitle from "@/ui/ProductTitle";
+import {
+  getComboCategoryForProduct,
+  isComboProduct,
+} from "@/components/Home/ComboDeals/comboConfig";
+import {
+  formatComboText,
+  MixedScriptText,
+} from "@/components/Home/ComboDeals/comboText";
 
 // import ProductAccordion from "./Accordion";
 import ProductVariantSelector from "./ProductVariantSelector";
@@ -28,6 +36,15 @@ const ProductDescription = (props: PropTypes) => {
   const { product, selectedVariantId, onVariantChange } = props;
   const productData = useProductData(product);
   const [reviewCount, setReviewCount] = useState<number>(0);
+  const isCombo = isComboProduct(product);
+  const comboCategory = isCombo
+    ? getComboCategoryForProduct(product)
+    : undefined;
+  const comboProductName = isCombo ? formatComboText(product.title || "") : "";
+  const comboDescription =
+    isCombo && product.description?.trim()
+      ? formatComboText(product.description)
+      : "";
 
   useEffect(() => {
     let mounted = true;
@@ -76,25 +93,52 @@ const ProductDescription = (props: PropTypes) => {
           <ReviewsSummary productId={product.id} />
         </div>
       </div>
-      {/* Product title — Urdu uses font-arabic; interleaved titles keep one mixed line */}
-      <ProductTitle
-        urduTitle={productData.urduTitle}
-        englishTitle={productData.englishTitle}
-        isInterleavedTitle={productData.isInterleavedTitle}
-        titleSegments={productData.titleSegments}
-        urduClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black font-arabic md:mt-0 mt-7"
-        englishClassName="text-[16px] md:text-[20px] font-semibold text-black"
-        mixedClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black md:mt-0 mt-7"
-        englishBadge={
-          isPremiumProduct(product.id) ? (
-            <span className="rounded-full bg-[#F6C854] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-black md:text-[12px]">
-              Premium
-            </span>
-          ) : undefined
-        }
-      />
+      {/* Combo: config title → product name → multi-line description */}
+      {isCombo ? (
+        <div className="md:mt-0 mt-7">
+          {comboCategory?.title ? (
+            <Text className="mb-2 text-[28px] font-bold text-black md:text-[35px]">
+              {comboCategory.title}
+            </Text>
+          ) : null}
+          {comboProductName ? (
+            <MixedScriptText
+              text={comboProductName}
+              align="start"
+              className="mb-2 overflow-visible pt-5 text-[16px] font-semibold text-black md:text-[20px]"
+              urduClassName="px-0.5"
+            />
+          ) : null}
+          {comboDescription ? (
+            <MixedScriptText
+              text={comboDescription}
+              align="start"
+              className="mb-1 overflow-visible text-[14px] leading-relaxed text-black/65 md:text-[16px]"
+              urduClassName="px-0.5 text-[15px] text-black/70 md:text-[17px]"
+              latinClassName="tracking-tight"
+            />
+          ) : null}
+        </div>
+      ) : (
+        <ProductTitle
+          urduTitle={productData.urduTitle}
+          englishTitle={productData.englishTitle}
+          isInterleavedTitle={productData.isInterleavedTitle}
+          titleSegments={productData.titleSegments}
+          urduClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black font-arabic md:mt-0 mt-7"
+          englishClassName="text-[16px] md:text-[20px] font-semibold text-black"
+          mixedClassName="mb-2 text-[28px] md:text-[35px] font-bold text-black md:mt-0 mt-7"
+          englishBadge={
+            isPremiumProduct(product.id) ? (
+              <span className="rounded-full bg-[#F6C854] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-black md:text-[12px]">
+                Premium
+              </span>
+            ) : undefined
+          }
+        />
+      )}
       {/* Price */}
-      <div className="mb-4 pt-4">
+      <div className="pt-10">
         <div className="flex items-end gap-3 mb-2">
           <Text className="text-[18px] text-black font-semibold w-[75px]">
             Price:

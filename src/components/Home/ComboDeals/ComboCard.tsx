@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import Text from "@/ui/Text";
 import { Button } from "@/ui/button";
 import { Product } from "@/lib/shopify/types";
-import { useProductData, splitTitleSegments } from "@/hooks/useProductData";
+import { useProductData } from "@/hooks/useProductData";
 import useShoppingCart from "@/hooks/useShoppingCart";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,11 @@ import {
   getRibbonForProduct,
   isFeaturedCombo,
 } from "./comboConfig";
+import {
+  formatComboText,
+  getComboContents,
+  MixedScriptText,
+} from "./comboText";
 import { WHATSAPP_SUPPORT_PHONE } from "@/lib/constants";
 
 interface ComboCardProps {
@@ -26,169 +31,10 @@ interface ComboCardProps {
 }
 
 const RIBBON_STYLES: Record<RibbonVariant, string> = {
-  popular: "bg-[#E9A319] text-[#3a2b06]",
+  popular: "bg-[#E9A319] text-white",
   best: "bg-[#8FB69F] text-white",
   gift: "bg-[#7A4E9E] text-white",
   biggest: "bg-[#8FB69F] text-white",
-};
-
-const normalizeContents = (raw: string) =>
-  raw
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\u00a0/g, " ")
-    // "( kg 1/2 … )" → "(1/2 kg … )" so Latin stays LTR-friendly
-    .replace(/\(\s*kg\s*(1\s*\/\s*2|0\.5)\s+/gi, "(1/2 kg ")
-    .replace(/\(\s*kg\s+(\d+(?:\.\d+)?)\s+/gi, "($1 kg ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const WEIGHT_AT_START = /^\([^)]*(?:kg|KG|Kg)[^)]*\)/;
-
-/**
- * Force layout:
- *   line 1 — product name (Urdu / Latin)
- *   line 2 — weight label like "(1/2 kg ہر ایک)"
- * If Shopify put weight in the middle, Urdu after the (…) is pulled back onto line 1.
- */
-const splitNameAndWeight = (raw: string) => {
-  const normalized = normalizeContents(raw);
-  if (!normalized) return "";
-
-  const match = normalized.match(
-    /^(.*?)\s*(\([^)]*(?:kg|KG|Kg)[^)]*\))\s*(.*)$/
-  );
-  if (!match) return normalized;
-
-  const before = match[1].trim();
-  const weight = match[2].trim();
-  const after = match[3].trim();
-  const name = [before, after].filter(Boolean).join(" ").trim();
-
-  if (!name) return weight;
-  return `${name}\n${weight}`;
-};
-
-/**
- * Preferred Mix layout (one honey + weight per line):
- *   (1kg) بڑی مکھی کا جنگلی شہد
- *   (1/2kg) چھوٹی مکھی کا جنگلی شہد
- */
-const formatComboText = (raw: string) => {
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) =>
-      normalizeContents(line)
-        .replace(/\s*\+\s*$/g, "")
-        .trim()
-    )
-    .filter(Boolean);
-
-  if (!lines.length) return "";
-
-  const startsWithWeight = lines.filter((l) => WEIGHT_AT_START.test(l));
-
-  // Multiple "(weight) name" lines from Shopify — keep exactly as lines
-  if (
-    startsWithWeight.length >= 2 ||
-    (lines.length >= 2 && WEIGHT_AT_START.test(lines[0]))
-  ) {
-    return lines.join("\n");
-  }
-
-  // Name on line 1, "(weight)" alone on line 2
-  if (lines.length >= 2 && /^\([^)]*\)$/.test(lines[1])) {
-    return splitNameAndWeight(`${lines[0]} ${lines[1]}`);
-  }
-
-  const joined = lines.join(" ");
-  const weightMatches = joined.match(/\([^)]*(?:kg|KG|Kg)[^)]*\)/g) || [];
-
-  // One string with several weights — split into one line per weight block
-  if (weightMatches.length >= 2) {
-    return joined
-      .split(/(?=\([^)]*(?:kg|KG|Kg)[^)]*\))/)
-      .map((part) => part.replace(/\s*\+\s*/g, " ").trim())
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  return splitNameAndWeight(joined);
-};
-
-const getContents = (product: Product) => {
-  const raw = product.description || product.title || "";
-  return formatComboText(raw);
-};
-
-/** Render mixed Urdu/Latin; keep (…) weight labels as LTR so brackets don't flip. */
-const MixedScriptText = ({
-  text,
-  className,
-  urduClassName,
-  latinClassName,
-}: {
-  text: string;
-  className?: string;
-  urduClassName?: string;
-  latinClassName?: string;
-}) => {
-  const lines = text.split(/\n/).filter((line) => line.trim().length > 0);
-
-  return (
-    <div className={cn(className)}>
-      {lines.map((line, lineIndex) => {
-        const chunks = line.split(/(\([^)]*\))/g).filter((c) => c.length > 0);
-
-        return (
-          <p
-            key={`line-${lineIndex}`}
-            className={cn(
-              "overflow-visible text-center",
-              lineIndex > 0 && "mt-0.5",
-              WEIGHT_AT_START.test(line) &&
-                "whitespace-nowrap text-[10px] md:text-[12px]"
-            )}
-          >
-            {chunks.map((chunk, chunkIndex) => {
-              const isParen = /^\([^)]*\)$/.test(chunk);
-              const segments = splitTitleSegments(chunk);
-
-              const inner = segments.map((segment, segmentIndex) => (
-                <span
-                  key={`${lineIndex}-${chunkIndex}-${segmentIndex}`}
-                  lang={segment.isUrdu ? "ur" : undefined}
-                  className={
-                    segment.isUrdu
-                      ? cn("font-arabic inline", urduClassName)
-                      : cn("font-poppins inline", latinClassName)
-                  }
-                >
-                  {segment.text}
-                </span>
-              ));
-
-              if (isParen) {
-                return (
-                  <span
-                    key={`${lineIndex}-paren-${chunkIndex}`}
-                    dir="ltr"
-                    className="inline-block whitespace-nowrap px-0.5"
-                    style={{ unicodeBidi: "isolate" }}
-                  >
-                    {inner}
-                  </span>
-                );
-              }
-
-              return (
-                <span key={`${lineIndex}-chunk-${chunkIndex}`}>{inner}</span>
-              );
-            })}
-          </p>
-        );
-      })}
-    </div>
-  );
 };
 
 const ComboCard = ({ product, categoryId }: ComboCardProps) => {
@@ -199,7 +45,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
   const variant = product.variants[0];
   const ribbon = getRibbonForProduct(categoryId, product.handle);
   const featured = isFeaturedCombo(categoryId, product.handle);
-  const contents = getContents(product);
+  const contents = getComboContents(product);
   const normalizedTitle = formatComboText(product.title || "");
 
   const compareAmount = variant?.compareAtPrice?.amount || comparePrice;
@@ -259,7 +105,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
   return (
     <div
       className={cn(
-        "relative flex h-full w-full flex-col rounded-[16px] border border-[#e7e7e7] bg-white p-3 transition-shadow duration-200 md:p-5",
+        "relative flex h-full w-full flex-col rounded-[16px] border border-[#e7e7e7] bg-white transition-shadow duration-200 pb-3",
         // featured
         //   ? "border-black shadow-[0_8px_24px_-16px_rgba(0,0,0,0.25)]"
         //   : "border-[#e7e7e7] hover:border-black/20 hover:shadow-[0_14px_30px_-18px_rgba(0,0,0,0.12)]",
@@ -311,22 +157,22 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
         />
       </Link>
 
-      <div className="mt-auto pt-3">
-        <div className="flex justify-center px-1 md:px-4">
-          <div className="flex flex-col items-start">
+      <div className="mt-auto px-5">
+        <div className="flex justify-center px-1 md:px-0 w-full max-w-full">
+          <div className="flex flex-col items-start w-full max-w-full justify-between">
             {Number(compareAmount) > 0 && (
               <Text className="font-poppins text-[10px] font-semibold text-black/50 line-through md:text-[13.2px]">
                 was: {formatPrice(compareAmount)}
               </Text>
             )}
-            <div className="mt-0.5 flex items-center gap-2 md:gap-[30px]">
+            <div className="mt-0.5 flex items-center gap-2 md:gap-[30px] w-full max-w-full justify-between">
               <Text className="text-primary-foreground shrink-0 text-[15px] font-semibold md:text-[19px]">
                 Rs. {formatPrice(priceAmount)}
               </Text>
 
               {savings > 0 && (
-                <span className="shrink-0 text-[11px] font-bold text-black md:text-[13px]">
-                  Save Rs {formatPrice(String(savings))}
+                <span className="shrink-0 rounded-full bg-[#EBEBEB] px-2 py-0.5 text-[11px] font-bold text-black shadow-sm md:px-2.5 md:text-[13px]">
+                  Save Rs. {formatPrice(String(savings))}
                 </span>
               )}
             </div>
@@ -334,8 +180,8 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
         </div>
 
         <Text className="mt-2 flex items-center justify-center">
-          <span className="rounded-full bg-[#F6C854] px-2.5 py-1 text-[11px] font-semibold text-black md:px-3 md:text-[12px]">
-            Free Delivery
+          <span className="rounded-full font-bold px-2.5 py-1 text-[11px] text-black md:px-3 md:text-[12px]">
+            🚚 Free Delivery
           </span>
         </Text>
 

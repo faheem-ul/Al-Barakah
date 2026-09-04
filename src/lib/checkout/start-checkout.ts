@@ -10,6 +10,7 @@ import {
 } from "@/lib/checkout/build-permalink";
 
 export type StartCheckoutItem = {
+  id?: string | number | null;
   variantId?: string | null;
   quantity: number;
 };
@@ -28,6 +29,7 @@ export async function startCheckoutWithOptionalLocation(
     .map((item) => ({
       variantId: item.variantId as string,
       quantity: item.quantity,
+      productId: item.id != null ? String(item.id) : undefined,
     }));
 
   const permalinkItems = lineItems.map((item) => ({

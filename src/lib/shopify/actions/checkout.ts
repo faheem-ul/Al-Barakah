@@ -2,15 +2,26 @@
 
 import { stringifyLog } from "@/lib/utils";
 import type { PrefillShippingAddress } from "@/lib/geo/reverse-geocode";
+import { isComboProduct } from "@/components/Home/ComboDeals/comboConfig";
+import { getComboDescriptionLines } from "@/components/Home/ComboDeals/comboTextFormat";
 import { shopifyFetch } from "..";
 import {
   cartCreateMutation,
   cartDeliveryAddressesAddMutation,
 } from "../mutations/cart";
+import { getCartProducts } from "./product";
+
+export type CheckoutLineAttribute = {
+  key: string;
+  value: string;
+};
 
 export type CheckoutLineItem = {
   variantId: string;
   quantity: number;
+  /** Shopify product GID — used to attach combo description on checkout */
+  productId?: string;
+  attributes?: CheckoutLineAttribute[];
 };
 
 type CreateCheckoutResult = {
@@ -23,20 +34,90 @@ function toMerchandiseGid(variantId: string): string {
   return `gid://shopify/ProductVariant/${variantId}`;
 }
 
+function toProductGid(productId: string): string {
+  if (productId.startsWith("gid://")) return productId;
+  return `gid://shopify/Product/${productId}`;
+}
+
+/**
+ * Build visible line attributes for Shopify checkout (shown under product title).
+ * One attribute per description line so checkout stacks them like the PDP.
+ */
+function buildComboCheckoutAttributes(
+  description: string | undefined | null,
+): CheckoutLineAttribute[] {
+  if (!description?.trim()) return [];
+
+  const lines = getComboDescriptionLines(description);
+  if (!lines.length) return [];
+
+  return lines.map((line, index) => ({
+    key: lines.length === 1 ? "Includes" : `Includes ${index + 1}`,
+    value: line,
+  }));
+}
+
+async function withComboAttributes(
+  lineItems: CheckoutLineItem[],
+): Promise<
+  {
+    variantId: string;
+    quantity: number;
+    attributes?: CheckoutLineAttribute[];
+  }[]
+> {
+  const productIds = Array.from(
+    new Set(
+      lineItems
+        .map((item) => item.productId)
+        .filter((id): id is string => Boolean(id))
+        .map(toProductGid),
+    ),
+  );
+
+  if (productIds.length === 0) {
+    return lineItems.map((item) => ({
+      variantId: toMerchandiseGid(item.variantId),
+      quantity: item.quantity,
+      attributes: item.attributes,
+    }));
+  }
+
+  const productsResult = await getCartProducts(productIds);
+  const products = productsResult.success ? productsResult.data ?? [] : [];
+
+  return lineItems.map((item) => {
+    const product = products.find(
+      (p) =>
+        p.id === item.productId ||
+        p.id === toProductGid(String(item.productId || "")),
+    );
+
+    const comboAttributes =
+      product && isComboProduct(product)
+        ? buildComboCheckoutAttributes(product.description)
+        : [];
+
+    return {
+      variantId: toMerchandiseGid(item.variantId),
+      quantity: item.quantity,
+      attributes:
+        comboAttributes.length > 0 ? comboAttributes : item.attributes,
+    };
+  });
+}
+
 /**
  * Create a Storefront cart and optionally attach a selected delivery address.
  * Returns the checkoutUrl from AFTER the address mutation (key can change).
  */
 export async function createCheckoutWithOptionalAddress(
   lineItems: CheckoutLineItem[],
-  shippingAddress?: PrefillShippingAddress | null
+  shippingAddress?: PrefillShippingAddress | null,
 ): Promise<CreateCheckoutResult> {
-  const lines = lineItems
-    .filter((item) => item.variantId && item.quantity > 0)
-    .map((item) => ({
-      variantId: toMerchandiseGid(item.variantId),
-      quantity: item.quantity,
-    }));
+  const lines = (await withComboAttributes(lineItems)).filter(
+    (item) => item.variantId && item.quantity > 0,
+  );
 
   if (lines.length === 0) {
     return { checkoutUrl: "", usedAddress: false };
@@ -54,7 +135,7 @@ export async function createCheckoutWithOptionalAddress(
   const withAddress = await attachDeliveryAddress(
     created.id,
     created.checkoutUrl,
-    shippingAddress
+    shippingAddress,
   );
 
   return {
@@ -64,7 +145,11 @@ export async function createCheckoutWithOptionalAddress(
 }
 
 async function createCart(
-  lines: { variantId: string; quantity: number }[]
+  lines: {
+    variantId: string;
+    quantity: number;
+    attributes?: CheckoutLineAttribute[];
+  }[],
 ): Promise<{ id: string; checkoutUrl: string } | null> {
   try {
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -75,6 +160,9 @@ async function createCart(
           lines: lines.map((line) => ({
             merchandiseId: line.variantId,
             quantity: line.quantity,
+            ...(line.attributes?.length
+              ? { attributes: line.attributes }
+              : {}),
           })),
           buyerIdentity: {
             countryCode: "PK",
@@ -103,7 +191,7 @@ async function createCart(
 async function attachDeliveryAddress(
   cartId: string,
   fallbackCheckoutUrl: string,
-  shippingAddress: PrefillShippingAddress
+  shippingAddress: PrefillShippingAddress,
 ): Promise<{ checkoutUrl: string; usedAddress: boolean }> {
   try {
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
