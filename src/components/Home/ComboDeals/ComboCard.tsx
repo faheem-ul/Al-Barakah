@@ -105,7 +105,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
   return (
     <div
       className={cn(
-        "relative flex h-full w-full flex-col rounded-[16px] border border-[#e7e7e7] bg-white transition-shadow duration-200 pb-3",
+        "relative flex h-full min-w-0 w-full flex-col rounded-[16px] border border-[#e7e7e7] bg-white transition-shadow duration-200 pb-3",
         // featured
         //   ? "border-black shadow-[0_8px_24px_-16px_rgba(0,0,0,0.25)]"
         //   : "border-[#e7e7e7] hover:border-black/20 hover:shadow-[0_14px_30px_-18px_rgba(0,0,0,0.12)]",
@@ -122,7 +122,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
         </span>
       )}
 
-      <Link href={`/${product.handle}`} className="block">
+      <Link href={`/${product.handle}`} className="block min-w-0 max-w-full">
         <div className="relative mb-3 overflow-hidden rounded-[12px] bg-[#f5f5f5] md:mb-4">
           <Image
             src={image}
@@ -144,20 +144,21 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
 
         <MixedScriptText
           text={normalizedTitle}
-          className="overflow-visible px-0.5 text-[13px] font-bold text-black md:text-[17px]"
+          className="min-w-0 max-w-full break-words px-0.5 text-[13px] font-bold text-black md:overflow-visible md:text-[17px]"
           urduClassName="px-0.5"
           latinClassName=""
         />
 
         <MixedScriptText
           text={contents}
-          className="mt-0.5 min-h-[28px] overflow-visible px-0.5 text-[11px] leading-relaxed text-black/60 md:mt-1 md:min-h-[34px] md:text-[13px]"
+          stackWeightOnMobile
+          className="mt-0.5 min-h-[28px] min-w-0 max-w-full break-words px-0.5 text-[11px] leading-relaxed text-black/60 md:mt-1 md:min-h-[34px] md:overflow-visible md:text-[13px]"
           urduClassName="px-0.5 text-[12px] text-black/70 md:text-[14px]"
           latinClassName="tracking-tight"
         />
       </Link>
 
-      <div className="mt-auto px-5">
+      <div className="mt-auto px-[0px] md:px-5">
         <div className="flex justify-center px-1 md:px-0 w-full max-w-full">
           <div className="flex flex-col items-start w-full max-w-full justify-between mt-4">
             {Number(compareAmount) > 0 && (
@@ -171,7 +172,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
               </Text>
 
               {savings > 0 && (
-                <span className="shrink-0 rounded-full bg-[#EBEBEB] px-2 py-0.5 text-[11px] font-bold text-black shadow-sm md:px-2.5 md:text-[13px]">
+                <span className="shrink-0 rounded-full bg-[#EBEBEB] px-2 py-0.5 text-[10px] font-bold text-black shadow-sm md:px-2.5 md:text-[13px]">
                   Save Rs. {formatPrice(String(savings))}
                 </span>
               )}
@@ -187,7 +188,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
 
         <Button
           type="button"
-          className="mt-2 w-full justify-center rounded-full bg-black py-2.5 text-[12px] font-semibold text-white hover:bg-black/85 md:mt-3 md:py-3 md:text-[14px]"
+          className="max-w-[150px] md:max-w-full mx-auto mt-2 w-full justify-center rounded-full bg-black py-2.5 text-[12px] font-semibold text-white hover:bg-black/85 md:mt-3 md:py-3 md:text-[14px]"
           onClick={onAddToCart}
         >
           Add to Cart
