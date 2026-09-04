@@ -34,7 +34,7 @@ const ComboTabs = ({
             type="button"
             onClick={() => onCategoryChange(category.id)}
             className={cn(
-              "flex min-h-[52px] min-w-[132px] flex-col items-center justify-center rounded-full border-[1.5px] px-5 py-2.5 text-center transition-colors sm:min-w-[148px] md:min-h-[56px] md:px-6",
+              "flex min-h-[52px] min-w-[132px] cursor-pointer flex-col items-center justify-center rounded-full border-[1.5px] px-5 py-2.5 text-center transition-colors sm:min-w-[148px] md:min-h-[56px] md:px-6",
               isActive
                 ? "border-[#C6870F] bg-[#C6870F] text-white"
                 : "border-[#EDE4D3] bg-transparent text-[#6B5D4D] hover:border-[#C6870F]"

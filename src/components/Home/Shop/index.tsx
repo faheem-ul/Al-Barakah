@@ -21,7 +21,7 @@ const Shop = (props: PropTypes) => {
   return (
     <div>
       <Text as="h1" className="text-center text-[40px]">
-        Shop
+        Buy Individual Jars
       </Text>
 
       <div className="mt-5 mb-10 grid grid-cols-2 justify-items-center gap-3 px-5 sm:mt-[53px] md:flex md:flex-wrap md:justify-center md:gap-8 md:px-0">
