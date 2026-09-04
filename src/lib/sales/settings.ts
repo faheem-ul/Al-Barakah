@@ -1,11 +1,12 @@
 import { db, doc, getDoc, setDoc } from "@/lib/firebase";
 
 import { DEFAULT_SALES_SETTINGS } from "./defaults";
-import type { SalesSettings } from "./types";
+import type { CustomExpense, NumericSettingsKey, SalesSettings } from "./types";
 
 const SETTINGS_DOC_PATH = ["sales-settings", "default"] as const;
+const MAX_CUSTOM_EXPENSES = 20;
 
-const NUMERIC_KEYS: (keyof SalesSettings)[] = [
+const NUMERIC_KEYS: NumericSettingsKey[] = [
   "p_m500",
   "c_m500",
   "p_m1000",
@@ -28,6 +29,32 @@ const NUMERIC_KEYS: (keyof SalesSettings)[] = [
   "fac",
 ];
 
+function normalizeCustomExpenses(raw: unknown): CustomExpense[] {
+  if (!Array.isArray(raw)) return [];
+
+  const expenses: CustomExpense[] = [];
+
+  for (const item of raw.slice(0, MAX_CUSTOM_EXPENSES)) {
+    if (!item || typeof item !== "object") continue;
+
+    const record = item as Partial<CustomExpense>;
+    const name = String(record.name ?? "").trim();
+    if (!name) continue;
+
+    expenses.push({
+      id:
+        typeof record.id === "string" && record.id
+          ? record.id
+          : crypto.randomUUID(),
+      name: name.slice(0, 40),
+      amount: Math.max(0, Number(record.amount) || 0),
+      enabled: record.enabled !== false,
+    });
+  }
+
+  return expenses;
+}
+
 function normalizeSettings(data: Partial<SalesSettings>): SalesSettings {
   const normalized = { ...DEFAULT_SALES_SETTINGS };
 
@@ -41,6 +68,8 @@ function normalizeSettings(data: Partial<SalesSettings>): SalesSettings {
   if (typeof data.updatedAt === "number") {
     normalized.updatedAt = data.updatedAt;
   }
+
+  normalized.customExpenses = normalizeCustomExpenses(data.customExpenses);
 
   return normalized;
 }

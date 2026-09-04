@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 
 import { PRODUCTS } from "@/lib/sales/products";
-import type { SalesSettings } from "@/lib/sales/types";
+import type { CustomExpense, NumericSettingsKey, SalesSettings } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type SettingsTabProps = {
@@ -14,7 +14,7 @@ type SettingsTabProps = {
 };
 
 const SHIPPING_FIELDS: {
-  key: keyof SalesSettings;
+  key: NumericSettingsKey;
   label: string;
 }[] = [
   { key: "freeThreshold", label: "Free Shipping Above" },
@@ -38,11 +38,50 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
 }) => {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
-  const updateField = (key: keyof SalesSettings, raw: string) => {
+  const updateField = (key: NumericSettingsKey, raw: string) => {
     setSaveMessage(null);
     onChange({
       ...settings,
       [key]: Number(raw) || 0,
+    });
+  };
+
+  const updateCustomExpense = (
+    id: string,
+    patch: Partial<Pick<CustomExpense, "name" | "amount" | "enabled">>,
+  ) => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      customExpenses: (settings.customExpenses ?? []).map((expense) =>
+        expense.id === id ? { ...expense, ...patch } : expense,
+      ),
+    });
+  };
+
+  const addCustomExpense = () => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      customExpenses: [
+        ...(settings.customExpenses ?? []),
+        {
+          id: crypto.randomUUID(),
+          name: "",
+          amount: 0,
+          enabled: true,
+        },
+      ],
+    });
+  };
+
+  const removeCustomExpense = (id: string) => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      customExpenses: (settings.customExpenses ?? []).filter(
+        (expense) => expense.id !== id,
+      ),
     });
   };
 
@@ -104,7 +143,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       </div>
 
-      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
         <h2 className="text-[19px] font-semibold mb-4">
           Shipping & Courier Settings
         </h2>
@@ -128,6 +167,111 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
           to 3kg plus Rs. 85 per additional kg. FAC is added at the configured
           percentage (default 10%) to the courier charge. Returned orders use
           the same Packing Cost / Unit and Actual Courier only.
+        </p>
+      </div>
+
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[19px] font-semibold">Custom Expenses</h2>
+          <Button
+            type="button"
+            onClick={addCustomExpense}
+            className="rounded-md border border-[#e5e7eb] bg-white text-black text-[14px] px-4 py-2 hover:bg-[#f9fafb]"
+          >
+            Add Expense
+          </Button>
+        </div>
+
+        {!settings.customExpenses?.length ? (
+          <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280] text-[14px]">
+            No custom expenses yet. Add one to include fixed per-order costs on
+            the order form.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-[14px]">
+              <thead>
+                <tr className="border-b border-[#e5e7eb] text-[#6b7280]">
+                  <th className="py-3 pr-3 font-medium">Expense Name</th>
+                  <th className="py-3 pr-3 font-medium w-[140px]">
+                    Amount (Rs.)
+                  </th>
+                  <th className="py-3 pr-3 font-medium w-[100px] text-center">
+                    Enabled
+                  </th>
+                  <th className="py-3 font-medium w-[100px] text-right">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {settings.customExpenses.map((expense) => (
+                  <tr
+                    key={expense.id}
+                    className="border-b border-[#f3f4f6] last:border-b-0"
+                  >
+                    <td className="py-3 pr-3">
+                      <input
+                        type="text"
+                        maxLength={40}
+                        value={expense.name}
+                        onChange={(e) =>
+                          updateCustomExpense(expense.id, {
+                            name: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. Handling Fee"
+                        className="w-full min-w-[180px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={expense.amount}
+                        onChange={(e) =>
+                          updateCustomExpense(expense.id, {
+                            amount: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[120px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <label className="flex items-center justify-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={expense.enabled}
+                          onChange={(e) =>
+                            updateCustomExpense(expense.id, {
+                              enabled: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 rounded border-[#d1d5db] accent-black"
+                          aria-label={`Enable ${expense.name || "expense"}`}
+                        />
+                      </label>
+                    </td>
+                    <td className="py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeCustomExpense(expense.id)}
+                        className="text-[13px] font-medium text-[#b91c1c] hover:text-[#991b1b] hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="mt-4 text-[12px] text-[#6b7280]">
+          Fixed amount per order. Check Enabled to show on the order form and
+          include in calculations for upcoming orders. Uncheck to hide and
+          exclude.
         </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">

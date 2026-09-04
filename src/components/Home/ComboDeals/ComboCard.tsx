@@ -159,7 +159,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
 
       <div className="mt-auto px-5">
         <div className="flex justify-center px-1 md:px-0 w-full max-w-full">
-          <div className="flex flex-col items-start w-full max-w-full justify-between">
+          <div className="flex flex-col items-start w-full max-w-full justify-between mt-4">
             {Number(compareAmount) > 0 && (
               <Text className="font-poppins text-[10px] font-semibold text-black/50 line-through md:text-[13.2px]">
                 was: {formatPrice(compareAmount)}
