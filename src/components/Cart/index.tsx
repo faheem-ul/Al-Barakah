@@ -22,6 +22,11 @@ import {
   splitTitleSegments,
 } from "@/hooks/useProductData";
 import ProductTitle from "@/ui/ProductTitle";
+import { isComboProduct } from "@/components/Home/ComboDeals/comboConfig";
+import {
+  formatComboText,
+  MixedScriptText,
+} from "@/components/Home/ComboDeals/comboText";
 import { startCheckoutWithOptionalLocation } from "@/lib/checkout/start-checkout";
 
 import { CartItem as DefaultCartItem } from "@/types";
@@ -204,6 +209,38 @@ const Cart = (props: PropTypes) => {
 
                 <div>
                   {(() => {
+                    if (isComboProduct(product)) {
+                      const comboName = formatComboText(product.title || "");
+                      const comboDescription = product.description?.trim()
+                        ? formatComboText(product.description)
+                        : "";
+
+                      return (
+                        <>
+                          <MixedScriptText
+                            text={comboName}
+                            align="start"
+                            className="mb-1 overflow-visible text-[20px] font-bold text-black md:mb-2 md:text-[30px]"
+                            urduClassName="px-0.5"
+                          />
+                          {comboDescription ? (
+                            <MixedScriptText
+                              text={comboDescription}
+                              align="start"
+                              className="mb-2 overflow-visible text-[12px] leading-relaxed text-black/65 md:text-[14px]"
+                              urduClassName="px-0.5 text-[13px] text-black/70 md:text-[15px]"
+                              latinClassName="tracking-tight"
+                            />
+                          ) : null}
+                          {weight && (
+                            <Text className="text-[12px] text-black/60">
+                              ({weight})
+                            </Text>
+                          )}
+                        </>
+                      );
+                    }
+
                     const { urdu, english } = separateTitle(product.title);
                     const interleaved = isInterleavedProductTitle(
                       product.title

@@ -16,6 +16,11 @@ import { MinusIcon, PlusIcon } from "@/ui/Icons";
 import EmptyCart from "@/components/Cart/EmptyCart";
 import { formatPrice } from "@/lib/utils/shopify";
 import { startCheckoutWithOptionalLocation } from "@/lib/checkout/start-checkout";
+import { isComboProduct } from "@/components/Home/ComboDeals/comboConfig";
+import {
+  formatComboText,
+  MixedScriptText,
+} from "@/components/Home/ComboDeals/comboText";
 
 // interface CartProduct extends Product {
 //   quantity: number;
@@ -171,6 +176,54 @@ const CartPage = () => {
 
                   <div>
                     {(() => {
+                      if (isComboProduct(product)) {
+                        const comboName = formatComboText(product.title || "");
+                        const comboDescription = product.description?.trim()
+                          ? formatComboText(product.description)
+                          : "";
+
+                        return (
+                          <>
+                            <MixedScriptText
+                              text={comboName}
+                              align="start"
+                              className="mb-1 overflow-visible text-[18px] font-bold text-black md:text-[22px]"
+                              urduClassName="px-0.5"
+                            />
+                            {comboDescription ? (
+                              <MixedScriptText
+                                text={comboDescription}
+                                align="start"
+                                className="mb-2 overflow-visible text-[12px] leading-relaxed text-black/65 md:text-[14px]"
+                                urduClassName="px-0.5 text-[13px] text-black/70 md:text-[15px]"
+                                latinClassName="tracking-tight"
+                              />
+                            ) : null}
+
+                            <div className="md:hidden block">
+                              <div className="flex items-center gap-3 mt-2">
+                                <Text className="text-accent text-[18px] font-semibold ">
+                                  Rs.{" "}
+                                  {formatNumberNoCurrency(
+                                    variant?.price?.amount as string
+                                  )}
+                                </Text>
+                                {weight && (
+                                  <Text className="text-[12px] text-black/60 md:hidden block">
+                                    ({weight})
+                                  </Text>
+                                )}
+                              </div>
+                            </div>
+                            {weight && (
+                              <Text className="text-[12px] text-black/60 md:block hidden">
+                                ({weight})
+                              </Text>
+                            )}
+                          </>
+                        );
+                      }
+
                       const { urdu, english } = separateTitle(product.title);
                       return (
                         <>

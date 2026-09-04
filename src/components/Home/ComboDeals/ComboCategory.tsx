@@ -22,16 +22,16 @@ const ComboCategory = ({ config, products }: ComboCategoryProps) => {
 
   return (
     <div>
-      <Text className="font-arabic text-[18px] font-bold text-black md:text-[20px]">
+      <Text className=" text-[18px] font-bold text-black md:text-[20px]">
         {config.title}
       </Text>
       <Text className="mt-1 mb-5 text-[14px] text-black/60">
         {config.subtitle}
       </Text>
 
-      <div className="grid grid-cols-4 justify-items-center gap-3 lg:grid-cols-4 lg:gap-5">
+      <div className="grid grid-cols-2 justify-items-stretch gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-5">
         {products.map((product) => (
-          <div key={product.id} className="w-full">
+          <div key={product.id} className="min-w-0 w-full">
             <ComboCard product={product} categoryId={config.id} />
           </div>
         ))}

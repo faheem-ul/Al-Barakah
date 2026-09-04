@@ -18,10 +18,10 @@ export const COMBO_CATEGORIES: ComboCategoryConfig[] = [
     collectionHandle: "combo-duo-packs",
     tabLabel: "Duo Packs",
     tabHint: "500g × 2",
-    title: "Duo Packs (جوڑی پیک)",
+    title: "Duo Packs (2 Jars)",
     subtitle: "1/2 kg each",
     ribbons: {
-      "daily-duo": { label: "⭐ Most Popular", variant: "popular" },
+      "daily-duo": { label: "★ Most Popular", variant: "popular" },
     },
   },
   {
@@ -29,7 +29,7 @@ export const COMBO_CATEGORIES: ComboCategoryConfig[] = [
     collectionHandle: "combo-family-packs",
     tabLabel: "Family Packs",
     tabHint: "1kg × 2",
-    title: "Family Packs (فیملی پیک)",
+    title: "Family Packs (2 Jars)",
     subtitle: "1kg each",
     ribbons: {
       "big-daily": { label: "🏆 Best Value", variant: "best" },
@@ -40,10 +40,10 @@ export const COMBO_CATEGORIES: ComboCategoryConfig[] = [
     collectionHandle: "combo-mix-packs",
     tabLabel: "Mix Packs",
     tabHint: "1kg + 500g",
-    title: "Mix Packs (مکس پیک)",
+    title: "Mix Packs (2 Jars)",
     subtitle: "1kg + 1/2 kg",
     ribbons: {
-      "daily-plus": { label: "⭐ Most Popular", variant: "popular" },
+      "daily-plus": { label: "★ Most Popular", variant: "popular" },
     },
   },
   {
@@ -51,8 +51,8 @@ export const COMBO_CATEGORIES: ComboCategoryConfig[] = [
     collectionHandle: "combo-gift-variety",
     tabLabel: "Gift & Variety",
     tabHint: "3 Jars",
-    title: "Gift & Variety (گیفٹ پیک)",
-    subtitle: "3 jars",
+    title: "Gift & Variety (3 Jars)",
+    subtitle: "3 jars with different flavors",
     ribbons: {
       "gift-box-deluxe": { label: "🎁 Perfect Gift", variant: "gift" },
       "grand-trio": { label: "💎 Biggest", variant: "biggest" },
@@ -88,3 +88,27 @@ export const isFeaturedCombo = (
 ) => {
   return Boolean(getRibbonForProduct(categoryId, handle));
 };
+
+const COMBO_COLLECTION_HANDLES = new Set(
+  COMBO_CATEGORIES.map((category) => category.collectionHandle),
+);
+
+/** True when the product belongs to any combo collection. */
+export const isComboProduct = (product: {
+  collections?: { handle: string }[] | null;
+}) =>
+  Boolean(
+    product.collections?.some((collection) =>
+      COMBO_COLLECTION_HANDLES.has(collection.handle),
+    ),
+  );
+
+/** Resolve combo category config from the product's collections. */
+export const getComboCategoryForProduct = (product: {
+  collections?: { handle: string }[] | null;
+}) =>
+  COMBO_CATEGORIES.find((category) =>
+    product.collections?.some(
+      (collection) => collection.handle === category.collectionHandle,
+    ),
+  );
