@@ -28,7 +28,7 @@ const ProductVariantSelector = (props: PropTypes) => {
     () =>
       product.options.find((option) => option.name.toLowerCase() === "weight")
         ?.values || [],
-    [product]
+    [product],
   );
 
   useEffect(() => {
@@ -48,8 +48,8 @@ const ProductVariantSelector = (props: PropTypes) => {
         v.selectedOptions.some(
           (option) =>
             option.name.toLowerCase() === "weight" &&
-            option.value === selectedSize
-        )
+            option.value === selectedSize,
+        ),
       ) || product.variants[0];
     if (variant && onVariantChange) onVariantChange(variant.id);
   }, [selectedSize, product, onVariantChange]);
@@ -80,8 +80,8 @@ const ProductVariantSelector = (props: PropTypes) => {
         v.selectedOptions.some(
           (option) =>
             option.name.toLowerCase() === "weight" &&
-            option.value === (sizeToUse as string)
-        )
+            option.value === (sizeToUse as string),
+        ),
       ) || product.variants[0];
 
     if (!variant) {
@@ -95,7 +95,7 @@ const ProductVariantSelector = (props: PropTypes) => {
       itemQuantity,
       "",
       sizeToUse || "",
-      variant.id
+      variant.id,
     );
   };
 
@@ -104,7 +104,7 @@ const ProductVariantSelector = (props: PropTypes) => {
       <div className="mt-1 flex flex-col gap-1">
         {sizes.length > 1 && (
           <ProductAccordion title="Choose Weight">
-            <div className="mt-2 -mb-3 flex items-center gap-1">
+            <div className=" mb-3 flex items-center gap-1">
               {sizes.map((size) => (
                 <Tag
                   key={size}
@@ -114,7 +114,7 @@ const ProductVariantSelector = (props: PropTypes) => {
                     "cursor-pointer",
                     selectedSize === size
                       ? "bg-black text-white"
-                      : "border-[#DDDDDD]"
+                      : "border-[#DDDDDD]",
                   )}
                 />
               ))}
@@ -123,7 +123,7 @@ const ProductVariantSelector = (props: PropTypes) => {
         )}
       </div>
 
-      <Text className="mt-5 text-[16px] text-black">
+      <Text className="text-[16px] text-black">
         🚚 Free Home Delivery — Pay When You Receive
       </Text>
 

@@ -20,8 +20,11 @@ const Shop = (props: PropTypes) => {
 
   return (
     <div>
-      <Text as="h1" className="text-center text-[40px]">
-        Buy Individual Jars
+      <Text as="h1" className="text-center text-[28px] leading-tight md:text-[40px]">
+        From the Hive — Shop Full Jar Now
+        <span className="font-arabic mt-1 block text-[20px] font-bold md:text-[28px]">
+          چھتے سے — مکمل بوتل ابھی خریدیں
+        </span>
       </Text>
 
       <div className="mt-5 mb-10 grid grid-cols-2 justify-items-center gap-3 px-5 sm:mt-[53px] md:flex md:flex-wrap md:justify-center md:gap-8 md:px-0">
