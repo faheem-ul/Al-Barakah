@@ -59,6 +59,7 @@ function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrder {
     zone: data.zone ?? "withinCity",
     products: data.products ?? [],
     calculation: mapCalculation(data.calculation),
+    freeDelivery: data.freeDelivery ?? false,
     createdAt: data.createdAt ?? Date.now(),
   };
 }

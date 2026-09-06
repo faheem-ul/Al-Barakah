@@ -23,7 +23,17 @@ const NUMERIC_KEYS: NumericSettingsKey[] = [
   "ship1",
   "ship3",
   "ship4",
-  "packing",
+  "packing500",
+  "packing1000",
+  "courierOcWithinHalf",
+  "courierOcWithinOne",
+  "courierOcWithinAdditional",
+  "courierOcSameHalf",
+  "courierOcSameOne",
+  "courierOcSameAdditional",
+  "courierOcDiffHalf",
+  "courierOcDiffOne",
+  "courierOcDiffAdditional",
   "courierSecondDay",
   "courierSecondDayAdditional",
   "fac",
@@ -55,7 +65,9 @@ function normalizeCustomExpenses(raw: unknown): CustomExpense[] {
   return expenses;
 }
 
-function normalizeSettings(data: Partial<SalesSettings>): SalesSettings {
+function normalizeSettings(
+  data: Partial<SalesSettings> & { packing?: number },
+): SalesSettings {
   const normalized = { ...DEFAULT_SALES_SETTINGS };
 
   for (const key of NUMERIC_KEYS) {
@@ -65,11 +77,30 @@ function normalizeSettings(data: Partial<SalesSettings>): SalesSettings {
     }
   }
 
+  const legacyPacking = Number(data.packing) || 0;
+  if (legacyPacking > 0) {
+    if (data.packing500 === undefined && data.packing1000 === undefined) {
+      normalized.packing500 = legacyPacking;
+      normalized.packing1000 = legacyPacking;
+    } else {
+      if (data.packing500 === undefined) {
+        normalized.packing500 = legacyPacking;
+      }
+      if (data.packing1000 === undefined) {
+        normalized.packing1000 = legacyPacking;
+      }
+    }
+  }
+
   if (typeof data.updatedAt === "number") {
     normalized.updatedAt = data.updatedAt;
   }
 
   normalized.customExpenses = normalizeCustomExpenses(data.customExpenses);
+
+  if (typeof data.zeroActualCourier === "boolean") {
+    normalized.zeroActualCourier = data.zeroActualCourier;
+  }
 
   return normalized;
 }
@@ -82,7 +113,7 @@ export async function getSalesSettings(): Promise<SalesSettings> {
     return { ...DEFAULT_SALES_SETTINGS };
   }
 
-  return normalizeSettings(snap.data() as Partial<SalesSettings>);
+  return normalizeSettings(snap.data() as Partial<SalesSettings> & { packing?: number });
 }
 
 export async function saveSalesSettings(
