@@ -14,6 +14,7 @@ import type {
   SalesOrderProduct,
   SalesSettings,
   NumericSettingsKey,
+  OrderPreviewOptions,
 } from "./types";
 
 export function money(value: number | undefined | null): string {
@@ -79,6 +80,104 @@ function applyPreservedCustomExpenses(
   };
 }
 
+function getOvernightZoneRates(
+  settings: SalesSettings,
+  zone: CourierZone,
+): { firstHalf: number; firstOne: number; additionalHalf: number } {
+  if (zone === "sameZone") {
+    return {
+      firstHalf: getSetting(settings, "courierOcSameHalf"),
+      firstOne: getSetting(settings, "courierOcSameOne"),
+      additionalHalf: getSetting(settings, "courierOcSameAdditional"),
+    };
+  }
+
+  if (zone === "diffZone") {
+    return {
+      firstHalf: getSetting(settings, "courierOcDiffHalf"),
+      firstOne: getSetting(settings, "courierOcDiffOne"),
+      additionalHalf: getSetting(settings, "courierOcDiffAdditional"),
+    };
+  }
+
+  return {
+    firstHalf: getSetting(settings, "courierOcWithinHalf"),
+    firstOne: getSetting(settings, "courierOcWithinOne"),
+    additionalHalf: getSetting(settings, "courierOcWithinAdditional"),
+  };
+}
+
+export function calculatePackingCost(
+  settings: SalesSettings,
+  lines: ProductLineInput[],
+): number {
+  let packing = 0;
+
+  for (const line of lines) {
+    const product = getProductByKey(line.key);
+    if (!product || line.qty <= 0) continue;
+
+    const rate =
+      product.weight <= 0.5
+        ? getSetting(settings, "packing500")
+        : getSetting(settings, "packing1000");
+    packing += line.qty * rate;
+  }
+
+  return packing;
+}
+
+export function calculateDefaultCustomerShipping(
+  settings: SalesSettings,
+  lines: ProductLineInput[],
+): number {
+  let productRevenue = 0;
+  let weight = 0;
+  let units = 0;
+
+  for (const line of lines) {
+    const product = getProductByKey(line.key);
+    if (!product || line.qty <= 0) continue;
+
+    productRevenue += line.qty * getSetting(settings, product.priceKey);
+    weight += line.qty * product.weight;
+    units += line.qty;
+  }
+
+  if (units <= 0) return 0;
+  if (productRevenue > getSetting(settings, "freeThreshold")) return 0;
+  if (weight <= 1) return getSetting(settings, "ship1");
+  if (weight <= 3) return getSetting(settings, "ship3");
+  return getSetting(settings, "ship4");
+}
+
+function resolveCustomerShipping(
+  settings: SalesSettings,
+  lines: ProductLineInput[],
+  options?: OrderPreviewOptions,
+): number {
+  if (options?.customerShippingOverride !== undefined) {
+    return Math.max(0, options.customerShippingOverride);
+  }
+
+  return calculateDefaultCustomerShipping(settings, lines);
+}
+
+function rebuildDeliveredTotals(
+  preview: OrderPreviewResult,
+  customerShipping: number,
+): OrderPreviewResult {
+  const revenue = preview.productRevenue + customerShipping;
+  const netProfit = revenue - preview.expenses;
+
+  return {
+    ...preview,
+    customerShipping,
+    revenue,
+    netProfit,
+  };
+}
+
 export function calculateCourier(
   settings: SalesSettings,
   weight: number,
@@ -100,13 +199,7 @@ export function calculateCourier(
         getSetting(settings, "courierSecondDayAdditional");
     }
   } else {
-    const rates = {
-      withinCity: { firstHalf: 116, firstOne: 140, additionalHalf: 116 },
-      sameZone: { firstHalf: 140, firstOne: 151, additionalHalf: 140 },
-      diffZone: { firstHalf: 151, firstOne: 175, additionalHalf: 151 },
-    };
-
-    const selected = rates[zone] || rates.withinCity;
+    const selected = getOvernightZoneRates(settings, zone);
 
     if (weight <= 0.5) {
       baseCourier = selected.firstHalf;
@@ -129,7 +222,7 @@ export function calculateOrderPreview(
   courierOverride = 0,
   service: CourierService = "overnight",
   zone: CourierZone = "withinCity",
-  preservedCustomExpenses?: AppliedCustomExpense[],
+  options?: OrderPreviewOptions,
 ): OrderPreviewResult {
   let productRevenue = 0;
   let honeyCost = 0;
@@ -148,23 +241,11 @@ export function calculateOrderPreview(
     units += qty;
   }
 
-  let customerShipping = 0;
-
-  if (units <= 0) {
-    customerShipping = 0;
-  } else if (productRevenue > getSetting(settings, "freeThreshold")) {
-    customerShipping = 0;
-  } else if (weight <= 1) {
-    customerShipping = getSetting(settings, "ship1");
-  } else if (weight <= 3) {
-    customerShipping = getSetting(settings, "ship3");
-  } else {
-    customerShipping = getSetting(settings, "ship4");
-  }
-
-  const packing = units * getSetting(settings, "packing");
-  const courier =
-    courierOverride > 0
+  const customerShipping = resolveCustomerShipping(settings, lines, options);
+  const packing = calculatePackingCost(settings, lines);
+  const courier = settings.zeroActualCourier
+    ? 0
+    : courierOverride > 0
       ? courierOverride
       : calculateCourier(settings, weight, service, zone);
 
@@ -204,7 +285,7 @@ export function calculateOrderPreview(
     netProfit = -expenses;
   }
 
-  const preview: OrderPreviewResult = {
+  let preview: OrderPreviewResult = {
     productRevenue,
     honeyCost,
     weight,
@@ -219,8 +300,16 @@ export function calculateOrderPreview(
     customExpensesTotal,
   };
 
-  if (preservedCustomExpenses !== undefined) {
-    return applyPreservedCustomExpenses(preview, preservedCustomExpenses, status);
+  if (status === "delivered") {
+    preview = rebuildDeliveredTotals(preview, customerShipping);
+  }
+
+  if (options?.preservedCustomExpenses !== undefined) {
+    preview = applyPreservedCustomExpenses(
+      preview,
+      options.preservedCustomExpenses,
+      status,
+    );
   }
 
   return preview;
@@ -232,7 +321,7 @@ export function calculateSavedProducts(
   status: OrderStatus,
   service: CourierService = "overnight",
   zone: CourierZone = "withinCity",
-  preservedCustomExpenses?: AppliedCustomExpense[],
+  options?: OrderPreviewOptions,
 ): SalesOrderCalculation {
   const preview = calculateOrderPreview(
     settings,
@@ -241,7 +330,7 @@ export function calculateSavedProducts(
     0,
     service,
     zone,
-    preservedCustomExpenses,
+    options,
   );
 
   return {

@@ -39,17 +39,28 @@ export type SalesSettings = {
   ship1: number;
   ship3: number;
   ship4: number;
-  packing: number;
+  packing500: number;
+  packing1000: number;
+  courierOcWithinHalf: number;
+  courierOcWithinOne: number;
+  courierOcWithinAdditional: number;
+  courierOcSameHalf: number;
+  courierOcSameOne: number;
+  courierOcSameAdditional: number;
+  courierOcDiffHalf: number;
+  courierOcDiffOne: number;
+  courierOcDiffAdditional: number;
   courierSecondDay: number;
   courierSecondDayAdditional: number;
   fac: number;
+  zeroActualCourier: boolean;
   customExpenses: CustomExpense[];
   updatedAt?: number;
 };
 
 export type NumericSettingsKey = Exclude<
   keyof SalesSettings,
-  "customExpenses" | "updatedAt"
+  "customExpenses" | "updatedAt" | "zeroActualCourier"
 >;
 
 export type SalesOrderProduct = {
@@ -83,6 +94,7 @@ export type SalesOrder = {
   zone: CourierZone;
   products: SalesOrderProduct[];
   calculation: SalesOrderCalculation;
+  freeDelivery?: boolean;
   createdAt: number;
 };
 
@@ -102,6 +114,12 @@ export type OrderDraft = {
   courierService: CourierService;
   zone: CourierZone;
   products: OrderDraftProduct[];
+  customerShipping?: number;
+};
+
+export type OrderPreviewOptions = {
+  customerShippingOverride?: number;
+  preservedCustomExpenses?: AppliedCustomExpense[];
 };
 
 export type ProductLineInput = {

@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
+  calculateDefaultCustomerShipping,
   calculateOrderPreview,
   todayIsoDate,
 } from "@/lib/sales/calculations";
@@ -43,6 +44,7 @@ type OrderFormProps = {
     courierService: CourierService;
     zone: CourierZone;
     lines: { key: string; qty: number }[];
+    customerShipping: number;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -97,6 +99,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
     useState<CourierService>("overnight");
   const [zone, setZone] = useState<CourierZone>("withinCity");
   const [rows, setRows] = useState<ProductRow[]>([emptyRow()]);
+  const [customerShipping, setCustomerShipping] = useState(0);
+  const [shippingTouched, setShippingTouched] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -108,6 +112,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setCourierService(editOrder.courierService);
       setZone(editOrder.zone);
       setRows(orderToRows(editOrder));
+      setCustomerShipping(editOrder.calculation.shipping ?? 0);
+      setShippingTouched(true);
       setInitialized(true);
       return;
     }
@@ -120,6 +126,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setStatus(draft.status || "delivered");
       setCourierService(draft.courierService || "overnight");
       setZone(draft.zone || "withinCity");
+      setCustomerShipping(draft.customerShipping ?? 0);
+      setShippingTouched(draft.customerShipping !== undefined);
 
       if (draft.products?.length) {
         setRows(
@@ -148,6 +156,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
         variant: row.variantKey,
         qty: row.qty,
       })),
+      customerShipping,
     });
   }, [
     orderNumber,
@@ -157,6 +166,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     courierService,
     zone,
     rows,
+    customerShipping,
     initialized,
     editOrder,
   ]);
@@ -169,6 +179,17 @@ const OrderForm: React.FC<OrderFormProps> = ({
     [rows],
   );
 
+  useEffect(() => {
+    if (!initialized || editOrder || shippingTouched) return;
+
+    if (!lines.length) {
+      setCustomerShipping(0);
+      return;
+    }
+
+    setCustomerShipping(calculateDefaultCustomerShipping(settings, lines));
+  }, [initialized, editOrder, shippingTouched, lines, settings]);
+
   const preview = useMemo(
     () =>
       lines.length
@@ -179,10 +200,23 @@ const OrderForm: React.FC<OrderFormProps> = ({
             0,
             courierService,
             zone,
-            editOrder ? (editOrder.calculation.customExpenses ?? []) : undefined,
+            {
+              customerShippingOverride: customerShipping,
+              preservedCustomExpenses: editOrder
+                ? (editOrder.calculation.customExpenses ?? [])
+                : undefined,
+            },
           )
         : null,
-    [settings, lines, status, courierService, zone, editOrder],
+    [
+      settings,
+      lines,
+      status,
+      courierService,
+      zone,
+      editOrder,
+      customerShipping,
+    ],
   );
 
   const updateRow = (index: number, patch: Partial<ProductRow>) => {
@@ -206,6 +240,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setCourierService("overnight");
     setZone("withinCity");
     setRows([emptyRow()]);
+    setCustomerShipping(0);
+    setShippingTouched(false);
     clearDraft();
   };
 
@@ -231,6 +267,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       courierService,
       zone,
       lines,
+      customerShipping,
     });
 
     if (!editOrder) {
@@ -340,6 +377,28 @@ const OrderForm: React.FC<OrderFormProps> = ({
           </label>
         )}
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Customer Shipping (Rs.)
+          </span>
+          <input
+            type="number"
+            min={0}
+            value={customerShipping}
+            onChange={(e) => {
+              setShippingTouched(true);
+              setCustomerShipping(Number(e.target.value) || 0);
+            }}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          />
+        </label>
+      </div>
+      <p className="text-[12px] text-[#6b7280] mb-4">
+        Customer shipping defaults from Settings based on order weight. Edit to
+        override for this order.
+      </p>
 
       <div className="space-y-3 mb-4">
         {rows.map((row, index) => {

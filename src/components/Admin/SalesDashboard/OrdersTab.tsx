@@ -10,9 +10,9 @@ import {
 } from "@/lib/sales/orders";
 import { getProductByKey } from "@/lib/sales/products";
 import type {
-  AppliedCustomExpense,
   CourierService,
   CourierZone,
+  OrderPreviewOptions,
   OrderStatus,
   SalesOrder,
   SalesSettings,
@@ -35,6 +35,7 @@ type OrderDraftInput = {
   courierService: CourierService;
   zone: CourierZone;
   lines: { key: string; qty: number }[];
+  customerShipping: number;
 };
 
 const OrdersTab: React.FC<OrdersTabProps> = ({
@@ -56,11 +57,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
   );
 
   const buildOrderPayload = useCallback(
-    (
-      draft: OrderDraftInput,
-      createdAt: number,
-      preservedCustomExpenses?: AppliedCustomExpense[],
-    ) => {
+    (draft: OrderDraftInput, createdAt: number, options?: OrderPreviewOptions) => {
       const productsData = draft.lines
         .map((line) => {
           const product = getProductByKey(line.key);
@@ -80,7 +77,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         draft.status,
         draft.courierService,
         draft.zone,
-        preservedCustomExpenses,
+        {
+          ...options,
+          customerShippingOverride: draft.customerShipping,
+        },
       );
 
       return {
@@ -106,7 +106,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           const payload = buildOrderPayload(
             draft,
             editingOrder.createdAt,
-            editingOrder.calculation.customExpenses ?? [],
+            {
+              preservedCustomExpenses:
+                editingOrder.calculation.customExpenses ?? [],
+            },
           );
           await updateSalesOrder(editingOrder.id, payload);
           onOrdersChange(

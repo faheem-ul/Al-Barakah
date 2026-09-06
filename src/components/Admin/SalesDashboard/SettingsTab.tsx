@@ -13,7 +13,7 @@ type SettingsTabProps = {
   saving: boolean;
 };
 
-const SHIPPING_FIELDS: {
+const CUSTOMER_SHIPPING_FIELDS: {
   key: NumericSettingsKey;
   label: string;
 }[] = [
@@ -21,7 +21,20 @@ const SHIPPING_FIELDS: {
   { key: "ship1", label: "Customer Shipping 0–1kg" },
   { key: "ship3", label: "Customer Shipping 1–3kg" },
   { key: "ship4", label: "Customer Shipping 3kg+" },
-  { key: "packing", label: "Packing Cost / Unit" },
+];
+
+const PACKING_FIELDS: {
+  key: NumericSettingsKey;
+  label: string;
+}[] = [
+  { key: "packing500", label: "Packing Cost 500g" },
+  { key: "packing1000", label: "Packing Cost 1kg" },
+];
+
+const ACTUAL_COURIER_FIELDS: {
+  key: NumericSettingsKey;
+  label: string;
+}[] = [
   { key: "courierSecondDay", label: "Second Day Courier Up to 3kg" },
   {
     key: "courierSecondDayAdditional",
@@ -29,6 +42,60 @@ const SHIPPING_FIELDS: {
   },
   { key: "fac", label: "FAC %" },
 ];
+
+const OVERNIGHT_COURIER_ROWS: {
+  label: string;
+  halfKey: NumericSettingsKey;
+  oneKey: NumericSettingsKey;
+  additionalKey: NumericSettingsKey;
+}[] = [
+  {
+    label: "Within City",
+    halfKey: "courierOcWithinHalf",
+    oneKey: "courierOcWithinOne",
+    additionalKey: "courierOcWithinAdditional",
+  },
+  {
+    label: "Same Zone",
+    halfKey: "courierOcSameHalf",
+    oneKey: "courierOcSameOne",
+    additionalKey: "courierOcSameAdditional",
+  },
+  {
+    label: "Diff. Zone",
+    halfKey: "courierOcDiffHalf",
+    oneKey: "courierOcDiffOne",
+    additionalKey: "courierOcDiffAdditional",
+  },
+];
+
+function SettingsFieldGrid({
+  fields,
+  settings,
+  onUpdate,
+}: {
+  fields: { key: NumericSettingsKey; label: string }[];
+  settings: SalesSettings;
+  onUpdate: (key: NumericSettingsKey, raw: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {fields.map((field) => (
+        <label key={field.key} className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            {field.label}
+          </span>
+          <input
+            type="number"
+            value={settings[field.key]}
+            onChange={(e) => onUpdate(field.key, e.target.value)}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
 
 const SettingsTab: React.FC<SettingsTabProps> = ({
   settings,
@@ -144,29 +211,119 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
-        <h2 className="text-[19px] font-semibold mb-4">
-          Shipping & Courier Settings
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {SHIPPING_FIELDS.map((field) => (
-            <label key={field.key} className="block">
-              <span className="text-[13px] text-[#6b7280] mb-1 block">
-                {field.label}
-              </span>
-              <input
-                type="number"
-                value={settings[field.key]}
-                onChange={(e) => updateField(field.key, e.target.value)}
-                className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
-              />
-            </label>
-          ))}
-        </div>
+        <h2 className="text-[19px] font-semibold mb-4">Customer Shipping</h2>
+        <SettingsFieldGrid
+          fields={CUSTOMER_SHIPPING_FIELDS}
+          settings={settings}
+          onUpdate={updateField}
+        />
         <p className="mt-4 text-[12px] text-[#6b7280]">
-          Overnight rates follow the supplied rate card. Second Day is Rs. 300 up
-          to 3kg plus Rs. 85 per additional kg. FAC is added at the configured
-          percentage (default 10%) to the courier charge. Returned orders use
-          the same Packing Cost / Unit and Actual Courier only.
+          Rates charged to the customer based on order weight and free-shipping
+          threshold. Can be overridden per order on the order form.
+        </p>
+      </div>
+
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
+        <h2 className="text-[19px] font-semibold mb-4">Packing Costs</h2>
+        <SettingsFieldGrid
+          fields={PACKING_FIELDS}
+          settings={settings}
+          onUpdate={updateField}
+        />
+        <p className="mt-4 text-[12px] text-[#6b7280]">
+          Applied per unit based on variant weight — 500g or 1kg.
+        </p>
+      </div>
+
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
+        <h2 className="text-[19px] font-semibold mb-4">Actual Courier Settings</h2>
+
+        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={settings.zeroActualCourier}
+            onChange={(e) => {
+              setSaveMessage(null);
+              onChange({
+                ...settings,
+                zeroActualCourier: e.target.checked,
+              });
+            }}
+            className="h-4 w-4 rounded border-[#d1d5db] accent-black"
+          />
+          <span className="text-[14px] text-[#374151]">
+            Zero Actual Courier Cost
+          </span>
+        </label>
+        <p className="text-[12px] text-[#6b7280] mb-5">
+          When enabled, Actual Courier is Rs. 0 on all upcoming orders. Use for
+          orders where no courier expense applies. Disable to calculate from the
+          rate card below.
+        </p>
+
+        <h3 className="text-[16px] font-semibold mb-3">
+          Overnight Courier Rates
+        </h3>
+        <div className="overflow-x-auto mb-6">
+          <table className="w-full min-w-[560px] text-left text-[14px]">
+            <thead>
+              <tr className="border-b border-[#e5e7eb] text-[#6b7280]">
+                <th className="py-3 pr-3 font-medium">Zone</th>
+                <th className="py-3 pr-3 font-medium">Up to 0.5kg</th>
+                <th className="py-3 pr-3 font-medium">Up to 1kg</th>
+                <th className="py-3 font-medium">Additional / 0.5kg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {OVERNIGHT_COURIER_ROWS.map((row) => (
+                <tr
+                  key={row.label}
+                  className="border-b border-[#f3f4f6] last:border-b-0"
+                >
+                  <td className="py-3 pr-3 font-medium">{row.label}</td>
+                  <td className="py-3 pr-3">
+                    <input
+                      type="number"
+                      value={settings[row.halfKey]}
+                      onChange={(e) =>
+                        updateField(row.halfKey, e.target.value)
+                      }
+                      className="w-full max-w-[120px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                    />
+                  </td>
+                  <td className="py-3 pr-3">
+                    <input
+                      type="number"
+                      value={settings[row.oneKey]}
+                      onChange={(e) => updateField(row.oneKey, e.target.value)}
+                      className="w-full max-w-[120px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                    />
+                  </td>
+                  <td className="py-3">
+                    <input
+                      type="number"
+                      value={settings[row.additionalKey]}
+                      onChange={(e) =>
+                        updateField(row.additionalKey, e.target.value)
+                      }
+                      className="w-full max-w-[120px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 className="text-[16px] font-semibold mb-3">Second Day & FAC</h3>
+        <SettingsFieldGrid
+          fields={ACTUAL_COURIER_FIELDS}
+          settings={settings}
+          onUpdate={updateField}
+        />
+        <p className="mt-4 text-[12px] text-[#6b7280]">
+          FAC is added as a percentage to the calculated courier charge. Second
+          Day rates apply when Second Day is selected on the order form.
         </p>
       </div>
 
