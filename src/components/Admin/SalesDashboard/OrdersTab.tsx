@@ -2,7 +2,10 @@
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-import { calculateSavedProducts } from "@/lib/sales/calculations";
+import {
+  calculateSavedProducts,
+  recomputeCalculationFromSnapshot,
+} from "@/lib/sales/calculations";
 import {
   createSalesOrder,
   deleteSalesOrder,
@@ -12,7 +15,6 @@ import { getProductByKey } from "@/lib/sales/products";
 import type {
   CourierService,
   CourierZone,
-  OrderPreviewOptions,
   OrderStatus,
   SalesOrder,
   SalesSettings,
@@ -36,6 +38,8 @@ type OrderDraftInput = {
   zone: CourierZone;
   lines: { key: string; qty: number }[];
   customerShipping: number;
+  actualCourier: number;
+  courierTouched: boolean;
 };
 
 const OrdersTab: React.FC<OrdersTabProps> = ({
@@ -56,8 +60,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     [orders],
   );
 
-  const buildOrderPayload = useCallback(
-    (draft: OrderDraftInput, createdAt: number, options?: OrderPreviewOptions) => {
+  const buildCreatePayload = useCallback(
+    (draft: OrderDraftInput, createdAt: number) => {
       const productsData = draft.lines
         .map((line) => {
           const product = getProductByKey(line.key);
@@ -78,8 +82,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         draft.courierService,
         draft.zone,
         {
-          ...options,
           customerShippingOverride: draft.customerShipping,
+          courierOverride: draft.actualCourier,
         },
       );
 
@@ -98,19 +102,35 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     [settings],
   );
 
+  const buildEditPayload = useCallback(
+    (draft: OrderDraftInput, existing: SalesOrder) => {
+      const calculation = recomputeCalculationFromSnapshot(existing.calculation, {
+        status: draft.status,
+        shipping: draft.customerShipping,
+        courier: draft.actualCourier,
+      });
+
+      return {
+        orderNumber: draft.orderNumber,
+        buyerName: draft.buyerName,
+        date: draft.date,
+        status: draft.status,
+        courierService: existing.courierService,
+        zone: existing.zone,
+        products: existing.products,
+        calculation,
+        createdAt: existing.createdAt,
+      };
+    },
+    [],
+  );
+
   const handleSave = useCallback(
     async (draft: OrderDraftInput) => {
       setSaving(true);
       try {
         if (editingOrder) {
-          const payload = buildOrderPayload(
-            draft,
-            editingOrder.createdAt,
-            {
-              preservedCustomExpenses:
-                editingOrder.calculation.customExpenses ?? [],
-            },
-          );
+          const payload = buildEditPayload(draft, editingOrder);
           await updateSalesOrder(editingOrder.id, payload);
           onOrdersChange(
             orders.map((order) =>
@@ -124,7 +144,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           return;
         }
 
-        const payload = buildOrderPayload(draft, Date.now());
+        const payload = buildCreatePayload(draft, Date.now());
         const id = await createSalesOrder(payload);
         onOrdersChange([{ id, ...payload }, ...orders]);
         window.alert("Order saved successfully.");
@@ -139,7 +159,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         setSaving(false);
       }
     },
-    [buildOrderPayload, editingOrder, orders, onOrdersChange],
+    [buildCreatePayload, buildEditPayload, editingOrder, orders, onOrdersChange],
   );
 
   const handleEdit = (order: SalesOrder) => {

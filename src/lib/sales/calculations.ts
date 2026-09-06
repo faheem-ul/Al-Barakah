@@ -219,7 +219,6 @@ export function calculateOrderPreview(
   settings: SalesSettings,
   lines: ProductLineInput[],
   status: OrderStatus = "delivered",
-  courierOverride = 0,
   service: CourierService = "overnight",
   zone: CourierZone = "withinCity",
   options?: OrderPreviewOptions,
@@ -243,11 +242,12 @@ export function calculateOrderPreview(
 
   const customerShipping = resolveCustomerShipping(settings, lines, options);
   const packing = calculatePackingCost(settings, lines);
-  const courier = settings.zeroActualCourier
-    ? 0
-    : courierOverride > 0
-      ? courierOverride
-      : calculateCourier(settings, weight, service, zone);
+  const courier =
+    options?.courierOverride !== undefined
+      ? Math.max(0, options.courierOverride)
+      : settings.zeroActualCourier
+        ? 0
+        : calculateCourier(settings, weight, service, zone);
 
   let revenue = 0;
   let expenses = 0;
@@ -327,12 +327,15 @@ export function calculateSavedProducts(
     settings,
     productsData.map((item) => ({ key: item.key, qty: item.qty })),
     status,
-    0,
     service,
     zone,
     options,
   );
 
+  return previewToCalculation(preview);
+}
+
+function previewToCalculation(preview: OrderPreviewResult): SalesOrderCalculation {
   return {
     productRevenue: preview.productRevenue,
     shipping: preview.customerShipping,
@@ -345,6 +348,81 @@ export function calculateSavedProducts(
     expenses: preview.expenses,
     netProfit: preview.netProfit,
     customExpenses: preview.customExpenses,
+  };
+}
+
+export function recomputeCalculationFromSnapshot(
+  base: SalesOrderCalculation,
+  params: {
+    status: OrderStatus;
+    shipping: number;
+    courier: number;
+  },
+): SalesOrderCalculation {
+  const {
+    productRevenue,
+    honeyCost,
+    packing,
+    weight,
+    units,
+    customExpenses = [],
+  } = base;
+
+  const shipping = Math.max(0, params.shipping);
+  const courier = Math.max(0, params.courier);
+  const customExpensesTotal = sumCustomExpenses(customExpenses);
+  const status = params.status;
+
+  let revenue = 0;
+  let expenses = 0;
+  let netProfit = 0;
+
+  if (status === "delivered") {
+    revenue = productRevenue + shipping;
+    expenses = honeyCost + packing + courier + customExpensesTotal;
+    netProfit = revenue - expenses;
+  } else if (status === "returned") {
+    expenses = packing + courier + customExpensesTotal;
+    netProfit = -expenses;
+  } else if (status === "promotional") {
+    revenue = 0;
+    expenses = honeyCost + packing + courier + customExpensesTotal;
+    netProfit = -expenses;
+  }
+
+  return {
+    productRevenue,
+    shipping,
+    weight,
+    units,
+    honeyCost,
+    packing,
+    courier,
+    revenue,
+    expenses,
+    netProfit,
+    customExpenses,
+  };
+}
+
+export function calculationToPreview(
+  calculation: SalesOrderCalculation,
+): OrderPreviewResult {
+  const customExpenses = calculation.customExpenses ?? [];
+
+  return {
+    productRevenue: calculation.productRevenue,
+    honeyCost: calculation.honeyCost,
+    weight: calculation.weight,
+    units: calculation.units,
+    customerShipping: calculation.shipping,
+    packing: calculation.packing,
+    courier: calculation.courier,
+    revenue: calculation.revenue,
+    expenses: calculation.expenses,
+    netProfit: calculation.netProfit,
+    customExpenses,
+    customExpensesTotal: sumCustomExpenses(customExpenses),
   };
 }
 
@@ -394,11 +472,7 @@ export function buildDashboardStats(orders: SalesOrder[], month: string) {
   };
 }
 
-export function buildMonthlyReport(
-  settings: SalesSettings,
-  orders: SalesOrder[],
-  month: string,
-) {
+export function buildMonthlyReport(orders: SalesOrder[], month: string) {
   const monthOrders = orders.filter((order) =>
     String(order.date || "").startsWith(month),
   );
@@ -437,10 +511,10 @@ export function buildMonthlyReport(
 
         productStats[key].qty += qty;
 
-        const product = getProductByKey(item.key);
-        if (product) {
+        const orderUnits = Number(calculation.units) || 0;
+        if (orderUnits > 0) {
           productStats[key].revenue +=
-            qty * getSetting(settings, product.priceKey);
+            (qty / orderUnits) * (Number(calculation.productRevenue) || 0);
         }
       }
     }
@@ -486,10 +560,10 @@ export function buildMonthlyReport(
 
         promotionalStats[key].qty += qty;
 
-        const product = getProductByKey(item.key);
-        if (product) {
+        const orderUnits = Number(calculation.units) || 0;
+        if (orderUnits > 0) {
           promotionalStats[key].expense +=
-            qty * getSetting(settings, product.costKey);
+            (qty / orderUnits) * (Number(calculation.honeyCost) || 0);
         }
       }
     }

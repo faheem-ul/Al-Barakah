@@ -4,8 +4,9 @@ import { X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
-  calculateDefaultCustomerShipping,
   calculateOrderPreview,
+  calculationToPreview,
+  recomputeCalculationFromSnapshot,
   todayIsoDate,
 } from "@/lib/sales/calculations";
 import {
@@ -45,6 +46,8 @@ type OrderFormProps = {
     zone: CourierZone;
     lines: { key: string; qty: number }[];
     customerShipping: number;
+    actualCourier: number;
+    courierTouched: boolean;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -101,6 +104,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
   const [rows, setRows] = useState<ProductRow[]>([emptyRow()]);
   const [customerShipping, setCustomerShipping] = useState(0);
   const [shippingTouched, setShippingTouched] = useState(false);
+  const [actualCourier, setActualCourier] = useState(0);
+  const [courierTouched, setCourierTouched] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -114,6 +119,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setRows(orderToRows(editOrder));
       setCustomerShipping(editOrder.calculation.shipping ?? 0);
       setShippingTouched(true);
+      setActualCourier(editOrder.calculation.courier ?? 0);
+      setCourierTouched(true);
       setInitialized(true);
       return;
     }
@@ -127,7 +134,9 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setCourierService(draft.courierService || "overnight");
       setZone(draft.zone || "withinCity");
       setCustomerShipping(draft.customerShipping ?? 0);
-      setShippingTouched(draft.customerShipping !== undefined);
+      setShippingTouched(Boolean(draft.shippingTouched));
+      setActualCourier(draft.actualCourier ?? 0);
+      setCourierTouched(Boolean(draft.courierTouched));
 
       if (draft.products?.length) {
         setRows(
@@ -141,6 +150,40 @@ const OrderForm: React.FC<OrderFormProps> = ({
     }
     setInitialized(true);
   }, [editOrder]);
+
+  const lines = useMemo(
+    () =>
+      rows
+        .filter((row) => row.variantKey && row.qty > 0)
+        .map((row) => ({ key: row.variantKey, qty: row.qty })),
+    [rows],
+  );
+
+  const suggestedDefaults = useMemo(() => {
+    if (editOrder || !lines.length) {
+      return { shipping: 0, courier: 0 };
+    }
+
+    const preview = calculateOrderPreview(
+      settings,
+      lines,
+      status,
+      courierService,
+      zone,
+    );
+
+    return {
+      shipping: preview.customerShipping,
+      courier: preview.courier,
+    };
+  }, [editOrder, lines, settings, status, courierService, zone]);
+
+  const displayShipping = shippingTouched
+    ? customerShipping
+    : suggestedDefaults.shipping;
+  const displayCourier = courierTouched
+    ? actualCourier
+    : suggestedDefaults.courier;
 
   useEffect(() => {
     if (!initialized || editOrder) return;
@@ -156,7 +199,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
         variant: row.variantKey,
         qty: row.qty,
       })),
-      customerShipping,
+      customerShipping: displayShipping,
+      actualCourier: displayCourier,
+      shippingTouched,
+      courierTouched,
     });
   }, [
     orderNumber,
@@ -166,58 +212,50 @@ const OrderForm: React.FC<OrderFormProps> = ({
     courierService,
     zone,
     rows,
-    customerShipping,
+    displayShipping,
+    displayCourier,
+    shippingTouched,
+    courierTouched,
     initialized,
     editOrder,
   ]);
 
-  const lines = useMemo(
-    () =>
-      rows
-        .filter((row) => row.variantKey && row.qty > 0)
-        .map((row) => ({ key: row.variantKey, qty: row.qty })),
-    [rows],
-  );
+  const preview = useMemo(() => {
+    if (!lines.length) return null;
 
-  useEffect(() => {
-    if (!initialized || editOrder || shippingTouched) return;
-
-    if (!lines.length) {
-      setCustomerShipping(0);
-      return;
+    if (editOrder) {
+      const calculation = recomputeCalculationFromSnapshot(
+        editOrder.calculation,
+        {
+          status,
+          shipping: customerShipping,
+          courier: actualCourier,
+        },
+      );
+      return calculationToPreview(calculation);
     }
 
-    setCustomerShipping(calculateDefaultCustomerShipping(settings, lines));
-  }, [initialized, editOrder, shippingTouched, lines, settings]);
-
-  const preview = useMemo(
-    () =>
-      lines.length
-        ? calculateOrderPreview(
-            settings,
-            lines,
-            status,
-            0,
-            courierService,
-            zone,
-            {
-              customerShippingOverride: customerShipping,
-              preservedCustomExpenses: editOrder
-                ? (editOrder.calculation.customExpenses ?? [])
-                : undefined,
-            },
-          )
-        : null,
-    [
+    return calculateOrderPreview(
       settings,
       lines,
       status,
       courierService,
       zone,
-      editOrder,
-      customerShipping,
-    ],
-  );
+      {
+        customerShippingOverride: displayShipping,
+        courierOverride: displayCourier,
+      },
+    );
+  }, [
+    settings,
+    lines,
+    status,
+    courierService,
+    zone,
+    editOrder,
+    displayShipping,
+    displayCourier,
+  ]);
 
   const updateRow = (index: number, patch: Partial<ProductRow>) => {
     setRows((prev) =>
@@ -242,6 +280,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setRows([emptyRow()]);
     setCustomerShipping(0);
     setShippingTouched(false);
+    setActualCourier(0);
+    setCourierTouched(false);
     clearDraft();
   };
 
@@ -267,7 +307,9 @@ const OrderForm: React.FC<OrderFormProps> = ({
       courierService,
       zone,
       lines,
-      customerShipping,
+      customerShipping: displayShipping,
+      actualCourier: displayCourier,
+      courierTouched,
     });
 
     if (!editOrder) {
@@ -353,7 +395,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
             onChange={(e) =>
               setCourierService(e.target.value as CourierService)
             }
-            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+            disabled={Boolean(editOrder)}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
           >
             <option value="overnight">Overnight</option>
             <option value="secondDay">Second Day</option>
@@ -368,7 +411,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
             <select
               value={zone}
               onChange={(e) => setZone(e.target.value as CourierZone)}
-              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+              disabled={Boolean(editOrder)}
+              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
             >
               <option value="withinCity">Within City</option>
               <option value="sameZone">Same Zone</option>
@@ -386,7 +430,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
           <input
             type="number"
             min={0}
-            value={customerShipping}
+            value={editOrder ? customerShipping : displayShipping}
             onChange={(e) => {
               setShippingTouched(true);
               setCustomerShipping(Number(e.target.value) || 0);
@@ -394,10 +438,27 @@ const OrderForm: React.FC<OrderFormProps> = ({
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           />
         </label>
+
+        <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Actual Courier (Rs.)
+          </span>
+          <input
+            type="number"
+            min={0}
+            value={editOrder ? actualCourier : displayCourier}
+            onChange={(e) => {
+              setCourierTouched(true);
+              setActualCourier(Number(e.target.value) || 0);
+            }}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          />
+        </label>
       </div>
       <p className="text-[12px] text-[#6b7280] mb-4">
-        Customer shipping defaults from Settings based on order weight. Edit to
-        override for this order.
+        {editOrder
+          ? "Customer shipping and actual courier can be adjusted for this order. Other costs use the saved snapshot from when the order was created."
+          : "Customer shipping and actual courier default from Settings based on order weight and courier zone. Edit to override for this order."}
       </p>
 
       <div className="space-y-3 mb-4">
@@ -415,7 +476,11 @@ const OrderForm: React.FC<OrderFormProps> = ({
           return (
             <div
               key={index}
-              className="grid grid-cols-1 md:grid-cols-[1fr_1fr_100px_100px_32px] gap-3 items-end"
+              className={`grid grid-cols-1 gap-3 items-end ${
+                editOrder
+                  ? "md:grid-cols-[1fr_1fr_100px]"
+                  : "md:grid-cols-[1fr_1fr_100px_100px_32px]"
+              }`}
             >
               <label className="block">
                 <span className="text-[12px] text-[#6b7280] mb-1 block">
@@ -429,7 +494,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
                       variantKey: "",
                     })
                   }
-                  className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+                  disabled={Boolean(editOrder)}
+                  className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
                 >
                   <option value="">Select Product</option>
                   {PRODUCT_NAMES.map((name) => (
@@ -449,7 +515,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
                   onChange={(e) =>
                     updateRow(index, { variantKey: e.target.value })
                   }
-                  className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+                  disabled={Boolean(editOrder)}
+                  className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
                 >
                   <option value="">Select Variant</option>
                   {variants.map((variant) => (
@@ -473,47 +540,58 @@ const OrderForm: React.FC<OrderFormProps> = ({
                       qty: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+                  disabled={Boolean(editOrder)}
+                  className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
                 />
               </label>
 
-              <label className="block">
-                <span className="text-[12px] text-[#6b7280] mb-1 block">
-                  Price
-                </span>
-                <input
-                  readOnly
-                  value={price ? `Rs. ${Number(price).toLocaleString("en-PK")}` : ""}
-                  className="w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2"
-                />
-              </label>
+              {!editOrder && (
+                <label className="block">
+                  <span className="text-[12px] text-[#6b7280] mb-1 block">
+                    Price
+                  </span>
+                  <input
+                    readOnly
+                    value={
+                      price
+                        ? `Rs. ${Number(price).toLocaleString("en-PK")}`
+                        : ""
+                    }
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2"
+                  />
+                </label>
+              )}
 
-              <div className="flex flex-col justify-end">
-                <div className="flex h-[42px] items-center justify-center">
-                  {index > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => removeRow(index)}
-                      aria-label="Remove product"
-                      className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full bg-[#b91c1c] text-white hover:opacity-90"
-                    >
-                      <X className="size-3.5 shrink-0" strokeWidth={2.5} />
-                    </button>
-                  ) : null}
+              {!editOrder && (
+                <div className="flex flex-col justify-end">
+                  <div className="flex h-[42px] items-center justify-center">
+                    {index > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => removeRow(index)}
+                        aria-label="Remove product"
+                        className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full bg-[#b91c1c] text-white hover:opacity-90"
+                      >
+                        <X className="size-3.5 shrink-0" strokeWidth={2.5} />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      <Button
-        type="button"
-        onClick={addRow}
-        className="rounded-lg bg-[#f3f4f6] text-[#374151] px-4 py-2 text-[14px] hover:opacity-90 mb-4"
-      >
-        + Add Product
-      </Button>
+      {!editOrder && (
+        <Button
+          type="button"
+          onClick={addRow}
+          className="rounded-lg bg-[#f3f4f6] text-[#374151] px-4 py-2 text-[14px] hover:opacity-90 mb-4"
+        >
+          + Add Product
+        </Button>
+      )}
 
       <OrderPreview result={preview} status={status} />
 

@@ -7,10 +7,9 @@ import {
   currentMonthValue,
   money,
 } from "@/lib/sales/calculations";
-import type { SalesOrder, SalesSettings } from "@/lib/sales/types";
+import type { SalesOrder } from "@/lib/sales/types";
 
 type ReportsTabProps = {
-  settings: SalesSettings;
   orders: SalesOrder[];
 };
 
@@ -29,12 +28,12 @@ function SectionTotal({
   );
 }
 
-const ReportsTab: React.FC<ReportsTabProps> = ({ settings, orders }) => {
+const ReportsTab: React.FC<ReportsTabProps> = ({ orders }) => {
   const [month, setMonth] = useState(currentMonthValue());
 
   const report = useMemo(
-    () => buildMonthlyReport(settings, orders, month),
-    [settings, orders, month],
+    () => buildMonthlyReport(orders, month),
+    [orders, month],
   );
 
   return (

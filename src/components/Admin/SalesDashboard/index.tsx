@@ -145,7 +145,7 @@ const SalesDashboard: React.FC = () => {
               />
             )}
             {tab === "reports" && (
-              <ReportsTab settings={settings} orders={orders} />
+              <ReportsTab orders={orders} />
             )}
             {tab === "stock" && (
               <StockTab
