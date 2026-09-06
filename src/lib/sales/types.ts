@@ -115,10 +115,14 @@ export type OrderDraft = {
   zone: CourierZone;
   products: OrderDraftProduct[];
   customerShipping?: number;
+  actualCourier?: number;
+  shippingTouched?: boolean;
+  courierTouched?: boolean;
 };
 
 export type OrderPreviewOptions = {
   customerShippingOverride?: number;
+  courierOverride?: number;
   preservedCustomExpenses?: AppliedCustomExpense[];
 };
 
