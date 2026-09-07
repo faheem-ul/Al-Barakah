@@ -17,17 +17,42 @@ function formatOrderLabel(order?: string): string {
   return value;
 }
 
+function cleanLine(value?: string): string {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Pre-filled WhatsApp body when a new Shopify order is placed. */
 export function buildOrderPlacedWhatsAppDraft(params: {
   name?: string;
   order?: string;
+  address?: string;
+  detail?: string;
+  total?: string;
+  portal?: string;
 }): string {
-  const name = (params.name || "Customer").trim() || "Customer";
+  const name = cleanLine(params.name) || "Customer";
   const order = formatOrderLabel(params.order);
+  const address = cleanLine(params.address);
+  const detail = cleanLine(params.detail);
+  const total = cleanLine(params.total);
+  const portal = cleanLine(params.portal) || siteBaseUrl();
+
+  const receiptLines = [
+    `Name: ${name}`,
+    detail ? `Order detail: ${detail}` : `Order: ${order}`,
+    address ? `Address: ${address}` : "",
+    total ? `Total: ${total}` : "",
+  ].filter(Boolean);
 
   return (
     `Assalamualaikum ${name},\n\n` +
-    `Your Al Barakah Honey Order ${order} has been confirmed. It will be dispatched soon.\n\n` +
+    `Your Al Barakah Honey order ${order} is confirmed. It will be dispatched soon.\n\n` +
+    `${receiptLines.join("\n")}\n\n` +
+    `If your name, address, or order detail is wrong, please reply here.\n\n` +
+    `Order page: ${portal}\n` +
+    `Website: ${siteBaseUrl()}\n\n` +
     `Thank you for choosing Al Barakah Honey`
   );
 }
@@ -63,6 +88,10 @@ export function buildWhatsAppDraft(
     order?: string;
     status?: string;
     cn?: string;
+    address?: string;
+    detail?: string;
+    total?: string;
+    portal?: string;
   },
 ): string {
   if (type === "order_placed") {
@@ -115,6 +144,10 @@ export function buildWhatsAppSiteLink(params: {
   order?: string;
   status?: string;
   cn?: string;
+  address?: string;
+  detail?: string;
+  total?: string;
+  portal?: string;
 }): string | null {
   const phone = normalizeWhatsAppPhone(params.phone);
   if (!phone) return null;
@@ -126,6 +159,10 @@ export function buildWhatsAppSiteLink(params: {
   if (params.order) qs.set("order", params.order);
   if (params.status) qs.set("status", params.status);
   if (params.cn) qs.set("cn", params.cn);
+  if (params.address) qs.set("address", params.address);
+  if (params.detail) qs.set("detail", params.detail);
+  if (params.total) qs.set("total", params.total);
+  if (params.portal) qs.set("portal", params.portal);
 
   return `${siteBaseUrl()}/wa?${qs.toString()}`;
 }
