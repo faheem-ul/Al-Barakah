@@ -4,6 +4,7 @@ import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
 import {
   buildWhatsAppSiteLink,
   normalizeWhatsAppPhone,
+  siteBaseUrl,
 } from "@/lib/whatsapp/delivery-issue-draft";
 
 function escapeHtml(text: string): string {
@@ -182,12 +183,33 @@ export async function notifyAdminNewOrder(
     .join("\n");
 
   const waPhone = normalizeWhatsAppPhone(phone);
+  const shipAddress = [address, city].filter(Boolean).join(", ");
+  const orderDetail = lineItems
+    .map((item, index) => {
+      const title = (
+        details[index] ||
+        str(item.title || item.name) ||
+        "Item"
+      )
+        .split(/\n/)[0]
+        .trim();
+      const qty = str(item.quantity ?? 1) || "1";
+      return `${title} × ${qty}`;
+    })
+    .join(", ");
+  const totalLabel = formatMoney(order.total_price, order.currency);
+  const portalUrl = str(order.order_status_url) || siteBaseUrl();
+
   const waLink = waPhone
     ? buildWhatsAppSiteLink({
         type: "order_placed",
         phone: waPhone,
         name,
         order: displayOrder,
+        address: shipAddress || undefined,
+        detail: orderDetail || undefined,
+        total: totalLabel || undefined,
+        portal: portalUrl || undefined,
       })
     : null;
 
@@ -195,7 +217,7 @@ export async function notifyAdminNewOrder(
     ? `<p style="margin:18px 0 8px">` +
       `<a href="${escapeHtml(waLink)}" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;border-radius:6px;">Send WhatsApp — order placed</a>` +
       `</p>` +
-      `<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with: order confirmed, will be dispatched soon. Tap <strong>Send</strong>.</p>`
+      `<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with order receipt (name, detail, address). Ask customer to confirm or correct. Tap <strong>Send</strong>.</p>`
     : `<p style="color:#a00;font-size:13px">No valid customer phone — WhatsApp button skipped.</p>`;
 
   const waBlockPlain = waLink

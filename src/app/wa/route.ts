@@ -7,7 +7,7 @@ import {
 } from "@/lib/whatsapp/delivery-issue-draft";
 
 /**
- * GET /wa?type=tracking|order_placed|delivery_issue|status_update&phone=&name=&order=&status=&cn=
+ * GET /wa?type=tracking|order_placed|delivery_issue|status_update&phone=&name=&order=&status=&cn=&address=&detail=&total=&portal=
  *
  * Builds the emoji message on the server (UTF-8), then opens WhatsApp.
  * Email buttons must link here with ASCII-only query params — never put
@@ -39,6 +39,10 @@ export function GET(request: NextRequest) {
     order: sp.get("order") || undefined,
     status: sp.get("status") || undefined,
     cn: sp.get("cn") || undefined,
+    address: sp.get("address") || undefined,
+    detail: sp.get("detail") || undefined,
+    total: sp.get("total") || undefined,
+    portal: sp.get("portal") || undefined,
   });
 
   const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;

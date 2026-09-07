@@ -147,7 +147,9 @@ async function fulfillOrderWithTracking(
     };
   }>(mutation, {
     fulfillment: {
-      notifyCustomer: true,
+      // Apps Script already emails the customer on Delivered (with review CTA).
+      // Shopify's fulfillment email says "on the way" and duplicates that notice.
+      notifyCustomer: false,
       trackingInfo: {
         company: "Other",
         number: cn,
@@ -156,8 +158,7 @@ async function fulfillOrderWithTracking(
       lineItemsByFulfillmentOrder: fulfillmentOrderIds.map((id) => ({
         fulfillmentOrderId: id,
       })),
-    },
-  });
+    },  });
 
   const errors =
     data.fulfillmentCreate?.userErrors?.map((e) => e.message).filter(Boolean) ??

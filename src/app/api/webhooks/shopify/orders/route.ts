@@ -189,14 +189,21 @@ export async function POST(request: NextRequest) {
       console.log(`${LOG} CREATE — writing ${rows.length} row(s)...`);
       const result = await appendOrderRows(rows, orderNumber);
       console.log(`${LOG} CREATE result:`, result);
-      // Always try once on create (even if sheet skipped as in_flight/duplicate).
-      // Dedupe is by order number so parallel webhooks only send one email.
-      await sendNewOrderEmailsSafe(
-        order,
-        orderNumber,
-        "orders/create",
-        productDetails,
-      );
+      // Only email on the first successful sheet insert. Retries / parallel
+      // create+update webhooks that skip as already_exists must not re-email.
+      if (result.written) {
+        await sendNewOrderEmailsSafe(
+          order,
+          orderNumber,
+          "orders/create",
+          productDetails,
+        );
+      } else {
+        console.log(
+          `${LOG} New-order emails skipped on create — sheet:`,
+          result.reason || result,
+        );
+      }
       return NextResponse.json({ ok: true, action: "create", ...result });
     }
 
