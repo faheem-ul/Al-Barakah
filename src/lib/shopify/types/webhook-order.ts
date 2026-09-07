@@ -31,6 +31,14 @@ export type ShopifyWebhookLineItem = {
   taxable?: boolean | null;
   gift_card?: boolean | null;
   fulfillment_status?: string | null;
+  /** Cart line properties (e.g. combo Includes 1 / Includes 2). */
+  properties?:
+    | {
+        name?: string | null;
+        key?: string | null;
+        value?: string | null;
+      }[]
+    | null;
 };
 
 export type ShopifyWebhookShippingLine = {
