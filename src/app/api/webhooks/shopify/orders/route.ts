@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notifyAdminNewOrder } from "@/lib/email/new-order-admin";
+import { notifyCustomerNewOrder } from "@/lib/email/new-order-customer";
 import { appendOrderRows, updateOrderStatuses } from "@/lib/google/sheets";
+import { resolveOrderProductDetails } from "@/lib/shopify/line-item-detail";
 import {
   buildOrderSheetRows,
   initialOrderStatus,
@@ -24,14 +26,23 @@ const ALLOWED_TOPICS = new Set([...CREATE_TOPICS, ...UPDATE_TOPICS]);
 
 const LOG = "[Shopify Webhook]";
 
-/** One admin new-order email per order number per process (webhook retries / races). */
+/** One admin/customer new-order email per order number per process (webhook retries / races). */
 const adminEmailedOrderKeys = new Set<string>();
+const customerEmailedOrderKeys = new Set<string>();
 
 function claimNewOrderAdminEmail_(orderNumber: string): boolean {
   const key = String(orderNumber).trim();
   if (!key) return false;
   if (adminEmailedOrderKeys.has(key)) return false;
   adminEmailedOrderKeys.add(key);
+  return true;
+}
+
+function claimNewOrderCustomerEmail_(orderNumber: string): boolean {
+  const key = String(orderNumber).trim();
+  if (!key) return false;
+  if (customerEmailedOrderKeys.has(key)) return false;
+  customerEmailedOrderKeys.add(key);
   return true;
 }
 
@@ -62,23 +73,41 @@ export async function GET() {
   });
 }
 
-async function sendNewOrderAdminEmailSafe(
+async function sendNewOrderEmailsSafe(
   order: ShopifyWebhookOrder,
   orderNumber: string,
   reason: string,
+  productDetails: string[],
 ) {
-  if (!claimNewOrderAdminEmail_(orderNumber)) {
+  if (claimNewOrderAdminEmail_(orderNumber)) {
+    try {
+      await notifyAdminNewOrder(order, productDetails);
+    } catch (err) {
+      adminEmailedOrderKeys.delete(String(orderNumber).trim());
+      console.error(`${LOG} Admin new-order email failed:`, err);
+    }
+  } else {
     console.log(
       `${LOG} Admin email skipped — already sent for order ${orderNumber} (${reason})`,
     );
-    return;
   }
-  try {
-    await notifyAdminNewOrder(order);
-  } catch (err) {
-    // Allow a later webhook to retry if send threw before completion
-    adminEmailedOrderKeys.delete(String(orderNumber).trim());
-    console.error(`${LOG} Admin new-order email failed:`, err);
+
+  if (claimNewOrderCustomerEmail_(orderNumber)) {
+    try {
+      const result = await notifyCustomerNewOrder(order, productDetails);
+      if (result.skipped) {
+        console.log(
+          `${LOG} Customer email skipped for order ${orderNumber} (${reason})`,
+        );
+      }
+    } catch (err) {
+      customerEmailedOrderKeys.delete(String(orderNumber).trim());
+      console.error(`${LOG} Customer new-order email failed:`, err);
+    }
+  } else {
+    console.log(
+      `${LOG} Customer email skipped — already sent for order ${orderNumber} (${reason})`,
+    );
   }
 }
 
@@ -89,7 +118,7 @@ export async function POST(request: NextRequest) {
   console.log(`${LOG} Shop domain:`, request.headers.get("x-shopify-shop-domain"));
   console.log(
     `${LOG} Webhook ID:`,
-    request.headers.get("x-shopify-webhook-id")
+    request.headers.get("x-shopify-webhook-id"),
   );
 
   const secret = process.env.SHOPIFY_WEBHOOK_SECRET?.trim();
@@ -97,7 +126,7 @@ export async function POST(request: NextRequest) {
     console.error(`${LOG} SHOPIFY_WEBHOOK_SECRET is not configured`);
     return NextResponse.json(
       { error: "Webhook secret not configured" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -108,10 +137,10 @@ export async function POST(request: NextRequest) {
 
   if (rawBody.length === 0) {
     console.error(
-      `${LOG} EMPTY BODY — nothing written to Google Sheets. Shopify may have sent a body that was dropped during Turbopack compile / tunnel.`
+      `${LOG} EMPTY BODY — nothing written to Google Sheets. Shopify may have sent a body that was dropped during Turbopack compile / tunnel.`,
     );
     console.error(
-      `${LOG} Fix: stop server → run "pnpm run dev:webhook" (no turbopack) → open /api/webhooks/shopify/orders in browser once to warm route → place order again.`
+      `${LOG} Fix: stop server → run "pnpm run dev:webhook" (no turbopack) → open /api/webhooks/shopify/orders in browser once to warm route → place order again.`,
     );
     // Non-2xx so Shopify retries with the body
     return NextResponse.json({ error: "Empty webhook body" }, { status: 503 });
@@ -155,13 +184,19 @@ export async function POST(request: NextRequest) {
 
   try {
     if (CREATE_TOPICS.has(topic)) {
-      const rows = buildOrderSheetRows(order);
+      const productDetails = await resolveOrderProductDetails(order.line_items);
+      const rows = buildOrderSheetRows(order, productDetails);
       console.log(`${LOG} CREATE — writing ${rows.length} row(s)...`);
       const result = await appendOrderRows(rows, orderNumber);
       console.log(`${LOG} CREATE result:`, result);
       // Always try once on create (even if sheet skipped as in_flight/duplicate).
       // Dedupe is by order number so parallel webhooks only send one email.
-      await sendNewOrderAdminEmailSafe(order, orderNumber, "orders/create");
+      await sendNewOrderEmailsSafe(
+        order,
+        orderNumber,
+        "orders/create",
+        productDetails,
+      );
       return NextResponse.json({ ok: true, action: "create", ...result });
     }
 
@@ -169,7 +204,7 @@ export async function POST(request: NextRequest) {
     const orderStatus = initialOrderStatus(order);
     console.log(
       `${LOG} UPDATE — syncing Order Status for order ${orderNumber}:`,
-      orderStatus
+      orderStatus,
     );
     const updated = await updateOrderStatuses(orderNumber, orderStatus);
 
@@ -180,18 +215,20 @@ export async function POST(request: NextRequest) {
 
     if (updated.reason === "not_found") {
       console.log(`${LOG} Order not in sheet yet — inserting on update webhook`);
-      const rows = buildOrderSheetRows(order);
+      const productDetails = await resolveOrderProductDetails(order.line_items);
+      const rows = buildOrderSheetRows(order, productDetails);
       const created = await appendOrderRows(rows, orderNumber);
       // Only if this path actually inserted (create webhook may have emailed already)
       if (created.written) {
-        await sendNewOrderAdminEmailSafe(
+        await sendNewOrderEmailsSafe(
           order,
           orderNumber,
           "create_on_update",
+          productDetails,
         );
       } else {
         console.log(
-          `${LOG} Admin email skipped on update-insert — sheet:`,
+          `${LOG} New-order emails skipped on update-insert — sheet:`,
           created.reason || created,
         );
       }
@@ -208,7 +245,7 @@ export async function POST(request: NextRequest) {
     console.error(`${LOG} FAILED sheet sync:`, error);
     return NextResponse.json(
       { error: "Failed to write to Google Sheets" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

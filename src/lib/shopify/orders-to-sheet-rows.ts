@@ -2,6 +2,7 @@ import type {
   ShopifyWebhookAddress,
   ShopifyWebhookOrder,
 } from "./types/webhook-order";
+import { formatLineItemProductDetail } from "./line-item-detail";
 
 /**
  * Column headers — keep in sync with buildOrderSheetRows.
@@ -89,19 +90,12 @@ function formatContact(phone: string): string {
   return phone.trim();
 }
 
-function productDetail(item: {
-  title?: string | null;
-  name?: string | null;
-}): string {
-  return str(item.title ?? item.name).trim();
-}
-
 /**
  * Normalize Shopify variant titles into “1 kg” / “1/2 kg” style sizes.
  */
 export function bottleSizeFromVariant(
   variantTitle?: string | null,
-  productTitle?: string | null
+  productTitle?: string | null,
 ): string {
   const raw = `${str(variantTitle)} ${str(productTitle)}`.toLowerCase();
 
@@ -135,7 +129,7 @@ function lineRetailPrice(item: {
 
 function orderCodAmount(order: ShopifyWebhookOrder): number {
   const fromSet = Number(
-    order.total_shipping_price_set?.shop_money?.amount ?? NaN
+    order.total_shipping_price_set?.shop_money?.amount ?? NaN,
   );
   if (Number.isFinite(fromSet) && fromSet >= 0) {
     return Math.round(fromSet);
@@ -167,8 +161,13 @@ export function initialOrderStatus(order: ShopifyWebhookOrder): string {
  * One sheet row per line item.
  * Order-level fields (name, address, COD, total, etc.) live on the first row;
  * continuation rows only fill product columns so Sheets can merge the order block.
+ *
+ * @param productDetails Optional pre-resolved Product Detail strings (combo name + contents).
  */
-export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
+export function buildOrderSheetRows(
+  order: ShopifyWebhookOrder,
+  productDetails?: string[],
+): string[][] {
   const lineItems = order.line_items?.length
     ? order.line_items
     : [{ title: "(no line items)", quantity: 0, price: "0" }];
@@ -187,8 +186,8 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
       shipping?.phone ||
         billing?.phone ||
         order.phone ||
-        order.customer?.phone
-    )
+        order.customer?.phone,
+    ),
   );
   // Webhook payload includes email even on Basic plans (Admin API PII does not).
   const email = str(order.email || order.customer?.email)
@@ -204,6 +203,8 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
   return lineItems.map((item, index) => {
     const retail = retails[index] ?? 0;
     const isFirst = index === 0;
+    const detail =
+      productDetails?.[index]?.trim() || formatLineItemProductDetail(item);
     return [
       isFirst ? orderNumber : "",
       isFirst ? date : "",
@@ -212,7 +213,7 @@ export function buildOrderSheetRows(order: ShopifyWebhookOrder): string[][] {
       isFirst ? city : "",
       isFirst ? contact : "",
       isFirst ? email : "",
-      productDetail(item),
+      detail,
       bottleSizeFromVariant(item.variant_title, item.title),
       str(item.quantity ?? ""),
       retail ? String(retail) : "0",

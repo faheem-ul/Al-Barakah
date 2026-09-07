@@ -1,4 +1,5 @@
 import { adminNotifyEmail, sendAdminEmail } from "@/lib/email/send";
+import { resolveOrderProductDetails } from "@/lib/shopify/line-item-detail";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
 import {
   buildWhatsAppSiteLink,
@@ -63,11 +64,63 @@ function contactPhone(order: ShopifyWebhookOrder): string {
   );
 }
 
-function formatMoney(amount: string | number | null | undefined, currency?: string | null): string {
+function formatMoney(
+  amount: string | number | null | undefined,
+  currency?: string | null,
+): string {
   const n = Number(amount ?? 0);
   const cur = str(currency) || "PKR";
   if (!Number.isFinite(n)) return `${cur} —`;
   return `${cur} ${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
+}
+
+function formatItemHtml(
+  detail: string,
+  qty: string,
+  price: string,
+  variant: string,
+): string {
+  const [title, ...contents] = detail
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const variantBit =
+    variant && variant.toLowerCase() !== "default title"
+      ? ` <span style="color:#666">(${escapeHtml(variant)})</span>`
+      : "";
+  const contentsHtml = contents.length
+    ? `<div style="margin:4px 0 0;color:#555;font-size:13px;line-height:1.45">${contents
+        .map((line) => escapeHtml(line))
+        .join("<br/>")}</div>`
+    : "";
+
+  return (
+    `<li style="margin:0 0 10px">` +
+    `<div><strong>${escapeHtml(title || "Item")}</strong>${variantBit} × ${escapeHtml(qty)} — ${escapeHtml(price)}</div>` +
+    contentsHtml +
+    `</li>`
+  );
+}
+
+function formatItemPlain(
+  detail: string,
+  qty: string,
+  price: string,
+  variant: string,
+): string {
+  const [title, ...contents] = detail
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const variantBit =
+    variant && variant.toLowerCase() !== "default title"
+      ? ` (${variant})`
+      : "";
+  const contentLines = contents.map((line) => `    ${line}`).join("\n");
+  return (
+    `- ${title || "Item"}${variantBit} × ${qty} — ${price}` +
+    (contentLines ? `\n${contentLines}` : "")
+  );
 }
 
 /**
@@ -76,6 +129,7 @@ function formatMoney(amount: string | number | null | undefined, currency?: stri
  */
 export async function notifyAdminNewOrder(
   order: ShopifyWebhookOrder,
+  productDetails?: string[],
 ): Promise<void> {
   const to = adminNotifyEmail();
   const name = customerName(order);
@@ -93,39 +147,37 @@ export async function notifyAdminNewOrder(
   const address = formatStreet(order);
   const note = str(order.note);
   const financial = str(order.financial_status) || "—";
-  const gateway = (order.payment_gateway_names || [])
-    .filter(Boolean)
-    .join(", ") || str(order.gateway) || "—";
+  const gateway =
+    (order.payment_gateway_names || []).filter(Boolean).join(", ") ||
+    str(order.gateway) ||
+    "—";
 
-  const lineItems = order.line_items?.length
-    ? order.line_items
-    : [];
+  const lineItems = order.line_items?.length ? order.line_items : [];
+  const details =
+    productDetails?.length === lineItems.length
+      ? productDetails
+      : await resolveOrderProductDetails(lineItems);
 
   const linesHtml = lineItems
-    .map((item) => {
-      const title = escapeHtml(str(item.title || item.name) || "Item");
-      const variant = str(item.variant_title);
+    .map((item, index) => {
       const qty = str(item.quantity ?? 1);
       const price = formatMoney(item.price, order.currency);
-      const variantBit =
-        variant && variant.toLowerCase() !== "default title"
-          ? ` <span style="color:#666">(${escapeHtml(variant)})</span>`
-          : "";
-      return `<li style="margin:0 0 6px">${title}${variantBit} × ${escapeHtml(qty)} — ${escapeHtml(price)}</li>`;
+      const variant = str(item.variant_title);
+      return formatItemHtml(details[index] || str(item.title), qty, price, variant);
     })
     .join("");
 
   const linesPlain = lineItems
-    .map((item) => {
-      const title = str(item.title || item.name) || "Item";
-      const variant = str(item.variant_title);
+    .map((item, index) => {
       const qty = str(item.quantity ?? 1);
       const price = formatMoney(item.price, order.currency);
-      const variantBit =
-        variant && variant.toLowerCase() !== "default title"
-          ? ` (${variant})`
-          : "";
-      return `- ${title}${variantBit} × ${qty} — ${price}`;
+      const variant = str(item.variant_title);
+      return formatItemPlain(
+        details[index] || str(item.title),
+        qty,
+        price,
+        variant,
+      );
     })
     .join("\n");
 
@@ -164,9 +216,24 @@ export async function notifyAdminNewOrder(
     rowHtml("Address", escapeHtml(address || "—")) +
     rowHtml("City", escapeHtml(city || "—")) +
     rowHtml("Payment", escapeHtml(`${financial} / ${gateway}`)) +
-    rowHtml("Total", escapeHtml(formatMoney(order.total_price, order.currency))) +
-    rowHtml("Subtotal", escapeHtml(formatMoney(order.subtotal_price, order.currency))) +
-    rowHtml("Shipping / COD", escapeHtml(formatMoney(order.total_shipping_price_set?.shop_money?.amount ?? order.shipping_lines?.[0]?.price, order.currency))) +
+    rowHtml(
+      "Total",
+      escapeHtml(formatMoney(order.total_price, order.currency)),
+    ) +
+    rowHtml(
+      "Subtotal",
+      escapeHtml(formatMoney(order.subtotal_price, order.currency)),
+    ) +
+    rowHtml(
+      "Shipping / COD",
+      escapeHtml(
+        formatMoney(
+          order.total_shipping_price_set?.shop_money?.amount ??
+            order.shipping_lines?.[0]?.price,
+          order.currency,
+        ),
+      ),
+    ) +
     rowHtml("Note", escapeHtml(note || "—")) +
     `</table>` +
     `<p style="margin:12px 0 4px"><strong>Items</strong></p>` +
