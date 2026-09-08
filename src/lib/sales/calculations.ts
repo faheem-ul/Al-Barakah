@@ -604,6 +604,7 @@ export function defaultStockDateRange(): { fromDate: string; toDate: string } {
 }
 
 export function buildStockSummary(
+  orders: SalesOrder[],
   purchases: StockPurchase[],
   expenses: StockExpense[],
   fromDate: string,
@@ -612,18 +613,33 @@ export function buildStockSummary(
   if (fromDate > toDate) {
     return {
       purchasesTotal: 0,
+      salesTotal: 0,
+      cogs: 0,
+      stockExpensesTotal: 0,
+      orderExpensesTotal: 0,
+      deliveredFulfillmentExpenses: 0,
+      returnedOrderExpenses: 0,
+      promotionalFulfillmentExpenses: 0,
       expensesTotal: 0,
-      profitLoss: 0,
+      netProfit: 0,
       purchaseCount: 0,
       expenseCount: 0,
+      deliveredOrderCount: 0,
       invalidRange: true,
     };
   }
 
   let purchasesTotal = 0;
-  let expensesTotal = 0;
+  let stockExpensesTotal = 0;
+  let orderExpensesTotal = 0;
+  let deliveredFulfillmentExpenses = 0;
+  let returnedOrderExpenses = 0;
+  let promotionalFulfillmentExpenses = 0;
+  let salesTotal = 0;
+  let cogs = 0;
   let purchaseCount = 0;
   let expenseCount = 0;
+  let deliveredOrderCount = 0;
 
   for (const purchase of purchases) {
     if (!isDateInRange(purchase.date, fromDate, toDate)) continue;
@@ -633,16 +649,55 @@ export function buildStockSummary(
 
   for (const expense of expenses) {
     if (!isDateInRange(expense.date, fromDate, toDate)) continue;
-    expensesTotal += Number(expense.amount) || 0;
+    stockExpensesTotal += Number(expense.amount) || 0;
     expenseCount += 1;
   }
 
+  for (const order of orders) {
+    if (!isDateInRange(order.date, fromDate, toDate)) continue;
+
+    const calc = order.calculation;
+    const customTotal = sumCustomExpenses(calc.customExpenses ?? []);
+    const fulfillmentCost =
+      (Number(calc.packing) || 0) +
+      (Number(calc.courier) || 0) +
+      customTotal;
+    const honeyCost = Number(calc.honeyCost) || 0;
+
+    if (order.status === "delivered") {
+      salesTotal += Number(calc.revenue) || 0;
+      cogs += honeyCost;
+      orderExpensesTotal += fulfillmentCost;
+      deliveredFulfillmentExpenses += fulfillmentCost;
+      deliveredOrderCount += 1;
+    } else if (order.status === "returned") {
+      const returnedExpense = Number(calc.expenses) || 0;
+      orderExpensesTotal += returnedExpense;
+      returnedOrderExpenses += returnedExpense;
+    } else if (order.status === "promotional") {
+      cogs += honeyCost;
+      orderExpensesTotal += fulfillmentCost;
+      promotionalFulfillmentExpenses += fulfillmentCost;
+    }
+  }
+
+  const expensesTotal = stockExpensesTotal + orderExpensesTotal;
+  const netProfit = salesTotal - cogs - expensesTotal;
+
   return {
     purchasesTotal,
+    salesTotal,
+    cogs,
+    stockExpensesTotal,
+    orderExpensesTotal,
+    deliveredFulfillmentExpenses,
+    returnedOrderExpenses,
+    promotionalFulfillmentExpenses,
     expensesTotal,
-    profitLoss: purchasesTotal - expensesTotal,
+    netProfit,
     purchaseCount,
     expenseCount,
+    deliveredOrderCount,
     invalidRange: false,
   };
 }
