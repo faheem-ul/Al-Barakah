@@ -15,6 +15,8 @@ import type {
   SalesSettings,
   NumericSettingsKey,
   OrderPreviewOptions,
+  StockPurchase,
+  StockExpense,
 } from "./types";
 
 export function money(value: number | undefined | null): string {
@@ -582,5 +584,65 @@ export function buildMonthlyReport(orders: SalesOrder[], month: string) {
     returnedExpense,
     promotionalRows: Object.values(promotionalStats),
     promotionalExpense,
+  };
+}
+
+function isDateInRange(
+  date: string,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  return date >= fromDate && date <= toDate;
+}
+
+export function defaultStockDateRange(): { fromDate: string; toDate: string } {
+  const month = currentMonthValue();
+  return {
+    fromDate: `${month}-01`,
+    toDate: todayIsoDate(),
+  };
+}
+
+export function buildStockSummary(
+  purchases: StockPurchase[],
+  expenses: StockExpense[],
+  fromDate: string,
+  toDate: string,
+) {
+  if (fromDate > toDate) {
+    return {
+      purchasesTotal: 0,
+      expensesTotal: 0,
+      profitLoss: 0,
+      purchaseCount: 0,
+      expenseCount: 0,
+      invalidRange: true,
+    };
+  }
+
+  let purchasesTotal = 0;
+  let expensesTotal = 0;
+  let purchaseCount = 0;
+  let expenseCount = 0;
+
+  for (const purchase of purchases) {
+    if (!isDateInRange(purchase.date, fromDate, toDate)) continue;
+    purchasesTotal += Number(purchase.totalCost) || 0;
+    purchaseCount += 1;
+  }
+
+  for (const expense of expenses) {
+    if (!isDateInRange(expense.date, fromDate, toDate)) continue;
+    expensesTotal += Number(expense.amount) || 0;
+    expenseCount += 1;
+  }
+
+  return {
+    purchasesTotal,
+    expensesTotal,
+    profitLoss: purchasesTotal - expensesTotal,
+    purchaseCount,
+    expenseCount,
+    invalidRange: false,
   };
 }

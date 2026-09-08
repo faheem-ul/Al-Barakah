@@ -179,3 +179,13 @@ export type StockPurchase = {
 };
 
 export type StockPurchasePayload = Omit<StockPurchase, "id">;
+
+export type StockExpense = {
+  id: string;
+  name: string;
+  amount: number;
+  date: string;
+  createdAt: number;
+};
+
+export type StockExpensePayload = Omit<StockExpense, "id">;
