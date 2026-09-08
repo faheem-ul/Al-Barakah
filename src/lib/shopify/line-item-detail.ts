@@ -1,3 +1,8 @@
+import {
+  getComboCategoryForProduct,
+  isComboProduct,
+  type ComboCategoryConfig,
+} from "@/components/Home/ComboDeals/comboConfig";
 import { getComboDescriptionLines } from "@/components/Home/ComboDeals/comboTextFormat";
 import { getCartProducts } from "@/lib/shopify/actions/product";
 import type { Product } from "@/lib/shopify/types";
@@ -61,6 +66,8 @@ export function lineItemTitle(
  *   Power Pair
  *   (1 kg) بڑی مکھی کا جنگلی شہد
  *   (1 kg) چھوٹی مکھی کا جنگلی شہد
+ *
+ * Single products: title only (never the marketing description).
  */
 export function formatLineItemProductDetail(
   item: Pick<ShopifyWebhookLineItem, "title" | "name" | "properties">,
@@ -117,10 +124,46 @@ function findFetchedProduct(
   );
 }
 
+function lineLooksLikeWeight(line: string): boolean {
+  return (
+    /\([^)]*(?:kg|KG|Kg|Half)[^)]*\)/i.test(line) ||
+    /\b1\s*\/\s*2\s*(kg|kgs)?\b/i.test(line) ||
+    /\b\d+(?:\.\d+)?\s*(kg|kgs)\b/i.test(line) ||
+    /\bhalf\s*(kg)?\b/i.test(line)
+  );
+}
+
+/**
+ * When combo description lists jar names without weights, attach defaults
+ * from the combo category (e.g. Duo → 1/2 kg each).
+ */
+export function ensureComboContentWeights(
+  lines: string[],
+  category: ComboCategoryConfig | undefined,
+): string[] {
+  const cleaned = lines.map((line) => str(line)).filter(Boolean);
+  if (!cleaned.length || !category) return cleaned;
+  if (cleaned.some(lineLooksLikeWeight)) return cleaned;
+
+  if (category.id === "duo") {
+    return cleaned.map((line) => `${line} (1/2 kg)`);
+  }
+  if (category.id === "family") {
+    return cleaned.map((line) => `${line} (1 kg)`);
+  }
+  if (category.id === "mix") {
+    return cleaned.map((line, index) =>
+      index === 0 ? `${line} (1 kg)` : `${line} (1/2 kg)`,
+    );
+  }
+
+  return cleaned;
+}
+
 /**
  * Resolve Product Detail text for each line item.
- * Prefers checkout properties; otherwise loads Shopify product description
- * (same source as combo cards on the homepage).
+ * - Regular products → product title only
+ * - Combos → deal title + jar lines (from Includes properties, or combo description)
  */
 export async function resolveOrderProductDetails(
   lineItems: ShopifyWebhookLineItem[] | null | undefined,
@@ -131,25 +174,31 @@ export async function resolveOrderProductDetails(
 
   const details = items.map((item) => formatLineItemProductDetail(item));
 
-  const needsFallback = items
+  const needsProductLookup = items
     .map((item, index) => ({ item, index }))
-    .filter(
-      ({ item }) =>
-        lineItemIncludeLines(item).length === 0 && Boolean(item.product_id),
-    );
+    .filter(({ item }) => Boolean(item.product_id))
+    .filter(({ item }) => {
+      const includes = lineItemIncludeLines(item);
+      // No jar lines yet → may be a combo needing description fallback
+      if (!includes.length) return true;
+      // Jar lines present but no weights → may need category defaults
+      return !includes.some(lineLooksLikeWeight);
+    });
 
-  if (!needsFallback.length) {
-    console.log(`${LOG} All line items resolved from properties`);
+  if (!needsProductLookup.length) {
+    console.log(`${LOG} All line items resolved from properties / title`);
     return details;
   }
 
   const productIds = Array.from(
     new Set(
-      needsFallback.map(({ item }) => toProductGid(item.product_id as number)),
+      needsProductLookup.map(({ item }) =>
+        toProductGid(item.product_id as number),
+      ),
     ),
   );
 
-  console.log(`${LOG} Fetching product descriptions for`, productIds);
+  console.log(`${LOG} Fetching products for combo/title resolve`, productIds);
 
   try {
     const result = await getCartProducts(productIds);
@@ -163,13 +212,14 @@ export async function resolveOrderProductDetails(
         products.map((p) => ({
           id: p.id,
           title: p.title,
+          isCombo: isComboProduct(p),
           hasDescription: Boolean(productPlainDescription(p)),
           collections: p.collections?.map((c) => c.handle) ?? [],
         })),
       );
     }
 
-    for (const { item, index } of needsFallback) {
+    for (const { item, index } of needsProductLookup) {
       const product = findFetchedProduct(products, item.product_id as number);
       if (!product) {
         console.warn(
@@ -178,15 +228,32 @@ export async function resolveOrderProductDetails(
         continue;
       }
 
-      const description = productPlainDescription(product);
-      if (!description) {
-        console.warn(
-          `${LOG} Empty description for "${product.title}" (${product.id})`,
+      // Never paste marketing copy onto single-product sheet / email rows
+      if (!isComboProduct(product)) {
+        details[index] = lineItemTitle(item);
+        continue;
+      }
+
+      const category = getComboCategoryForProduct(product);
+      const existingIncludes = lineItemIncludeLines(item);
+
+      if (existingIncludes.length) {
+        const weighted = ensureComboContentWeights(existingIncludes, category);
+        details[index] = [lineItemTitle(item), ...weighted].join("\n");
+        console.log(
+          `${LOG} Applied combo weights to Includes for "${lineItemTitle(item)}"`,
         );
         continue;
       }
 
-      // Skip if description is just repeating the title
+      const description = productPlainDescription(product);
+      if (!description) {
+        console.warn(
+          `${LOG} Empty description for combo "${product.title}" (${product.id})`,
+        );
+        continue;
+      }
+
       if (
         description.replace(/\s+/g, " ").toLowerCase() ===
         lineItemTitle(item).toLowerCase()
@@ -194,21 +261,18 @@ export async function resolveOrderProductDetails(
         continue;
       }
 
-      const contents = getComboDescriptionLines(description);
-      if (!contents.length) continue;
-
-      // Don't duplicate title if description formatting put the title first
-      const withoutTitle = contents.filter(
+      const rawContents = getComboDescriptionLines(description);
+      const withoutTitle = rawContents.filter(
         (line) =>
           line.replace(/\s+/g, " ").toLowerCase() !==
           lineItemTitle(item).toLowerCase(),
       );
-
       if (!withoutTitle.length) continue;
 
-      details[index] = formatLineItemProductDetail(item, withoutTitle);
+      const contents = ensureComboContentWeights(withoutTitle, category);
+      details[index] = formatLineItemProductDetail(item, contents);
       console.log(
-        `${LOG} Enriched "${lineItemTitle(item)}" with ${withoutTitle.length} content line(s)`,
+        `${LOG} Enriched combo "${lineItemTitle(item)}" with ${contents.length} jar line(s)`,
       );
     }
   } catch (error) {

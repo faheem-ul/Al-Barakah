@@ -678,8 +678,11 @@ function buildMpBookingPayload_(sheet, cols, row) {
   if (!(weightKg > 0)) {
     weightKg = CONFIG.MP_API.DEFAULT_WEIGHT;
   }
-  // M&P weight is typically whole kg; round up so 1.5 → 2
-  var weightForApi = Math.max(1, Math.ceil(weightKg));
+  // Send actual total bottle weight (e.g. 0.5 for 1/2 kg). Do not force whole kg.
+  var weightForApi = Math.round(Number(weightKg) * 100) / 100;
+  if (!(weightForApi > 0)) {
+    weightForApi = CONFIG.MP_API.DEFAULT_WEIGHT;
+  }
   var service = pickMpService_(weightKg);
   log_(
     "M&P weight",
@@ -1762,7 +1765,23 @@ function sendTrackingStatusEmail_(
           "",
       ).trim()
     : "";
+  var address = cols[CONFIG.HEADERS.ADDRESS]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ADDRESS]).getValue() || "",
+      ).trim()
+    : "";
+  var city = cols[CONFIG.HEADERS.CITY]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.CITY]).getValue() || "")
+        .trim()
+    : "";
+  var totalAmount = cols[CONFIG.HEADERS.TOTAL_AMOUNT]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.TOTAL_AMOUNT]).getValue() || "",
+      ).trim()
+    : "";
   if (!customerName) customerName = "Customer";
+
+  var shipAddress = [address, city].filter(Boolean).join(", ");
 
   var status = String(tracked.status || "").trim();
   var location = String(tracked.location || "").trim();
@@ -1788,6 +1807,8 @@ function sendTrackingStatusEmail_(
       orderNumber,
       status,
       cn,
+      shipAddress,
+      totalAmount,
     );
     waBlockHtml =
       '<p style="margin:18px 0 8px">' +
@@ -1811,28 +1832,181 @@ function sendTrackingStatusEmail_(
     status +
     '"';
 
+  var brand = CONFIG.BRAND || {};
+  var cBrown = brand.brown || "#302A25";
+  var cMint = brand.mint || "#8FB69F";
+  var cInk = brand.ink || "#1F150A";
+  var cMuted = brand.muted || "#6B6B6B";
+  var cCream = brand.cream || "#F2EEE6";
+  var cPage = brand.page || "#FDFBFF";
+  var cWhite = brand.white || "#FFFFFF";
+  var cBorder = brand.border || "#E8E2D8";
+  var siteUrl = String(
+    CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com",
+  ).trim();
+  var logoUrl = String(CONFIG.LOGO_URL || siteUrl + "/logo.png").trim();
+  var supportPhone = String(CONFIG.SUPPORT_PHONE || "+92 325 6957327").trim();
+  var supportTel = String(CONFIG.SUPPORT_PHONE_TEL || "+923256957327").trim();
+
+  var statusLower = String(status || "").toLowerCase();
+  var badgeBg = isDelivered_(status)
+    ? cMint
+    : statusLower.indexOf("return") >= 0 || statusLower.indexOf("fail") >= 0
+    ? "#b42318"
+    : cBrown;
+  var badgeColor = isDelivered_(status) ? cInk : cWhite;
+
+  var displayOrder = orderNumber
+    ? orderNumber.indexOf("#") === 0
+      ? orderNumber
+      : "#" + orderNumber
+    : "—";
+
+  var introHtml =
+    "An M&amp;P shipment status has changed" +
+    (mpPrevious
+      ? " from <strong>" +
+        escapeHtml_(mpPrevious) +
+        "</strong> to <strong>" +
+        escapeHtml_(status) +
+        "</strong>."
+      : " to <strong>" + escapeHtml_(status) + "</strong>.");
+
+  var waCtaHtml = "";
+  if (waLink) {
+    waCtaHtml =
+      '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 12px;"><tr>' +
+      '<td align="center" style="border-radius:30px;background:#25D366;">' +
+      '<a href="' +
+      waLink +
+      '" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:14px 28px;font-size:14px;font-weight:700;border-radius:30px;line-height:1.2;">Send WhatsApp update to customer</a>' +
+      "</td></tr></table>" +
+      '<p style="margin:0 0 8px;color:' +
+      cMuted +
+      ';font-size:12px;text-align:center;">Opens WhatsApp with a ready message. Tap <strong>Send</strong> to deliver it.</p>';
+  } else {
+    waCtaHtml =
+      '<p style="margin:0 0 8px;color:#b42318;font-size:13px;text-align:center;">No valid Contact phone — WhatsApp button skipped.</p>';
+  }
+
   var html =
-    '<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;line-height:1.5">' +
-    "<p>Assalamualaikum,</p>" +
-    "<p>An M&amp;P shipment status has changed.</p>" +
-    '<table style="border-collapse:collapse;margin:16px 0">' +
-    rowHtml_("Customer", escapeHtml_(customerName)) +
-    rowHtml_("Contact", escapeHtml_(contactNumber || "—")) +
-    rowHtml_("Order Number", escapeHtml_(orderNumber || "—")) +
-    rowHtml_("Tracking / CN", escapeHtml_(cn)) +
-    rowHtml_("Previous status", escapeHtml_(mpPrevious || "(none)")) +
-    rowHtml_("Current status", "<strong>" + escapeHtml_(status) + "</strong>") +
-    rowHtml_("Location", escapeHtml_(location || "—")) +
-    rowHtml_("Tracking Detail", escapeHtml_(detail || "—")) +
-    rowHtml_("Additional Note", escapeHtml_(additionalNote || "—")) +
-    rowHtml_("Checked at", escapeHtml_(checkedAt)) +
+    '<div style="margin:0;padding:0;background:' +
+    cPage +
+    ';">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:' +
+    cPage +
+    ';padding:28px 12px;">' +
+    '<tr><td align="center">' +
+    '<table role="presentation" width="580" cellspacing="0" cellpadding="0" style="max-width:580px;width:100%;background:' +
+    cWhite +
+    ";border-radius:14px;overflow:hidden;border:1px solid " +
+    cBorder +
+    ';">' +
+    '<tr><td style="padding:28px 28px 18px;text-align:center;background:' +
+    cCream +
+    ";border-bottom:1px solid " +
+    cBorder +
+    ';">' +
+    '<img src="' +
+    escapeHtml_(logoUrl) +
+    '" alt="Al Barakah Honey" width="148" style="display:block;margin:0 auto 10px;width:148px;max-width:60%;height:auto;border:0;" />' +
+    '<div style="margin-top:8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:' +
+    cMuted +
+    ';font-family:Arial,sans-serif;font-weight:600;">Shipment status update</div>' +
+    "</td></tr>" +
+    '<tr><td style="padding:26px 28px 8px;font-family:Arial,sans-serif;color:' +
+    cInk +
+    ';font-size:15px;line-height:1.65;">' +
+    '<p style="margin:0 0 14px;font-size:16px;">Assalamualaikum,</p>' +
+    '<p style="margin:0 0 20px;color:' +
+    cInk +
+    ';">' +
+    introHtml +
+    "</p>" +
+    '<div style="margin:0 0 18px;text-align:center;">' +
+    '<span style="display:inline-block;background:' +
+    badgeBg +
+    ";color:" +
+    badgeColor +
+    ';font-size:13px;font-weight:700;letter-spacing:0.04em;padding:8px 16px;border-radius:999px;">' +
+    escapeHtml_(status) +
+    "</span></div>" +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 20px;font-size:14px;border:1px solid ' +
+    cBorder +
+    ';border-radius:10px;overflow:hidden;">' +
+    customerRowHtml_("Customer", escapeHtml_(customerName)) +
+    customerRowHtml_("Contact", escapeHtml_(contactNumber || "—")) +
+    customerRowHtml_(
+      "Order number",
+      "<strong>" + escapeHtml_(displayOrder) + "</strong>",
+    ) +
+    customerRowHtml_(
+      "Tracking number",
+      '<strong style="letter-spacing:0.04em;">' + escapeHtml_(cn) + "</strong>",
+    ) +
+    customerRowHtml_(
+      "Previous status",
+      escapeHtml_(mpPrevious || "(none)"),
+    ) +
+    customerRowHtml_(
+      "Current status",
+      '<strong style="color:' +
+        cBrown +
+        ';">' +
+        escapeHtml_(status) +
+        "</strong>",
+    ) +
+    customerRowHtml_("Location", escapeHtml_(location || "—")) +
+    customerRowHtml_("Tracking Detail", escapeHtml_(detail || "—")) +
+    customerRowHtml_("Additional Note", escapeHtml_(additionalNote || "—")) +
+    customerRowHtml_("Checked at", escapeHtml_(checkedAt)) +
     "</table>" +
-    waBlockHtml +
-    '<p><a href="' +
+    waCtaHtml +
+    '<p style="margin:12px 0 8px;font-size:12px;color:' +
+    cMuted +
+    ';text-align:center;">Track anytime:<br><a href="' +
     trackingUrl +
-    '">Open M&amp;P tracking page</a></p>' +
-    '<p style="color:#666;font-size:12px">Al Barakah Honey — automated tracking notice</p>' +
-    "</div>";
+    '" style="color:' +
+    cBrown +
+    ';word-break:break-all;">' +
+    escapeHtml_(trackingUrl) +
+    "</a></p>" +
+    "</td></tr>" +
+    '<tr><td style="padding:20px 28px 28px;background:' +
+    cCream +
+    ";border-top:1px solid " +
+    cBorder +
+    ";font-family:Arial,sans-serif;font-size:13px;color:" +
+    cMuted +
+    ';line-height:1.55;">' +
+    '<div style="margin:0 0 12px;padding:14px 16px;background:' +
+    cWhite +
+    ";border:1px solid " +
+    cBorder +
+    ';border-radius:8px;">' +
+    '<strong style="color:' +
+    cBrown +
+    ';">Need help?</strong><br>' +
+    'Support: <a href="tel:' +
+    escapeHtml_(supportTel) +
+    '" style="color:' +
+    cBrown +
+    ';font-weight:700;text-decoration:none;">' +
+    escapeHtml_(supportPhone) +
+    "</a></div>" +
+    "Al Barakah Honey — automated tracking notice for the ops team.<br><br>" +
+    'Warm regards,<br><strong style="color:' +
+    cBrown +
+    ';">Al Barakah Honey</strong><br>' +
+    '<a href="' +
+    escapeHtml_(siteUrl) +
+    '" style="color:' +
+    cMuted +
+    ';font-size:12px;">' +
+    escapeHtml_(siteUrl.replace(/^https?:\/\//, "")) +
+    "</a>" +
+    "</td></tr>" +
+    "</table></td></tr></table></div>";
 
   var plain =
     "Assalamualaikum,\n\n" +
@@ -1896,6 +2070,8 @@ function buildWhatsAppDraftSiteLink_(
   orderNumber,
   status,
   cn,
+  address,
+  total,
 ) {
   var base = String(CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com")
     .trim()
@@ -1907,7 +2083,7 @@ function buildWhatsAppDraftSiteLink_(
       ? orderNumber
       : "#" + orderNumber
     : "";
-  return (
+  var url =
     base +
     "/wa?type=tracking&phone=" +
     encodeURIComponent(phone) +
@@ -1918,8 +2094,14 @@ function buildWhatsAppDraftSiteLink_(
     "&status=" +
     encodeURIComponent(status) +
     "&cn=" +
-    encodeURIComponent(cn)
-  );
+    encodeURIComponent(cn);
+  if (address) {
+    url += "&address=" + encodeURIComponent(String(address));
+  }
+  if (total) {
+    url += "&total=" + encodeURIComponent(String(total));
+  }
+  return url;
 }
 
 /**
