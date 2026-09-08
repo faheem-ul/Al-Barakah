@@ -100,6 +100,33 @@ export function resolveTrackingStatusKey(status?: string): TrackingStatusKey {
   return "generic";
 }
 
+function cleanLine(value?: string): string {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Digits-only COD amount for WhatsApp (e.g. "Rs 2,099.00" → "2099"). */
+export function formatCodAmount(raw?: string): string {
+  const cleaned = cleanLine(raw);
+  if (!cleaned) return "";
+
+  const withoutCurrency = cleaned
+    .replace(/^(rs\.?|pkr|pkr\.|rupees?)\s*/i, "")
+    .replace(/\s*(rs\.?|pkr|pkr\.|rupees?)$/i, "")
+    .trim();
+
+  const match = withoutCurrency.replace(/,/g, "").match(/(\d+(?:\.\d+)?)/);
+  if (!match) {
+    return withoutCurrency.replace(/^rs\.?\s*/i, "").trim();
+  }
+
+  const n = Number(match[1]);
+  if (!Number.isFinite(n)) return match[1];
+  if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+  return String(n);
+}
+
 type DraftParams = {
   name?: string;
   order?: string;
@@ -115,7 +142,7 @@ function buildBookedDraft(params: {
   address: string;
   total: string;
 }): string {
-  const amount = params.total.replace(/^rs\.?\s*/i, "").trim();
+  const amount = formatCodAmount(params.total);
   const receipt = [
     amount ? `💰 COD Amount: Rs. ${amount}` : "",
     params.address ? `📍 Delivery Address: ${params.address}` : "",
@@ -189,7 +216,7 @@ function buildTransitUpdateDraft(params: {
   key: Exclude<TrackingStatusKey, "booked">;
   rawStatus?: string;
 }): string {
-  const amount = params.total.replace(/^rs\.?\s*/i, "").trim();
+  const amount = formatCodAmount(params.total);
   const receipt = [
     amount ? `💰 COD Amount: Rs. ${amount}` : "",
     params.address ? `📍 Delivery Address: ${params.address}` : "",
@@ -225,7 +252,7 @@ function buildDeliveredDraft(params: {
   total: string;
   cn: string;
 }): string {
-  const amount = params.total.replace(/^rs\.?\s*/i, "").trim();
+  const amount = formatCodAmount(params.total);
   const receipt = [
     amount ? `💰 COD Amount: Rs. ${amount}` : "",
     params.address ? `📍 Delivery Address: ${params.address}` : "",
