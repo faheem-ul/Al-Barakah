@@ -4,14 +4,18 @@ import React, { useMemo, useState } from "react";
 
 import {
   buildDashboardStats,
+  buildStockSummary,
   currentMonthValue,
+  defaultStockDateRange,
   money,
 } from "@/lib/sales/calculations";
 import { formatOrderStatus } from "@/lib/sales/status";
-import type { SalesOrder } from "@/lib/sales/types";
+import type { SalesOrder, StockExpense, StockPurchase } from "@/lib/sales/types";
 
 type DashboardTabProps = {
   orders: SalesOrder[];
+  purchases: StockPurchase[];
+  expenses: StockExpense[];
 };
 
 function formatMonthLabel(month: string): string {
@@ -22,12 +26,24 @@ function formatMonthLabel(month: string): string {
   });
 }
 
-const DashboardTab: React.FC<DashboardTabProps> = ({ orders }) => {
+const DashboardTab: React.FC<DashboardTabProps> = ({
+  orders,
+  purchases,
+  expenses,
+}) => {
   const [month, setMonth] = useState(currentMonthValue());
+  const defaultRange = defaultStockDateRange();
+  const [fromDate, setFromDate] = useState(defaultRange.fromDate);
+  const [toDate, setToDate] = useState(defaultRange.toDate);
 
   const stats = useMemo(
     () => buildDashboardStats(orders, month),
     [orders, month],
+  );
+
+  const stockSummary = useMemo(
+    () => buildStockSummary(purchases, expenses, fromDate, toDate),
+    [purchases, expenses, fromDate, toDate],
   );
 
   const monthLabel = formatMonthLabel(month);
@@ -104,6 +120,85 @@ const DashboardTab: React.FC<DashboardTabProps> = ({ orders }) => {
           </p>
         </div>
         <strong className="text-[28px]">{money(stats.netProfit)}</strong>
+      </div>
+
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-[19px] font-semibold">Purchases & Expenses</h2>
+            <p className="text-[13px] text-[#6b7280] mt-1">
+              {fromDate} to {toDate}
+              {stockSummary.invalidRange
+                ? " — invalid date range"
+                : ` — ${stockSummary.purchaseCount} purchase${stockSummary.purchaseCount === 1 ? "" : "s"}, ${stockSummary.expenseCount} expense${stockSummary.expenseCount === 1 ? "" : "s"}`}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md w-full">
+            <label className="block">
+              <span className="text-[13px] text-[#6b7280] mb-1 block">
+                From
+              </span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[13px] text-[#6b7280] mb-1 block">To</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+              />
+            </label>
+          </div>
+        </div>
+
+        {stockSummary.invalidRange && (
+          <p className="mb-4 text-[13px] text-[#b91c1c]">
+            From date must be on or before To date.
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            {
+              label: "Purchases Total",
+              value: money(stockSummary.purchasesTotal),
+            },
+            {
+              label: "Expenses Total",
+              value: money(stockSummary.expensesTotal),
+            },
+            {
+              label: "Profit / Loss",
+              value: money(stockSummary.profitLoss),
+              success: stockSummary.profitLoss > 0,
+              danger: stockSummary.profitLoss < 0,
+            },
+          ].map((card) => (
+            <div
+              key={card.label}
+              className="rounded-xl border border-[#e5e7eb] bg-[#fafafa] p-4"
+            >
+              <p className="text-[13px] text-[#6b7280] mb-2">{card.label}</p>
+              <p
+                className={`text-[24px] font-bold ${
+                  card.success
+                    ? "text-[#047857]"
+                    : card.danger
+                      ? "text-[#b91c1c]"
+                      : "text-[#1f2937]"
+                }`}
+              >
+                {card.value}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">

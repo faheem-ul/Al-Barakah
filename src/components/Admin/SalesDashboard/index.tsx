@@ -6,6 +6,7 @@ import { useAdminAuth } from "@/components/Admin/AdminAuthProvider";
 import Spinner from "@/components/ui/Spinner";
 import { DEFAULT_SALES_SETTINGS } from "@/lib/sales/defaults";
 import { getAllSalesOrders } from "@/lib/sales/orders";
+import { getAllStockExpenses } from "@/lib/sales/expenses";
 import { getAllStockPurchases } from "@/lib/sales/purchases";
 import { getSalesSettings, saveSalesSettings } from "@/lib/sales/settings";
 import type {
@@ -13,6 +14,7 @@ import type {
   SalesSettings,
   SalesTab,
   StockPurchase,
+  StockExpense,
 } from "@/lib/sales/types";
 
 import DashboardTab from "./DashboardTab";
@@ -30,6 +32,7 @@ const SalesDashboard: React.FC = () => {
   const [settings, setSettings] = useState<SalesSettings>(DEFAULT_SALES_SETTINGS);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [purchases, setPurchases] = useState<StockPurchase[]>([]);
+  const [expenses, setExpenses] = useState<StockExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -42,6 +45,7 @@ const SalesDashboard: React.FC = () => {
     let settingsResult = DEFAULT_SALES_SETTINGS;
     let ordersResult: SalesOrder[] = [];
     let purchasesResult: StockPurchase[] = [];
+    let expensesResult: StockExpense[] = [];
     const errors: string[] = [];
 
     try {
@@ -65,9 +69,17 @@ const SalesDashboard: React.FC = () => {
       errors.push("Could not load stock purchases from Firestore.");
     }
 
+    try {
+      expensesResult = await getAllStockExpenses();
+    } catch (error) {
+      console.error("Failed to load stock expenses", error);
+      errors.push("Could not load stock expenses from Firestore.");
+    }
+
     setSettings(settingsResult);
     setOrders(ordersResult);
     setPurchases(purchasesResult);
+    setExpenses(expensesResult);
     setLoadError(errors.length ? errors.join(" ") : null);
     setLoading(false);
   }, []);
@@ -136,7 +148,13 @@ const SalesDashboard: React.FC = () => {
               </div>
             )}
 
-            {tab === "dashboard" && <DashboardTab orders={orders} />}
+            {tab === "dashboard" && (
+              <DashboardTab
+                orders={orders}
+                purchases={purchases}
+                expenses={expenses}
+              />
+            )}
             {tab === "orders" && (
               <OrdersTab
                 settings={settings}
@@ -151,6 +169,8 @@ const SalesDashboard: React.FC = () => {
               <StockTab
                 purchases={purchases}
                 onPurchasesChange={setPurchases}
+                expenses={expenses}
+                onExpensesChange={setExpenses}
               />
             )}
             {tab === "settings" && (
