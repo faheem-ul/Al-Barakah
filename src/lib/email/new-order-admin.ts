@@ -192,7 +192,6 @@ export async function notifyAdminNewOrder(
     })
     .join(", ");
   const totalLabel = formatMoney(order.total_price, order.currency);
-  const portalUrl = str(order.order_status_url) || siteBaseUrl();
 
   const waLink = waPhone
     ? buildWhatsAppSiteLink({
@@ -203,7 +202,6 @@ export async function notifyAdminNewOrder(
         address: shipAddress || undefined,
         detail: orderDetail || undefined,
         total: totalLabel || undefined,
-        portal: portalUrl || undefined,
       })
     : null;
 

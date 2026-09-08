@@ -1,5 +1,6 @@
 import {
   buildTrackingStatusWhatsAppDraft,
+  formatCodAmount,
 } from "@/lib/whatsapp/tracking-status-drafts";
 
 export type WhatsAppDraftType =
@@ -36,14 +37,13 @@ export function buildOrderPlacedWhatsAppDraft(params: {
   const order = formatOrderLabel(params.order);
   const address = cleanLine(params.address);
   const detail = cleanLine(params.detail);
-  const total = cleanLine(params.total);
-  const portal = cleanLine(params.portal) || siteBaseUrl();
+  const amount = formatCodAmount(params.total);
 
   const receiptLines = [
     `Name: ${name}`,
     detail ? `Order detail: ${detail}` : `Order: ${order}`,
     address ? `Address: ${address}` : "",
-    total ? `Total: ${total}` : "",
+    amount ? `💰 COD Amount: Rs. ${amount}` : "",
   ].filter(Boolean);
 
   return (
@@ -51,7 +51,6 @@ export function buildOrderPlacedWhatsAppDraft(params: {
     `Your Al Barakah Honey order ${order} is confirmed. It will be dispatched soon.\n\n` +
     `${receiptLines.join("\n")}\n\n` +
     `If your name, address, or order detail is wrong, please reply here.\n\n` +
-    `Order page: ${portal}\n` +
     `Website: ${siteBaseUrl()}\n\n` +
     `Thank you for choosing Al Barakah Honey`
   );
