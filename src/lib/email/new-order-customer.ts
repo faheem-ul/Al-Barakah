@@ -1,23 +1,12 @@
+import {
+  buildBrandedEmailHtml,
+  EMAIL_BRAND,
+  escapeEmailHtml,
+} from "@/lib/email/branded-layout";
 import { sendAdminEmail } from "@/lib/email/send";
 import { resolveOrderProductDetails } from "@/lib/shopify/line-item-detail";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
-
-function escapeHtml(text: string): string {
-  return String(text || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function rowHtml(label: string, value: string): string {
-  return (
-    `<tr>` +
-    `<td style="padding:6px 12px 6px 0;color:#666;vertical-align:top;white-space:nowrap">${escapeHtml(label)}</td>` +
-    `<td style="padding:6px 0;color:#222">${value}</td>` +
-    `</tr>`
-  );
-}
+import { siteBaseUrl } from "@/lib/whatsapp/delivery-issue-draft";
 
 function str(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -67,14 +56,14 @@ function formatItemHtml(detail: string, qty: string, price: string): string {
     .map((line) => line.trim())
     .filter(Boolean);
   const contentsHtml = contents.length
-    ? `<div style="margin:4px 0 0;color:#555;font-size:13px;line-height:1.45">${contents
-        .map((line) => escapeHtml(line))
+    ? `<div style="margin:4px 0 0;color:${EMAIL_BRAND.muted};font-size:13px;line-height:1.45">${contents
+        .map((line) => escapeEmailHtml(line))
         .join("<br/>")}</div>`
     : "";
 
   return (
-    `<li style="margin:0 0 10px">` +
-    `<div><strong>${escapeHtml(title || "Item")}</strong> × ${escapeHtml(qty)} — ${escapeHtml(price)}</div>` +
+    `<li style="margin:0 0 12px;color:${EMAIL_BRAND.ink};">` +
+    `<div><strong>${escapeEmailHtml(title || "Item")}</strong> × ${escapeEmailHtml(qty)} — ${escapeEmailHtml(price)}</div>` +
     contentsHtml +
     `</li>`
   );
@@ -117,6 +106,7 @@ export async function notifyCustomerNewOrder(
     order.shipping_address?.city || order.billing_address?.city,
   );
   const address = formatStreet(order);
+  const totalLabel = formatMoney(order.total_price, order.currency);
 
   const lineItems = order.line_items?.length ? order.line_items : [];
   const details =
@@ -142,23 +132,32 @@ export async function notifyCustomerNewOrder(
 
   const subject = `Order confirmed ${displayOrder} — Al Barakah Honey`;
 
-  const html =
-    `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;line-height:1.5">` +
-    `<p>Assalamualaikum${name && name !== "Customer" ? `, <strong>${escapeHtml(name)}</strong>` : ""},</p>` +
-    `<p>Thank you for your order. We have received it and will prepare it for dispatch soon.</p>` +
-    `<table style="border-collapse:collapse;margin:16px 0">` +
-    rowHtml("Order", escapeHtml(displayOrder)) +
-    rowHtml("Ship to", escapeHtml(address || "—")) +
-    rowHtml("City", escapeHtml(city || "—")) +
-    rowHtml(
-      "Total",
-      escapeHtml(formatMoney(order.total_price, order.currency)),
-    ) +
-    `</table>` +
-    `<p style="margin:12px 0 4px"><strong>Your items</strong></p>` +
-    `<ul style="margin:0 0 16px;padding-left:18px">${linesHtml || "<li>—</li>"}</ul>` +
-    `<p style="color:#666;font-size:12px">Al Barakah Honey — order confirmation</p>` +
-    `</div>`;
+  const html = buildBrandedEmailHtml({
+    eyebrow: "Order confirmation",
+    greetingName: name,
+    introHtml:
+      "Thank you for your order. We have received it and will prepare it for dispatch soon.",
+    badgeText: "Order confirmed",
+    badgeVariant: "mint",
+    rows: [
+      {
+        label: "Order number",
+        valueHtml: `<strong>${escapeEmailHtml(displayOrder)}</strong>`,
+      },
+      { label: "Ship to", valueHtml: escapeEmailHtml(address || "—") },
+      { label: "City", valueHtml: escapeEmailHtml(city || "—") },
+      {
+        label: "Total",
+        valueHtml: `<strong>${escapeEmailHtml(totalLabel)}</strong>`,
+      },
+    ],
+    bodyHtml:
+      `<p style="margin:0 0 8px;font-weight:700;color:${EMAIL_BRAND.brown};">Your items</p>` +
+      `<ul style="margin:0 0 8px;padding-left:18px;">${linesHtml || "<li>—</li>"}</ul>`,
+    footerNote:
+      "You will receive another email when your shipment status updates.",
+    siteUrl: siteBaseUrl(),
+  });
 
   const text =
     `Assalamualaikum${name && name !== "Customer" ? `, ${name}` : ""},\n\n` +
@@ -166,7 +165,7 @@ export async function notifyCustomerNewOrder(
     `Order: ${displayOrder}\n` +
     `Ship to: ${address || "—"}\n` +
     `City: ${city || "—"}\n` +
-    `Total: ${formatMoney(order.total_price, order.currency)}\n\n` +
+    `Total: ${totalLabel}\n\n` +
     `Your items:\n${linesPlain || "—"}\n`;
 
   return sendAdminEmail({ to, subject, html, text });
