@@ -31,16 +31,19 @@ Pure Blessing in Every Drop 🍯
 
 ---
 
-## 2. Every other status (shared layout)
+## 2. Status updates (shared layout)
 
-Only the **status headline** changes. Rest of the message stays the same.
+Shell stays the same. **Headline** + **support line** change per M&P status.
+For **Unsuccessful**, **Hold for Advice**, and **Failed Delivered**, include M&P Tracking Detail as the reason when available.
 
 ```
 Hi {{Customer Name}}! 👋
 
 {{STATUS HEADLINE}}
 
-🚚 Your parcel is on its way to you!
+📝 Reason: {{Tracking Detail}}   ← only on Unsuccessful / Hold / Failed Delivered
+
+{{SUPPORT LINE}}
 
 💰 COD Amount: Rs. {{Amount}}
 📍 Delivery Address: {{Full Address}}
@@ -52,23 +55,23 @@ Thank you for choosing Al Barakah Honey 💛
 Pure Blessing in Every Drop 🍯
 ```
 
-### Status headlines
+### Status → headline + support line
 
-| Status | Headline |
-| --- | --- |
-| Arrived at OPS | Good news! Your Al Barakah Honey order #{{Order Number}} has arrived at the M&P facility. 🍯📦 |
-| In-transit | Good news! Your Al Barakah Honey order #{{Order Number}} is now in transit with M&P. 🍯📦 |
-| Reached at Destination | Good news! Your Al Barakah Honey order #{{Order Number}} has reached your city. 📍🍯 |
-| Out for Delivery | Good news! Your Al Barakah Honey order #{{Order Number}} is out for delivery today! 🚚🎉 |
-| Unsuccessful | Your Al Barakah Honey order #{{Order Number}} could not be delivered today. 📦 |
-| Hold for Advice | Your Al Barakah Honey order #{{Order Number}} is currently on hold with M&P. 📦 |
-| Re-Attempt | Good news! Your Al Barakah Honey order #{{Order Number}} is scheduled for another delivery attempt. 🚚 |
-| Failed Delivered | Unfortunately, your Al Barakah Honey order #{{Order Number}} could not be delivered by M&P. 📦 |
-| Return In Transit | Your Al Barakah Honey order #{{Order Number}} is being returned to us by M&P. 📦 |
-| Return Reached Origin | Your Al Barakah Honey order #{{Order Number}} has reached origin during the return process. 📦 |
-| Return Out for Delivery | Your Al Barakah Honey order #{{Order Number}} is out for delivery back to us (return). 📦 |
-| Return to Shipper | Your Al Barakah Honey order #{{Order Number}} has been returned to us by M&P. 📦 |
-| Other / unknown | Your Al Barakah Honey order #{{Order Number}} status is now: {{Status}}. 🍯📦 |
+| Status | Headline | Support line |
+| --- | --- | --- |
+| Arrived at OPS Facility | Good news! …has arrived at the M&P hub facility. 🍯📦 | 🏭 Your parcel is at the M&P facility and being prepared for the next move. |
+| In-transit | Good news! …is now in transit with M&P. 🍯📦 | 🚚 Your parcel is on its way to you! |
+| Reached at Destination | Good news! …has reached your city and is ready for delivery. 📍🍯 | 📍 It is in your city and will move toward final delivery soon. |
+| Out-for-Delivery | Good news! …is out for delivery today! 🚚🎉 | 📞 Please keep your phone available so someone can receive the parcel. |
+| Unsuccessful Delivery Attempt | M&P tried to deliver … but the delivery attempt was unsuccessful. 📦 | 🙏 Please reply here if you were unavailable, or if your address needs an update — we'll help get it re-attempted. |
+| Hold for Advice | …is on hold with M&P while they wait for further instructions. ⏸️📦 | ✍️ Please reply to this message with your guidance so we can help M&P deliver your parcel. |
+| Re-Attempt Advice | Good news! M&P has scheduled another delivery attempt for …. 🚚 | 📞 Please keep your phone available and make sure someone can receive the parcel. |
+| Failed Delivered | Unfortunately, delivery of … could not be completed and the parcel may be returned. 📦 | 💬 If you still want this order, reply here and we'll help with the next step. |
+| Return – In Transit | …is on its way back to us (return in transit). 📦 | 💬 If you still want to receive your order, reply here and we'll assist you. |
+| Return – Reached at Origin | …has reached the origin city during return. 📦 | 💬 Reply here if you'd still like us to arrange delivery for you. |
+| Return – Out For Delivery | …is out for delivery back to us as a return. 📦 | 💬 Reply here if you still want your order and we'll help you. |
+| Return to Vendor/Shipper | …has been returned to us by M&P. 📦 | 💬 Reply "YES" if you'd still like to receive your honey and we'll help with the next step. |
+| Other / unknown | …status update: {{Status}}. 🍯📦 | ℹ️ Please check the details below and reply if anything looks wrong. |
 
 ---
 

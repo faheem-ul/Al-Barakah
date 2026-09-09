@@ -1809,6 +1809,7 @@ function sendTrackingStatusEmail_(
       cn,
       shipAddress,
       totalAmount,
+      detail,
     );
     waBlockHtml =
       '<p style="margin:18px 0 8px">' +
@@ -2072,6 +2073,7 @@ function buildWhatsAppDraftSiteLink_(
   cn,
   address,
   total,
+  detail,
 ) {
   var base = String(CONFIG.SITE_BASE_URL || "https://www.albarakahoney.com")
     .trim()
@@ -2100,6 +2102,9 @@ function buildWhatsAppDraftSiteLink_(
   }
   if (total) {
     url += "&total=" + encodeURIComponent(String(total));
+  }
+  if (detail) {
+    url += "&detail=" + encodeURIComponent(String(detail));
   }
   return url;
 }
