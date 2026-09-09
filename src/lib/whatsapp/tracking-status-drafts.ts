@@ -134,7 +134,27 @@ type DraftParams = {
   cn?: string;
   address?: string;
   total?: string;
+  /** M&P Tracking Detail (reason) from the sheet / admin email */
+  detail?: string;
 };
+
+function cleanTrackingReason(raw?: string): string {
+  const cleaned = cleanLine(raw);
+  if (!cleaned) return "";
+  if (/^ERROR:/i.test(cleaned)) return "";
+  if (/could not parse/i.test(cleaned)) return "";
+  return cleaned;
+}
+
+function shouldIncludeTrackingReason(
+  key: Exclude<TrackingStatusKey, "booked" | "delivered">,
+): boolean {
+  return (
+    key === "unsuccessful" ||
+    key === "hold_for_advice" ||
+    key === "failed_delivered"
+  );
+}
 
 function buildBookedDraft(params: {
   name: string;
@@ -162,7 +182,7 @@ function buildBookedDraft(params: {
   );
 }
 
-/** Status headline only — rest of the post-booking draft stays the same. */
+/** Status headline — customer-friendly line for each M&P status. */
 function statusUpdateHeadline(
   key: Exclude<TrackingStatusKey, "booked">,
   order: string,
@@ -170,29 +190,29 @@ function statusUpdateHeadline(
 ): string {
   switch (key) {
     case "arrived_ops":
-      return `Good news! Your Al Barakah Honey order ${order} has arrived at the M&P facility. 🍯📦`;
+      return `Good news! Your Al Barakah Honey order ${order} has arrived at the M&P hub facility. 🍯📦`;
     case "in_transit":
       return `Good news! Your Al Barakah Honey order ${order} is now in transit with M&P. 🍯📦`;
     case "reached_destination":
-      return `Good news! Your Al Barakah Honey order ${order} has reached your city. 📍🍯`;
+      return `Good news! Your Al Barakah Honey order ${order} has reached your city and is ready for delivery. 📍🍯`;
     case "out_for_delivery":
       return `Good news! Your Al Barakah Honey order ${order} is out for delivery today! 🚚🎉`;
     case "delivered":
       return `Good news! Your Al Barakah Honey order ${order} has been successfully delivered. 🎉🍯`;
     case "unsuccessful":
-      return `Your Al Barakah Honey order ${order} could not be delivered today. 📦`;
+      return `M&P tried to deliver your Al Barakah Honey order ${order}, but the delivery attempt was unsuccessful. 📦`;
     case "hold_for_advice":
-      return `Your Al Barakah Honey order ${order} is currently on hold with M&P. 📦`;
+      return `Your Al Barakah Honey order ${order} is on hold with M&P while they wait for further instructions. ⏸️📦`;
     case "reattempt":
-      return `Good news! Your Al Barakah Honey order ${order} is scheduled for another delivery attempt. 🚚`;
+      return `Good news! M&P has scheduled another delivery attempt for your Al Barakah Honey order ${order}. 🚚`;
     case "failed_delivered":
-      return `Unfortunately, your Al Barakah Honey order ${order} could not be delivered by M&P. 📦`;
+      return `Unfortunately, delivery of your Al Barakah Honey order ${order} could not be completed and the parcel may be returned. 📦`;
     case "return_in_transit":
-      return `Your Al Barakah Honey order ${order} is being returned to us by M&P. 📦`;
+      return `Your Al Barakah Honey order ${order} is on its way back to us (return in transit). 📦`;
     case "return_reached_origin":
-      return `Your Al Barakah Honey order ${order} has reached origin during the return process. 📦`;
+      return `Your Al Barakah Honey order ${order} has reached the origin city during return. 📦`;
     case "return_out_for_delivery":
-      return `Your Al Barakah Honey order ${order} is out for delivery back to us (return). 📦`;
+      return `Your Al Barakah Honey order ${order} is out for delivery back to us as a return. 📦`;
     case "return_to_shipper":
       return `Your Al Barakah Honey order ${order} has been returned to us by M&P. 📦`;
     default: {
@@ -200,23 +220,65 @@ function statusUpdateHeadline(
         .replace(/\s+/g, " ")
         .trim();
       return status
-        ? `Your Al Barakah Honey order ${order} status is now: ${status}. 🍯📦`
+        ? `Your Al Barakah Honey order ${order} status update: ${status}. 🍯📦`
         : `Your Al Barakah Honey order ${order} has a tracking update. 🍯📦`;
     }
   }
 }
 
-/** Shared draft for every status after booking; only the status line changes. */
+/**
+ * Second line under the headline — must match the status tone
+ * (never say "on its way" for failed / hold / return).
+ */
+function statusUpdateSupportLine(
+  key: Exclude<TrackingStatusKey, "booked" | "delivered">,
+): string {
+  switch (key) {
+    case "arrived_ops":
+      return `🏭 Your parcel is at the M&P facility and being prepared for the next move.`;
+    case "in_transit":
+      return `🚚 Your parcel is on its way to you!`;
+    case "reached_destination":
+      return `📍 It is in your city and will move toward final delivery soon.`;
+    case "out_for_delivery":
+      return `📞 Please keep your phone available so someone can receive the parcel.`;
+    case "unsuccessful":
+      return `🙏 Please reply here if you were unavailable, or if your address needs an update — we'll help get it re-attempted.`;
+    case "hold_for_advice":
+      return `✍️ Please reply to this message with your guidance so we can help M&P deliver your parcel.`;
+    case "reattempt":
+      return `📞 Please keep your phone available and make sure someone can receive the parcel.`;
+    case "failed_delivered":
+      return `💬 If you still want this order, reply here and we'll help with the next step.`;
+    case "return_in_transit":
+      return `💬 If you still want to receive your order, reply here and we'll assist you.`;
+    case "return_reached_origin":
+      return `💬 Reply here if you'd still like us to arrange delivery for you.`;
+    case "return_out_for_delivery":
+      return `💬 Reply here if you still want your order and we'll help you.`;
+    case "return_to_shipper":
+      return `💬 Reply "YES" if you'd still like to receive your honey and we'll help with the next step.`;
+    default:
+      return `ℹ️ Please check the details below and reply if anything looks wrong.`;
+  }
+}
+
+/** Shared draft for every status after booking; headline + support line match status. */
 function buildTransitUpdateDraft(params: {
   name: string;
   order: string;
   address: string;
   total: string;
   cn: string;
-  key: Exclude<TrackingStatusKey, "booked">;
+  key: Exclude<TrackingStatusKey, "booked" | "delivered">;
   rawStatus?: string;
+  detail?: string;
 }): string {
   const amount = formatCodAmount(params.total);
+  const reason =
+    shouldIncludeTrackingReason(params.key) && params.detail
+      ? cleanTrackingReason(params.detail)
+      : "";
   const receipt = [
     amount ? `💰 COD Amount: Rs. ${amount}` : "",
     params.address ? `📍 Delivery Address: ${params.address}` : "",
@@ -232,11 +294,13 @@ function buildTransitUpdateDraft(params: {
     params.order,
     params.rawStatus,
   );
+  const support = statusUpdateSupportLine(params.key);
 
   return (
     `Hi ${params.name}! 👋\n\n` +
     `${headline}\n\n` +
-    `🚚 Your parcel is on its way to you!\n\n` +
+    (reason ? `📝 Reason: ${reason}\n\n` : "") +
+    `${support}\n\n` +
     (receipt ? `${receipt}\n\n` : "") +
     `Please check your delivery address and COD amount above. If you notice any issue, simply reply to this message and let us know.\n\n` +
     `Thank you for choosing Al Barakah Honey 💛\n` +
@@ -295,6 +359,7 @@ export function buildTrackingStatusWhatsAppDraft(params: DraftParams): string {
   const total = String(params.total || "")
     .replace(/\s+/g, " ")
     .trim();
+  const detail = cleanTrackingReason(params.detail);
   const key = resolveTrackingStatusKey(params.status);
 
   if (key === "booked") {
@@ -313,5 +378,6 @@ export function buildTrackingStatusWhatsAppDraft(params: DraftParams): string {
     cn,
     key,
     rawStatus: params.status,
+    detail,
   });
 }
