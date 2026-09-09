@@ -1,8 +1,12 @@
 import type {
   ShopifyWebhookAddress,
+  ShopifyWebhookLineItem,
   ShopifyWebhookOrder,
 } from "./types/webhook-order";
-import { formatLineItemProductDetail } from "./line-item-detail";
+import {
+  formatLineItemProductDetail,
+  lineItemTitle,
+} from "./line-item-detail";
 
 /**
  * Column headers — keep in sync with buildOrderSheetRows.
@@ -102,13 +106,14 @@ export function bottleSizeFromVariant(
   if (
     /\b1\s*\/\s*2\s*(kg|kgs|kilo|kilogram)\b/.test(raw) ||
     /\bhalf\s*(kg|kilo)\b/.test(raw) ||
+    /\(\s*kg\s*1\s*\/\s*2/.test(raw) ||
     /\b0\.5\s*(kg|kgs)?\b/.test(raw) ||
     /\b500\s*(g|gm|grams?)\b/.test(raw)
   ) {
     return "1/2 kg";
   }
 
-  if (/\b1\s*(kg|kgs|kilo|kilogram)\b/.test(raw)) {
+  if (/\b1\s*(kg|kgs|kilo|kilogram)\b/.test(raw) || /\(\s*kg\s*1\b/.test(raw)) {
     return "1 kg";
   }
 
@@ -157,8 +162,177 @@ export function initialOrderStatus(order: ShopifyWebhookOrder): string {
   return "Pending";
 }
 
+type SheetProductPart = {
+  detail: string;
+  bottleSize: string;
+  quantity: string;
+  retail: string;
+};
+
+const WEIGHT_PAREN_RE =
+  /\(\s*(?:1\s*\/\s*2\s*kg[^)]*|half\s*kg[^)]*|kg\s*1\s*\/\s*2[^)]*|1\s*kg[^)]*|kg\s*1(?:\s|\))[^)]*|[^)]*(?:kg|Half)[^)]*)\)/i;
+
+const WEIGHT_ONLY_LINE_RE = /^\([^)]*(?:kg|Half)[^)]*\)$/i;
+
+/** Pull bottle size out of a combo content line; keep the honey name clean. */
+export function splitComboContentLine(line: string): {
+  name: string;
+  bottleSize: string;
+} {
+  const raw = str(line).trim();
+  if (!raw) return { name: "", bottleSize: "" };
+
+  const match = raw.match(WEIGHT_PAREN_RE);
+  if (!match) {
+    return {
+      name: raw,
+      bottleSize: bottleSizeFromVariant(raw, raw),
+    };
+  }
+
+  const bottleSize = bottleSizeFromVariant(match[0], match[0]);
+  const name = raw
+    .replace(match[0], " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s—\-–|:]+|[\s—\-–|:]+$/g, "")
+    .trim();
+
+  return { name, bottleSize };
+}
+
+function looksLikeWeightLine(line: string): boolean {
+  return (
+    WEIGHT_PAREN_RE.test(line) ||
+    /\b1\s*\/\s*2\s*(kg|kgs)?\b/i.test(line) ||
+    /\b\d+(?:\.\d+)?\s*(kg|kgs)\b/i.test(line) ||
+    /\bhalf\s*(kg)?\b/i.test(line)
+  );
+}
+
+function isWeightOnlyLine(line: string): boolean {
+  return WEIGHT_ONLY_LINE_RE.test(str(line).trim());
+}
+
 /**
- * One sheet row per line item.
+ * Pair combo content lines into jar rows.
+ * Supports:
+ *   (1/2 kg) Name
+ *   Name (1/2 kg)
+ *   Name
+ *   (1/2 kg)
+ */
+export function pairComboJarLines(
+  contentLines: string[],
+): { name: string; bottleSize: string }[] {
+  const jars: { name: string; bottleSize: string }[] = [];
+  let i = 0;
+
+  while (i < contentLines.length) {
+    const line = contentLines[i];
+    const next = contentLines[i + 1];
+
+    if (isWeightOnlyLine(line)) {
+      const size = bottleSizeFromVariant(line, line);
+      if (jars.length && !jars[jars.length - 1].bottleSize) {
+        jars[jars.length - 1].bottleSize = size;
+      } else if (size) {
+        jars.push({ name: "", bottleSize: size });
+      }
+      i += 1;
+      continue;
+    }
+
+    if (next && isWeightOnlyLine(next)) {
+      const { name } = splitComboContentLine(line);
+      jars.push({
+        name: name || line,
+        bottleSize: bottleSizeFromVariant(next, next),
+      });
+      i += 2;
+      continue;
+    }
+
+    jars.push(splitComboContentLine(line));
+    i += 1;
+  }
+
+  return jars.filter((jar) => jar.name || jar.bottleSize);
+}
+
+/**
+ * Expand one Shopify line into sheet product rows.
+ * Combos (deal + multiple jar lines) → one row per jar:
+ *   Product Detail = "Daily Duo — {honey name}"
+ *   Bottle Size = 1/2 kg / 1 kg
+ * Single products → one row with product title only.
+ */
+export function expandLineItemParts(
+  item: ShopifyWebhookLineItem,
+  detailText: string,
+): SheetProductPart[] {
+  const dealTitle = lineItemTitle(item);
+  const qty = Math.max(1, Number(item.quantity ?? 1) || 1);
+  const retail = lineRetailPrice(item);
+  const lines = detailText
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let contentLines = lines;
+  if (
+    lines.length >= 2 &&
+    lines[0].replace(/\s+/g, " ").toLowerCase() ===
+      dealTitle.replace(/\s+/g, " ").toLowerCase()
+  ) {
+    contentLines = lines.slice(1);
+  }
+
+  const jars = pairComboJarLines(contentLines);
+  const jarRows = jars.filter((jar) => jar.name || jar.bottleSize);
+  const isComboExpansion =
+    jarRows.length >= 2 ||
+    (jarRows.length === 1 &&
+      Boolean(jarRows[0].name) &&
+      jarRows[0].name.replace(/\s+/g, " ").toLowerCase() !==
+        dealTitle.replace(/\s+/g, " ").toLowerCase() &&
+      looksLikeWeightLine(contentLines.join("\n")));
+
+  if (isComboExpansion && jarRows.length >= 1) {
+    // If only one jar had a size, copy it to siblings (e.g. Duo "1/2 kg each")
+    const sharedSize =
+      jarRows.find((jar) => jar.bottleSize)?.bottleSize ||
+      bottleSizeFromVariant(item.variant_title, item.title);
+
+    return jarRows.map((jar, index) => {
+      const honeyName = jar.name.trim();
+      const detail = honeyName ? `${dealTitle} — ${honeyName}` : dealTitle;
+      return {
+        detail,
+        bottleSize: jar.bottleSize || sharedSize || "",
+        quantity: String(qty),
+        retail: index === 0 ? String(retail || 0) : "0",
+      };
+    });
+  }
+
+  const bottleSize =
+    bottleSizeFromVariant(item.variant_title, item.title) ||
+    jarRows[0]?.bottleSize ||
+    "";
+
+  return [
+    {
+      // Always the product / deal title — never marketing description
+      detail: dealTitle,
+      bottleSize,
+      quantity: str(item.quantity ?? ""),
+      retail: retail ? String(retail) : "0",
+    },
+  ];
+}
+
+/**
+ * One sheet row per product part (separate SKUs, or each jar inside a combo).
  * Order-level fields (name, address, COD, total, etc.) live on the first row;
  * continuation rows only fill product columns so Sheets can merge the order block.
  *
@@ -200,11 +374,24 @@ export function buildOrderSheetRows(
   const orderTotal =
     retails.reduce((sum, n) => sum + n, 0) + (Number.isFinite(cod) ? cod : 0);
 
-  return lineItems.map((item, index) => {
-    const retail = retails[index] ?? 0;
-    const isFirst = index === 0;
+  const productParts: SheetProductPart[] = [];
+  lineItems.forEach((item, index) => {
     const detail =
       productDetails?.[index]?.trim() || formatLineItemProductDetail(item);
+    productParts.push(...expandLineItemParts(item, detail));
+  });
+
+  if (!productParts.length) {
+    productParts.push({
+      detail: "(no line items)",
+      bottleSize: "",
+      quantity: "0",
+      retail: "0",
+    });
+  }
+
+  return productParts.map((part, index) => {
+    const isFirst = index === 0;
     return [
       isFirst ? orderNumber : "",
       isFirst ? date : "",
@@ -213,10 +400,10 @@ export function buildOrderSheetRows(
       isFirst ? city : "",
       isFirst ? contact : "",
       isFirst ? email : "",
-      detail,
-      bottleSizeFromVariant(item.variant_title, item.title),
-      str(item.quantity ?? ""),
-      retail ? String(retail) : "0",
+      part.detail,
+      part.bottleSize,
+      part.quantity,
+      part.retail,
       isFirst ? String(cod) : "",
       isFirst ? String(orderTotal) : "",
       isFirst ? status : "",

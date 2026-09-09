@@ -187,6 +187,14 @@ export async function POST(request: NextRequest) {
       const productDetails = await resolveOrderProductDetails(order.line_items);
       const rows = buildOrderSheetRows(order, productDetails);
       console.log(`${LOG} CREATE — writing ${rows.length} row(s)...`);
+      console.log(
+        `${LOG} Product Detail preview:`,
+        rows.map((row) => ({
+          detail: String(row[7] ?? "").slice(0, 120),
+          bottleSize: row[8],
+          qty: row[9],
+        })),
+      );
       const result = await appendOrderRows(rows, orderNumber);
       console.log(`${LOG} CREATE result:`, result);
       // Only email on the first successful sheet insert. Retries / parallel

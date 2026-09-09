@@ -1,3 +1,9 @@
+import {
+  brandedCtaButtonHtml,
+  buildBrandedEmailHtml,
+  EMAIL_BRAND,
+  escapeEmailHtml,
+} from "@/lib/email/branded-layout";
 import { adminNotifyEmail, sendAdminEmail } from "@/lib/email/send";
 import { resolveOrderProductDetails } from "@/lib/shopify/line-item-detail";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
@@ -6,23 +12,6 @@ import {
   normalizeWhatsAppPhone,
   siteBaseUrl,
 } from "@/lib/whatsapp/delivery-issue-draft";
-
-function escapeHtml(text: string): string {
-  return String(text || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function rowHtml(label: string, value: string): string {
-  return (
-    `<tr>` +
-    `<td style="padding:6px 12px 6px 0;color:#666;vertical-align:top;white-space:nowrap">${escapeHtml(label)}</td>` +
-    `<td style="padding:6px 0;color:#222">${value}</td>` +
-    `</tr>`
-  );
-}
 
 function str(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -87,17 +76,17 @@ function formatItemHtml(
     .filter(Boolean);
   const variantBit =
     variant && variant.toLowerCase() !== "default title"
-      ? ` <span style="color:#666">(${escapeHtml(variant)})</span>`
+      ? ` <span style="color:${EMAIL_BRAND.muted}">(${escapeEmailHtml(variant)})</span>`
       : "";
   const contentsHtml = contents.length
-    ? `<div style="margin:4px 0 0;color:#555;font-size:13px;line-height:1.45">${contents
-        .map((line) => escapeHtml(line))
+    ? `<div style="margin:4px 0 0;color:${EMAIL_BRAND.muted};font-size:13px;line-height:1.45">${contents
+        .map((line) => escapeEmailHtml(line))
         .join("<br/>")}</div>`
     : "";
 
   return (
-    `<li style="margin:0 0 10px">` +
-    `<div><strong>${escapeHtml(title || "Item")}</strong>${variantBit} × ${escapeHtml(qty)} — ${escapeHtml(price)}</div>` +
+    `<li style="margin:0 0 12px;color:${EMAIL_BRAND.ink};">` +
+    `<div><strong>${escapeEmailHtml(title || "Item")}</strong>${variantBit} × ${escapeEmailHtml(qty)} — ${escapeEmailHtml(price)}</div>` +
     contentsHtml +
     `</li>`
   );
@@ -164,7 +153,12 @@ export async function notifyAdminNewOrder(
       const qty = str(item.quantity ?? 1);
       const price = formatMoney(item.price, order.currency);
       const variant = str(item.variant_title);
-      return formatItemHtml(details[index] || str(item.title), qty, price, variant);
+      return formatItemHtml(
+        details[index] || str(item.title),
+        qty,
+        price,
+        variant,
+      );
     })
     .join("");
 
@@ -198,7 +192,6 @@ export async function notifyAdminNewOrder(
     })
     .join(", ");
   const totalLabel = formatMoney(order.total_price, order.currency);
-  const portalUrl = str(order.order_status_url) || siteBaseUrl();
 
   const waLink = waPhone
     ? buildWhatsAppSiteLink({
@@ -209,60 +202,73 @@ export async function notifyAdminNewOrder(
         address: shipAddress || undefined,
         detail: orderDetail || undefined,
         total: totalLabel || undefined,
-        portal: portalUrl || undefined,
       })
     : null;
 
-  const waBlockHtml = waLink
-    ? `<p style="margin:18px 0 8px">` +
-      `<a href="${escapeHtml(waLink)}" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;border-radius:6px;">Send WhatsApp — order placed</a>` +
-      `</p>` +
-      `<p style="color:#666;font-size:12px;margin:0 0 12px">Opens WhatsApp with order receipt (name, detail, address). Ask customer to confirm or correct. Tap <strong>Send</strong>.</p>`
-    : `<p style="color:#a00;font-size:13px">No valid customer phone — WhatsApp button skipped.</p>`;
-
-  const waBlockPlain = waLink
-    ? `\nSend WhatsApp — order placed:\n${waLink}\n`
-    : "\n(No WhatsApp link — missing phone)\n";
+  const ctaHtml = waLink
+    ? brandedCtaButtonHtml({
+        href: waLink,
+        label: "Send WhatsApp — order placed",
+        background: EMAIL_BRAND.whatsapp,
+      }) +
+      `<p style="margin:0;color:${EMAIL_BRAND.muted};font-size:12px;">Opens WhatsApp with order receipt (name, detail, address). Ask customer to confirm or correct. Tap <strong>Send</strong>.</p>`
+    : `<p style="margin:0;color:#b42318;font-size:13px;">No valid customer phone — WhatsApp button skipped.</p>`;
 
   const subject = `New order ${displayOrder} — ${name}`;
 
-  const html =
-    `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;line-height:1.5">` +
-    `<p>Assalamualaikum,</p>` +
-    `<p>A new order was placed on Al Barakah Honey.</p>` +
-    `<table style="border-collapse:collapse;margin:16px 0">` +
-    rowHtml("Order", escapeHtml(displayOrder)) +
-    rowHtml("Customer", escapeHtml(name)) +
-    rowHtml("Contact", escapeHtml(phone || "—")) +
-    rowHtml("Email", escapeHtml(email || "—")) +
-    rowHtml("Address", escapeHtml(address || "—")) +
-    rowHtml("City", escapeHtml(city || "—")) +
-    rowHtml("Payment", escapeHtml(`${financial} / ${gateway}`)) +
-    rowHtml(
-      "Total",
-      escapeHtml(formatMoney(order.total_price, order.currency)),
-    ) +
-    rowHtml(
-      "Subtotal",
-      escapeHtml(formatMoney(order.subtotal_price, order.currency)),
-    ) +
-    rowHtml(
-      "Shipping / COD",
-      escapeHtml(
-        formatMoney(
-          order.total_shipping_price_set?.shop_money?.amount ??
-            order.shipping_lines?.[0]?.price,
-          order.currency,
+  const html = buildBrandedEmailHtml({
+    eyebrow: "New order notice",
+    greetingName: name,
+    introHtml:
+      "A new order was placed on Al Barakah Honey. Review the details below, then confirm with the customer on WhatsApp if needed.",
+    badgeText: "New order",
+    badgeVariant: "brown",
+    rows: [
+      { label: "Order", valueHtml: `<strong>${escapeEmailHtml(displayOrder)}</strong>` },
+      { label: "Customer", valueHtml: escapeEmailHtml(name) },
+      { label: "Contact", valueHtml: escapeEmailHtml(phone || "—") },
+      {
+        label: "Email",
+        valueHtml: email
+          ? `<a href="mailto:${escapeEmailHtml(email)}" style="color:${EMAIL_BRAND.brown};">${escapeEmailHtml(email)}</a>`
+          : "—",
+      },
+      { label: "Address", valueHtml: escapeEmailHtml(address || "—") },
+      { label: "City", valueHtml: escapeEmailHtml(city || "—") },
+      {
+        label: "Payment",
+        valueHtml: escapeEmailHtml(`${financial} / ${gateway}`),
+      },
+      {
+        label: "Total",
+        valueHtml: `<strong>${escapeEmailHtml(totalLabel)}</strong>`,
+      },
+      {
+        label: "Subtotal",
+        valueHtml: escapeEmailHtml(
+          formatMoney(order.subtotal_price, order.currency),
         ),
-      ),
-    ) +
-    rowHtml("Note", escapeHtml(note || "—")) +
-    `</table>` +
-    `<p style="margin:12px 0 4px"><strong>Items</strong></p>` +
-    `<ul style="margin:0 0 16px;padding-left:18px">${linesHtml || "<li>—</li>"}</ul>` +
-    waBlockHtml +
-    `<p style="color:#666;font-size:12px">Al Barakah Honey — new order notice</p>` +
-    `</div>`;
+      },
+      {
+        label: "Shipping / COD",
+        valueHtml: escapeEmailHtml(
+          formatMoney(
+            order.total_shipping_price_set?.shop_money?.amount ??
+              order.shipping_lines?.[0]?.price,
+            order.currency,
+          ),
+        ),
+      },
+      { label: "Note", valueHtml: escapeEmailHtml(note || "—") },
+    ],
+    bodyHtml:
+      `<p style="margin:0 0 8px;font-weight:700;color:${EMAIL_BRAND.brown};">Items</p>` +
+      `<ul style="margin:0 0 8px;padding-left:18px;">${linesHtml || "<li>—</li>"}</ul>`,
+    ctaHtml,
+    footerNote:
+      "Al Barakah Honey — new order notice for the ops team.",
+    siteUrl: siteBaseUrl(),
+  });
 
   const text =
     `Assalamualaikum,\n\n` +
@@ -274,10 +280,10 @@ export async function notifyAdminNewOrder(
     `Address: ${address || "—"}\n` +
     `City: ${city || "—"}\n` +
     `Payment: ${financial} / ${gateway}\n` +
-    `Total: ${formatMoney(order.total_price, order.currency)}\n` +
+    `Total: ${totalLabel}\n` +
     `Note: ${note || "—"}\n\n` +
     `Items:\n${linesPlain || "—"}\n` +
-    waBlockPlain;
+    (waLink ? `\nSend WhatsApp — order placed:\n${waLink}\n` : "");
 
   await sendAdminEmail({ to, subject, html, text });
 }
