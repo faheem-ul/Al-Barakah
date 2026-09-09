@@ -3,7 +3,11 @@ export type SalesTab =
   | "orders"
   | "reports"
   | "stock"
+  | "payments-mp"
+  | "payments-wholesaler"
   | "settings";
+
+export type PaymentSubTab = "payments-mp" | "payments-wholesaler";
 
 export type OrderStatus = "delivered" | "returned" | "pending" | "promotional";
 export type CourierService = "overnight" | "secondDay";
@@ -189,3 +193,27 @@ export type StockExpense = {
 };
 
 export type StockExpensePayload = Omit<StockExpense, "id">;
+
+export type CodSettlement = {
+  id: string;
+  date: string;
+  amount: number;
+  reference: string;
+  note: string;
+  createdAt: number;
+};
+
+export type CodSettlementPayload = Omit<CodSettlement, "id">;
+
+export type WholesalerLedgerType = "credit" | "payment";
+
+export type WholesalerLedgerEntry = {
+  id: string;
+  type: WholesalerLedgerType;
+  date: string;
+  amount: number;
+  note: string;
+  createdAt: number;
+};
+
+export type WholesalerLedgerPayload = Omit<WholesalerLedgerEntry, "id">;
