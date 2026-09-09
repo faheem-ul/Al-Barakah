@@ -6,15 +6,19 @@ import { useAdminAuth } from "@/components/Admin/AdminAuthProvider";
 import Spinner from "@/components/ui/Spinner";
 import { DEFAULT_SALES_SETTINGS } from "@/lib/sales/defaults";
 import { getAllSalesOrders } from "@/lib/sales/orders";
+import { getAllCodSettlements } from "@/lib/sales/cod-settlements";
 import { getAllStockExpenses } from "@/lib/sales/expenses";
 import { getAllStockPurchases } from "@/lib/sales/purchases";
+import { getAllWholesalerLedger } from "@/lib/sales/wholesaler-ledger";
 import { getSalesSettings, saveSalesSettings } from "@/lib/sales/settings";
 import type {
+  CodSettlement,
   SalesOrder,
   SalesSettings,
   SalesTab,
   StockPurchase,
   StockExpense,
+  WholesalerLedgerEntry,
 } from "@/lib/sales/types";
 
 import DashboardTab from "./DashboardTab";
@@ -23,7 +27,9 @@ import ReportsTab from "./ReportsTab";
 import SalesHeader from "./SalesHeader";
 import SalesSheet from "./SalesSheet";
 import SalesSidebar from "./SalesSidebar";
+import MpPaymentsTab from "./MpPaymentsTab";
 import SettingsTab from "./SettingsTab";
+import WholesalerPaymentsTab from "./WholesalerPaymentsTab";
 import StockTab from "./StockTab";
 
 const SalesDashboard: React.FC = () => {
@@ -33,6 +39,10 @@ const SalesDashboard: React.FC = () => {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [purchases, setPurchases] = useState<StockPurchase[]>([]);
   const [expenses, setExpenses] = useState<StockExpense[]>([]);
+  const [codSettlements, setCodSettlements] = useState<CodSettlement[]>([]);
+  const [wholesalerLedger, setWholesalerLedger] = useState<
+    WholesalerLedgerEntry[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -46,6 +56,8 @@ const SalesDashboard: React.FC = () => {
     let ordersResult: SalesOrder[] = [];
     let purchasesResult: StockPurchase[] = [];
     let expensesResult: StockExpense[] = [];
+    let codSettlementsResult: CodSettlement[] = [];
+    let wholesalerLedgerResult: WholesalerLedgerEntry[] = [];
     const errors: string[] = [];
 
     try {
@@ -76,10 +88,26 @@ const SalesDashboard: React.FC = () => {
       errors.push("Could not load stock expenses from Firestore.");
     }
 
+    try {
+      codSettlementsResult = await getAllCodSettlements();
+    } catch (error) {
+      console.error("Failed to load COD settlements", error);
+      errors.push("Could not load COD settlements from Firestore.");
+    }
+
+    try {
+      wholesalerLedgerResult = await getAllWholesalerLedger();
+    } catch (error) {
+      console.error("Failed to load wholesaler ledger", error);
+      errors.push("Could not load wholesaler ledger from Firestore.");
+    }
+
     setSettings(settingsResult);
     setOrders(ordersResult);
     setPurchases(purchasesResult);
     setExpenses(expensesResult);
+    setCodSettlements(codSettlementsResult);
+    setWholesalerLedger(wholesalerLedgerResult);
     setLoadError(errors.length ? errors.join(" ") : null);
     setLoading(false);
   }, []);
@@ -171,6 +199,18 @@ const SalesDashboard: React.FC = () => {
                 onPurchasesChange={setPurchases}
                 expenses={expenses}
                 onExpensesChange={setExpenses}
+              />
+            )}
+            {tab === "payments-mp" && (
+              <MpPaymentsTab
+                codSettlements={codSettlements}
+                onCodSettlementsChange={setCodSettlements}
+              />
+            )}
+            {tab === "payments-wholesaler" && (
+              <WholesalerPaymentsTab
+                wholesalerLedger={wholesalerLedger}
+                onWholesalerLedgerChange={setWholesalerLedger}
               />
             )}
             {tab === "settings" && (
