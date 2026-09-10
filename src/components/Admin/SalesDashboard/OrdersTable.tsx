@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail } from "lucide-react";
 
 import { money } from "@/lib/sales/calculations";
 import { formatProductLineLabel } from "@/lib/sales/products";
@@ -18,16 +18,27 @@ type OrdersTableProps = {
   orders: SalesOrder[];
   onEdit: (order: SalesOrder) => void;
   onDelete: (id: string) => void;
+  onSendMpComplaint: (order: SalesOrder) => Promise<void>;
   editingId: string | null;
   deletingId: string | null;
+  sendingComplaintId: string | null;
 };
+
+function canSendMpComplaint(order: SalesOrder): boolean {
+  return (
+    order.status === "pending" &&
+    Boolean(String(order.consignmentNumber ?? "").trim())
+  );
+}
 
 const OrdersTable: React.FC<OrdersTableProps> = ({
   orders,
   onEdit,
   onDelete,
+  onSendMpComplaint,
   editingId,
   deletingId,
+  sendingComplaintId,
 }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -133,11 +144,33 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                         type="button"
                         onClick={() => onDelete(order.id)}
                         isLoading={deletingId === order.id}
-                        disabled={editingId === order.id}
+                        disabled={
+                          editingId === order.id ||
+                          sendingComplaintId === order.id
+                        }
                         className="rounded-lg bg-[#fef2f2] text-[#b91c1c] px-3 py-1.5 text-[13px] hover:opacity-90 disabled:opacity-50"
                       >
                         Delete
                       </Button>
+                      {canSendMpComplaint(order) && (
+                        <button
+                          type="button"
+                          onClick={() => void onSendMpComplaint(order)}
+                          disabled={
+                            deletingId === order.id ||
+                            sendingComplaintId === order.id
+                          }
+                          aria-label={`Send M&P complaint for order ${order.orderNumber}`}
+                          title="Send M&P complaint email"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e7eb] text-[#374151] transition-opacity hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {sendingComplaintId === order.id ? (
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#374151] border-t-transparent" />
+                          ) : (
+                            <Mail className="h-4 w-4" aria-hidden="true" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

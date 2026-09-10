@@ -48,11 +48,12 @@ function mapCalculation(
   };
 }
 
-function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrder {
+export function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrder {
   return {
     id,
     orderNumber: data.orderNumber ?? "",
     buyerName: data.buyerName ?? "",
+    consignmentNumber: String(data.consignmentNumber ?? "").trim(),
     date: data.date ?? "",
     status: normalizeStatus(data.status),
     courierService: data.courierService ?? "overnight",
