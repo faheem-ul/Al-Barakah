@@ -1,4 +1,4 @@
-import { getProductByKey } from "./products";
+import { getProductById } from "./products";
 import type {
   AppliedCustomExpense,
   CourierService,
@@ -9,6 +9,7 @@ import type {
   ProductReportRow,
   PromotionalReportRow,
   ReturnedReportRow,
+  SalesCatalogProduct,
   SalesOrder,
   SalesOrderCalculation,
   SalesOrderProduct,
@@ -21,6 +22,19 @@ import type {
 
 export function money(value: number | undefined | null): string {
   return `Rs. ${Math.round(value || 0).toLocaleString("en-PK")}`;
+}
+
+export function profitMarginPercent(
+  sellingPrice: number,
+  purchasePrice: number,
+): number | null {
+  if (!sellingPrice || sellingPrice <= 0) return null;
+  return ((sellingPrice - purchasePrice) / sellingPrice) * 100;
+}
+
+export function formatProfitMarginPercent(value: number | null): string {
+  if (value === null) return "—";
+  return `${value.toFixed(1)}%`;
 }
 
 export function todayIsoDate(): string {
@@ -111,19 +125,19 @@ function getOvernightZoneRates(
 
 export function calculatePackingCost(
   settings: SalesSettings,
+  catalog: SalesCatalogProduct[],
   lines: ProductLineInput[],
 ): number {
   let packing = 0;
 
   for (const line of lines) {
-    const product = getProductByKey(line.key);
+    const product = getProductById(catalog, line.key);
     if (!product || line.qty <= 0) continue;
 
-    const rate =
-      product.weight <= 0.5
-        ? getSetting(settings, "packing500")
-        : getSetting(settings, "packing1000");
-    packing += line.qty * rate;
+    packing +=
+      line.qty *
+      (product.packUnits500 * getSetting(settings, "packing500") +
+        product.packUnits1000 * getSetting(settings, "packing1000"));
   }
 
   return packing;
@@ -131,6 +145,7 @@ export function calculatePackingCost(
 
 export function calculateDefaultCustomerShipping(
   settings: SalesSettings,
+  catalog: SalesCatalogProduct[],
   lines: ProductLineInput[],
 ): number {
   let productRevenue = 0;
@@ -138,10 +153,10 @@ export function calculateDefaultCustomerShipping(
   let units = 0;
 
   for (const line of lines) {
-    const product = getProductByKey(line.key);
+    const product = getProductById(catalog, line.key);
     if (!product || line.qty <= 0) continue;
 
-    productRevenue += line.qty * getSetting(settings, product.priceKey);
+    productRevenue += line.qty * product.sellingPrice;
     weight += line.qty * product.weight;
     units += line.qty;
   }
@@ -155,6 +170,7 @@ export function calculateDefaultCustomerShipping(
 
 function resolveCustomerShipping(
   settings: SalesSettings,
+  catalog: SalesCatalogProduct[],
   lines: ProductLineInput[],
   options?: OrderPreviewOptions,
 ): number {
@@ -162,7 +178,7 @@ function resolveCustomerShipping(
     return Math.max(0, options.customerShippingOverride);
   }
 
-  return calculateDefaultCustomerShipping(settings, lines);
+  return calculateDefaultCustomerShipping(settings, catalog, lines);
 }
 
 function rebuildDeliveredTotals(
@@ -219,6 +235,7 @@ export function calculateCourier(
 
 export function calculateOrderPreview(
   settings: SalesSettings,
+  catalog: SalesCatalogProduct[],
   lines: ProductLineInput[],
   status: OrderStatus = "delivered",
   service: CourierService = "overnight",
@@ -231,19 +248,24 @@ export function calculateOrderPreview(
   let units = 0;
 
   for (const line of lines) {
-    const product = getProductByKey(line.key);
+    const product = getProductById(catalog, line.key);
     const qty = line.qty;
 
     if (!product || qty <= 0) continue;
 
-    productRevenue += qty * getSetting(settings, product.priceKey);
-    honeyCost += qty * getSetting(settings, product.costKey);
+    productRevenue += qty * product.sellingPrice;
+    honeyCost += qty * product.purchasePrice;
     weight += qty * product.weight;
     units += qty;
   }
 
-  const customerShipping = resolveCustomerShipping(settings, lines, options);
-  const packing = calculatePackingCost(settings, lines);
+  const customerShipping = resolveCustomerShipping(
+    settings,
+    catalog,
+    lines,
+    options,
+  );
+  const packing = calculatePackingCost(settings, catalog, lines);
   const courier =
     options?.courierOverride !== undefined
       ? Math.max(0, options.courierOverride)
@@ -319,6 +341,7 @@ export function calculateOrderPreview(
 
 export function calculateSavedProducts(
   settings: SalesSettings,
+  catalog: SalesCatalogProduct[],
   productsData: SalesOrderProduct[],
   status: OrderStatus,
   service: CourierService = "overnight",
@@ -327,6 +350,7 @@ export function calculateSavedProducts(
 ): SalesOrderCalculation {
   const preview = calculateOrderPreview(
     settings,
+    catalog,
     productsData.map((item) => ({ key: item.key, qty: item.qty })),
     status,
     service,

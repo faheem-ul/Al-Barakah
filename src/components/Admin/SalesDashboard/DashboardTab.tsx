@@ -9,6 +9,7 @@ import {
   defaultStockDateRange,
   money,
 } from "@/lib/sales/calculations";
+import { formatProductLineLabel } from "@/lib/sales/products";
 import { formatOrderStatus } from "@/lib/sales/status";
 import type { SalesOrder, StockExpense, StockPurchase } from "@/lib/sales/types";
 
@@ -361,7 +362,8 @@ const DashboardTab: React.FC<DashboardTabProps> = ({
                     <td className="py-3 pr-3">
                       {order.products.map((p) => (
                         <div key={`${p.key}-${p.qty}`}>
-                          {p.product} {p.variant} × {p.qty}
+                          {formatProductLineLabel(p.product, p.variant)} ×{" "}
+                          {p.qty}
                         </div>
                       ))}
                     </td>

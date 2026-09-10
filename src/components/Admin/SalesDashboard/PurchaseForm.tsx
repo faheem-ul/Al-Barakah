@@ -4,13 +4,15 @@ import React, { useMemo, useState } from "react";
 
 import { money, todayIsoDate } from "@/lib/sales/calculations";
 import {
-  getProductByKey,
+  getProductById,
+  getStockProductNames,
   getVariantsForProduct,
-  PRODUCT_NAMES,
 } from "@/lib/sales/products";
+import type { SalesCatalogProduct } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type PurchaseFormProps = {
+  catalog: SalesCatalogProduct[];
   onSave: (draft: {
     date: string;
     key: string;
@@ -20,15 +22,26 @@ type PurchaseFormProps = {
   saving: boolean;
 };
 
-const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
+const PurchaseForm: React.FC<PurchaseFormProps> = ({
+  catalog,
+  onSave,
+  saving,
+}) => {
   const [date, setDate] = useState(todayIsoDate());
   const [product, setProduct] = useState("");
   const [variantKey, setVariantKey] = useState("");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState<number | "">("");
 
-  const variants = product ? getVariantsForProduct(product) : [];
-  const selected = variantKey ? getProductByKey(variantKey) : undefined;
+  const stockProducts = useMemo(
+    () => catalog.filter((item) => item.stockItem),
+    [catalog],
+  );
+  const productNames = getStockProductNames(stockProducts);
+  const variants = product
+    ? getVariantsForProduct(stockProducts, product)
+    : [];
+  const selected = variantKey ? getProductById(stockProducts, variantKey) : undefined;
 
   const totalCost = useMemo(() => {
     const price = typeof unitPrice === "number" ? unitPrice : 0;
@@ -60,7 +73,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
 
     await onSave({
       date,
-      key: selected.key,
+      key: selected.id,
       qty,
       unitPrice,
     });
@@ -96,7 +109,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           >
             <option value="">Select Product</option>
-            {PRODUCT_NAMES.map((name) => (
+            {productNames.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -114,7 +127,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
           >
             <option value="">Select Variant</option>
             {variants.map((variant) => (
-              <option key={variant.key} value={variant.key}>
+              <option key={variant.id} value={variant.id}>
                 {variant.variant}
               </option>
             ))}
