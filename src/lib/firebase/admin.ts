@@ -1,7 +1,6 @@
 import "server-only";
 // Firebase Admin SDK for server-side operations
 import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 const getRequiredEnv = (name: string) => {
@@ -32,5 +31,3 @@ const getFirebaseAdminApp = () => {
 };
 
 export const getAdminDb = () => getFirestore(getFirebaseAdminApp());
-
-export const getAdminAuth = () => getAuth(getFirebaseAdminApp());
