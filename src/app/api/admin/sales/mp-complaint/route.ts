@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { sendMpComplaintEmail } from "@/lib/email/mp-complaint";
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { verifyFirebaseIdToken } from "@/lib/firebase/verify-id-token";
 import { mapOrder } from "@/lib/sales/orders";
 import type { SalesOrderPayload } from "@/lib/sales/types";
 
@@ -23,10 +24,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await getAdminAuth().verifyIdToken(token);
+    const valid = await verifyFirebaseIdToken(token);
+    if (!valid) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   } catch (error) {
-    console.warn(`${LOG} Invalid auth token`, error);
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.error(`${LOG} Token verification failed`, error);
+    return NextResponse.json(
+      { error: "Auth verification is not configured." },
+      { status: 503 },
+    );
   }
 
   let body: { orderId?: string };
