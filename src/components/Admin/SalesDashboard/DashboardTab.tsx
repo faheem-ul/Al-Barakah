@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   buildDashboardStats,
@@ -12,6 +13,8 @@ import {
 import { formatProductLineLabel } from "@/lib/sales/products";
 import { formatOrderStatus } from "@/lib/sales/status";
 import type { SalesOrder, StockExpense, StockPurchase } from "@/lib/sales/types";
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 type DashboardTabProps = {
   orders: SalesOrder[];
@@ -33,6 +36,8 @@ const DashboardTab: React.FC<DashboardTabProps> = ({
   expenses,
 }) => {
   const [month, setMonth] = useState(currentMonthValue());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(10);
   const defaultRange = defaultStockDateRange();
   const [fromDate, setFromDate] = useState(defaultRange.fromDate);
   const [toDate, setToDate] = useState(defaultRange.toDate);
@@ -41,6 +46,24 @@ const DashboardTab: React.FC<DashboardTabProps> = ({
     () => buildDashboardStats(orders, month),
     [orders, month],
   );
+
+  const totalPages = Math.max(1, Math.ceil(stats.orders.length / pageSize));
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [month, pageSize, stats.orders.length]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return stats.orders.slice(start, start + pageSize);
+  }, [stats.orders, page, pageSize]);
+
+  const rangeStart = stats.orders.length ? (page - 1) * pageSize + 1 : 0;
+  const rangeEnd = Math.min(page * pageSize, stats.orders.length);
 
   const stockSummary = useMemo(
     () => buildStockSummary(orders, purchases, expenses, fromDate, toDate),
@@ -344,7 +367,7 @@ const DashboardTab: React.FC<DashboardTabProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {stats.orders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <tr
                     key={order.id}
                     className="border-b border-[#f3f4f6] transition-colors hover:bg-[#f3f4f6]"
@@ -380,6 +403,57 @@ const DashboardTab: React.FC<DashboardTabProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {stats.orders.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[13px] text-[#6b7280]">
+              Showing {rangeStart}–{rangeEnd} of {stats.orders.length} orders
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-[13px] text-[#6b7280]">
+                <span>Rows per page</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="rounded-lg border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-[13px] text-[#1f2937]"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={page <= 1}
+                  aria-label="Previous page"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e7eb] text-[#374151] transition-opacity hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <span className="min-w-[88px] text-center text-[13px] text-[#374151]">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((current) => Math.min(totalPages, current + 1))
+                  }
+                  disabled={page >= totalPages}
+                  aria-label="Next page"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e7eb] text-[#374151] transition-opacity hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

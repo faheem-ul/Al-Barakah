@@ -41,6 +41,13 @@ export function todayIsoDate(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+export function getOrderCodAmount(calculation: SalesOrderCalculation): number {
+  return (
+    (Number(calculation.productRevenue) || 0) +
+    (Number(calculation.shipping) || 0)
+  );
+}
+
 export function currentMonthValue(): string {
   return new Date().toISOString().slice(0, 7);
 }

@@ -40,6 +40,7 @@ type OrderFormProps = {
   onSave: (draft: {
     orderNumber: string;
     buyerName: string;
+    consignmentNumber: string;
     date: string;
     status: OrderStatus;
     courierService: CourierService;
@@ -96,6 +97,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
 }) => {
   const [orderNumber, setOrderNumber] = useState("");
   const [buyerName, setBuyerName] = useState("");
+  const [consignmentNumber, setConsignmentNumber] = useState("");
   const [date, setDate] = useState(todayIsoDate());
   const [status, setStatus] = useState<OrderStatus>("delivered");
   const [courierService, setCourierService] =
@@ -112,6 +114,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     if (editOrder) {
       setOrderNumber(editOrder.orderNumber);
       setBuyerName(editOrder.buyerName);
+      setConsignmentNumber(editOrder.consignmentNumber ?? "");
       setDate(editOrder.date);
       setStatus(editOrder.status);
       setCourierService(editOrder.courierService);
@@ -129,6 +132,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     if (draft) {
       setOrderNumber(draft.orderNumber || "");
       setBuyerName(draft.buyerName || "");
+      setConsignmentNumber(draft.consignmentNumber || "");
       setDate(draft.date || todayIsoDate());
       setStatus(draft.status || "delivered");
       setCourierService(draft.courierService || "overnight");
@@ -193,6 +197,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     saveDraft({
       orderNumber,
       buyerName,
+      consignmentNumber,
       date,
       status,
       courierService,
@@ -210,6 +215,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
   }, [
     orderNumber,
     buyerName,
+    consignmentNumber,
     date,
     status,
     courierService,
@@ -278,6 +284,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
   const resetForm = () => {
     setOrderNumber("");
     setBuyerName("");
+    setConsignmentNumber("");
     setDate(todayIsoDate());
     setStatus("delivered");
     setCourierService("overnight");
@@ -307,6 +314,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     await onSave({
       orderNumber: orderNumber.trim(),
       buyerName: buyerName.trim(),
+      consignmentNumber: consignmentNumber.trim(),
       date,
       status,
       courierService,
@@ -333,7 +341,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
         {editOrder ? "Edit Order" : "Add New Order"}
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">
             Order Number
@@ -342,6 +350,18 @@ const OrderForm: React.FC<OrderFormProps> = ({
             value={orderNumber}
             onChange={(e) => setOrderNumber(e.target.value)}
             placeholder="#1001"
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Consignment No.
+          </span>
+          <input
+            value={consignmentNumber}
+            onChange={(e) => setConsignmentNumber(e.target.value)}
+            placeholder="M&P consignment number"
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           />
         </label>
@@ -357,7 +377,9 @@ const OrderForm: React.FC<OrderFormProps> = ({
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           />
         </label>
+      </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">
             Buyer Name
