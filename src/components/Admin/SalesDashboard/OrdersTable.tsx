@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { money } from "@/lib/sales/calculations";
+import { formatProductLineLabel } from "@/lib/sales/products";
 import {
   formatOrderStatus,
   orderStatusBadgeClass,
@@ -96,7 +97,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                   <td className="py-3 pr-3">
                     {order.products.map((p) => (
                       <div key={`${p.key}-${p.qty}`}>
-                        {p.product} {p.variant} × {p.qty}
+                        {formatProductLineLabel(p.product, p.variant)} × {p.qty}
                       </div>
                     ))}
                   </td>

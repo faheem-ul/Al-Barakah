@@ -11,7 +11,7 @@ import {
   deleteSalesOrder,
   updateSalesOrder,
 } from "@/lib/sales/orders";
-import { getProductByKey } from "@/lib/sales/products";
+import { getProductById } from "@/lib/sales/products";
 import type {
   CourierService,
   CourierZone,
@@ -64,12 +64,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     (draft: OrderDraftInput, createdAt: number) => {
       const productsData = draft.lines
         .map((line) => {
-          const product = getProductByKey(line.key);
+          const product = getProductById(settings.catalogProducts, line.key);
           if (!product) return null;
           return {
             product: product.product,
             variant: product.variant,
-            key: product.key,
+            key: product.id,
             qty: line.qty,
           };
         })
@@ -77,6 +77,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
 
       const calculation = calculateSavedProducts(
         settings,
+        settings.catalogProducts,
         productsData,
         draft.status,
         draft.courierService,

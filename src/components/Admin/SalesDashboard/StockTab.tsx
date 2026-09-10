@@ -12,8 +12,12 @@ import {
   createStockPurchase,
   deleteStockPurchase,
 } from "@/lib/sales/purchases";
-import { getProductByKey } from "@/lib/sales/products";
-import type { StockExpense, StockPurchase } from "@/lib/sales/types";
+import { getProductById } from "@/lib/sales/products";
+import type {
+  SalesCatalogProduct,
+  StockExpense,
+  StockPurchase,
+} from "@/lib/sales/types";
 
 import ExpenseForm from "./ExpenseForm";
 import ExpensesTable from "./ExpensesTable";
@@ -26,6 +30,7 @@ import PurchaseMonthTabs, {
 import PurchasesTable from "./PurchasesTable";
 
 type StockTabProps = {
+  catalog: SalesCatalogProduct[];
   purchases: StockPurchase[];
   onPurchasesChange: (purchases: StockPurchase[]) => void;
   expenses: StockExpense[];
@@ -49,6 +54,7 @@ function formatMonthLabel(month: string): string {
 }
 
 const StockTab: React.FC<StockTabProps> = ({
+  catalog,
   purchases,
   onPurchasesChange,
   expenses,
@@ -139,7 +145,7 @@ const StockTab: React.FC<StockTabProps> = ({
     }) => {
       setSavingPurchase(true);
       try {
-        const product = getProductByKey(draft.key);
+        const product = getProductById(catalog, draft.key);
         if (!product) {
           window.alert("Invalid product selected.");
           return;
@@ -149,7 +155,7 @@ const StockTab: React.FC<StockTabProps> = ({
           date: draft.date,
           product: product.product,
           variant: product.variant,
-          key: product.key,
+          key: product.id,
           qty: draft.qty,
           unitPrice: draft.unitPrice,
           totalCost: draft.qty * draft.unitPrice,
@@ -172,7 +178,7 @@ const StockTab: React.FC<StockTabProps> = ({
         setSavingPurchase(false);
       }
     },
-    [purchases, onPurchasesChange],
+    [catalog, purchases, onPurchasesChange],
   );
 
   const handleSaveExpense = useCallback(
@@ -241,7 +247,11 @@ const StockTab: React.FC<StockTabProps> = ({
 
   return (
     <div>
-      <PurchaseForm onSave={handleSavePurchase} saving={savingPurchase} />
+      <PurchaseForm
+        catalog={catalog}
+        onSave={handleSavePurchase}
+        saving={savingPurchase}
+      />
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
         <div className="mb-4">

@@ -10,9 +10,9 @@ import {
   todayIsoDate,
 } from "@/lib/sales/calculations";
 import {
-  getProductByKey,
+  getProductById,
+  getProductNames,
   getVariantsForProduct,
-  PRODUCT_NAMES,
 } from "@/lib/sales/products";
 import type {
   CourierService,
@@ -151,6 +151,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setInitialized(true);
   }, [editOrder]);
 
+  const catalog = settings.catalogProducts;
+
   const lines = useMemo(
     () =>
       rows
@@ -166,6 +168,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
 
     const preview = calculateOrderPreview(
       settings,
+      catalog,
       lines,
       status,
       courierService,
@@ -176,7 +179,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       shipping: preview.customerShipping,
       courier: preview.courier,
     };
-  }, [editOrder, lines, settings, status, courierService, zone]);
+  }, [editOrder, lines, settings, catalog, status, courierService, zone]);
 
   const displayShipping = shippingTouched
     ? customerShipping
@@ -237,6 +240,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
 
     return calculateOrderPreview(
       settings,
+      catalog,
       lines,
       status,
       courierService,
@@ -248,6 +252,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     );
   }, [
     settings,
+    catalog,
     lines,
     status,
     courierService,
@@ -464,14 +469,12 @@ const OrderForm: React.FC<OrderFormProps> = ({
       <div className="space-y-3 mb-4">
         {rows.map((row, index) => {
           const variants = row.product
-            ? getVariantsForProduct(row.product)
+            ? getVariantsForProduct(catalog, row.product)
             : [];
           const selected = row.variantKey
-            ? getProductByKey(row.variantKey)
+            ? getProductById(catalog, row.variantKey)
             : undefined;
-          const price = selected
-            ? settings[selected.priceKey]
-            : undefined;
+          const price = selected?.sellingPrice;
 
           return (
             <div
@@ -498,7 +501,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
                   className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
                 >
                   <option value="">Select Product</option>
-                  {PRODUCT_NAMES.map((name) => (
+                  {getProductNames(catalog).map((name) => (
                     <option key={name} value={name}>
                       {name}
                     </option>
@@ -520,7 +523,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
                 >
                   <option value="">Select Variant</option>
                   {variants.map((variant) => (
-                    <option key={variant.key} value={variant.key}>
+                    <option key={variant.id} value={variant.id}>
                       {variant.variant}
                     </option>
                   ))}
