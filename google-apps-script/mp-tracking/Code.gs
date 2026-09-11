@@ -38,6 +38,13 @@ var CONFIG = {
    */
   CUSTOMER_CONTACT_URL:
     "https://www.albarakahoney.com/api/shopify/orders/customer-contact",
+  /**
+   * When status becomes Delivered, send admin + customer emails via Next.js
+   * (SMTP/Resend) — same HTML as MailApp status templates.
+   * Leave blank to derive from SYNC_URL host.
+   */
+  DELIVERED_EMAIL_URL:
+    "https://www.albarakahoney.com/api/tracking/delivered-email",
   /** Must match SHEET_TO_SHOPIFY_SYNC_SECRET in Next.js .env.local */
   SYNC_SECRET:
     "7beddfe5b6d434edc53e97eb7c3f420e01bd492f6fa51d8786538a6f6c06a806",
@@ -1659,15 +1666,160 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
       newStatus,
       "— sending email",
     );
-    sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
-    sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
 
     if (isDelivered_(newStatus)) {
+      // Delivered: Next.js SMTP/Resend (same templates) — avoids MailApp quota/timeouts
+      sendDeliveredEmailsViaNext_(sheet, cols, row, cn, previousStatus, tracked);
       syncDeliveredToShopify_(sheet, cols, row, cn);
+    } else {
+      sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
+      sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
     }
   } else {
     log_("Status unchanged (" + newStatus + ") — no email");
   }
+}
+
+/**
+ * Delivered emails via Next.js (SMTP/Resend) — same HTML as MailApp templates.
+ * Falls back to MailApp if the API URL/secret is missing or the request fails.
+ */
+function sendDeliveredEmailsViaNext_(
+  sheet,
+  cols,
+  row,
+  cn,
+  previousStatus,
+  tracked,
+) {
+  var url = resolveDeliveredEmailUrl_();
+  var syncSecret = String(CONFIG.SYNC_SECRET || "").trim();
+  if (!url || !syncSecret) {
+    log_(
+      "Delivered email API skipped — set DELIVERED_EMAIL_URL/SYNC_URL and SYNC_SECRET; falling back to MailApp",
+    );
+    sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
+    sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
+    return;
+  }
+
+  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
+      ).trim()
+    : "";
+  var customerName = cols[CONFIG.HEADERS.NAME]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "",
+      ).trim()
+    : "";
+  var contactNumber = cols[CONFIG.HEADERS.CONTACT]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.CONTACT]).getValue() || "",
+      ).trim()
+    : "";
+  var customerEmail = cols[CONFIG.HEADERS.EMAIL]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.EMAIL]).getValue() || "")
+        .trim()
+        .toLowerCase()
+    : "";
+  var additionalNote = cols[CONFIG.HEADERS.ADDITIONAL_NOTE]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ADDITIONAL_NOTE]).getValue() ||
+          "",
+      ).trim()
+    : "";
+  var address = cols[CONFIG.HEADERS.ADDRESS]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.ADDRESS]).getValue() || "",
+      ).trim()
+    : "";
+  var city = cols[CONFIG.HEADERS.CITY]
+    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.CITY]).getValue() || "")
+        .trim()
+    : "";
+  var totalAmount = cols[CONFIG.HEADERS.TOTAL_AMOUNT]
+    ? String(
+        sheet.getRange(row, cols[CONFIG.HEADERS.TOTAL_AMOUNT]).getValue() || "",
+      ).trim()
+    : "";
+  var checkedAt = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone() || "Asia/Karachi",
+    "dd MMM yyyy, hh:mm a",
+  );
+
+  var payload = {
+    cn: String(cn || "").trim(),
+    trackingNumber: String(cn || "").trim(),
+    status: String(tracked.status || "Delivered").trim(),
+    location: String(tracked.location || "").trim(),
+    detail: String(tracked.detail || "").trim(),
+    mpPreviousStatus: String(tracked.previousStatus || "").trim(),
+    previousStatus: String(previousStatus || "").trim(),
+    orderNumber: orderNumber,
+    customerName: customerName || "Customer",
+    contactNumber: contactNumber,
+    customerEmail: customerEmail,
+    additionalNote: additionalNote,
+    address: address,
+    city: city,
+    totalAmount: totalAmount,
+    checkedAt: checkedAt,
+  };
+
+  log_("Delivered email POST", url, JSON.stringify({
+    cn: payload.cn,
+    orderNumber: payload.orderNumber,
+    hasEmail: !!payload.customerEmail,
+  }));
+
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "x-sync-secret": syncSecret,
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    var code = response.getResponseCode();
+    var text = response.getContentText();
+    log_("Delivered email HTTP", code, text.slice(0, 500));
+
+    var ok = false;
+    try {
+      var parsed = JSON.parse(text);
+      ok = !!(parsed && (parsed.ok || (parsed.admin && parsed.admin.sent)));
+    } catch (parseErr) {
+      ok = code >= 200 && code < 300;
+    }
+
+    if (!ok) {
+      log_("Delivered email API did not confirm send — falling back to MailApp");
+      sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
+      sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
+    }
+  } catch (err) {
+    log_(
+      "Delivered email EXCEPTION — falling back to MailApp:",
+      String(err && err.message ? err.message : err),
+    );
+    sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
+    sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
+  }
+}
+
+function resolveDeliveredEmailUrl_() {
+  var explicit = String(CONFIG.DELIVERED_EMAIL_URL || "").trim();
+  if (explicit) return explicit;
+  var syncUrl = String(CONFIG.SYNC_URL || "").trim();
+  if (!syncUrl) return "";
+  return syncUrl.replace(
+    /\/api\/shopify\/orders\/mark-delivered\/?$/,
+    "/api/tracking/delivered-email",
+  );
 }
 
 /**
