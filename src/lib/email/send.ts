@@ -8,6 +8,7 @@ export type SendEmailInput = {
   subject: string;
   html: string;
   text: string;
+  replyTo?: string;
 };
 
 function fromAddress(): string {
@@ -29,6 +30,7 @@ async function sendViaResend(input: SendEmailInput): Promise<boolean> {
     subject: input.subject,
     html: input.html,
     text: input.text,
+    ...(input.replyTo ? { replyTo: input.replyTo } : {}),
   });
 
   if (error) {
@@ -59,6 +61,7 @@ async function sendViaSmtp(input: SendEmailInput): Promise<boolean> {
     subject: input.subject,
     html: input.html,
     text: input.text,
+    ...(input.replyTo ? { replyTo: input.replyTo } : {}),
   });
   console.log(`${LOG} Sent via SMTP to`, input.to);
   return true;
