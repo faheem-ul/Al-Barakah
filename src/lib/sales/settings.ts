@@ -253,7 +253,20 @@ function normalizeSettings(
     normalized.zeroActualCourier = data.zeroActualCourier;
   }
 
+  if (typeof data.wholesalerLegacyMigrated === "boolean") {
+    normalized.wholesalerLegacyMigrated = data.wholesalerLegacyMigrated;
+  }
+
   return normalized;
+}
+
+export async function markWholesalerLegacyMigrated(): Promise<void> {
+  const ref = doc(db, SETTINGS_DOC_PATH[0], SETTINGS_DOC_PATH[1]);
+  await setDoc(
+    ref,
+    { wholesalerLegacyMigrated: true, updatedAt: Date.now() },
+    { merge: true },
+  );
 }
 
 export async function getSalesSettings(): Promise<SalesSettings> {

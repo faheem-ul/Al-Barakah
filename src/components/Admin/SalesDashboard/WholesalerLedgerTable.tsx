@@ -3,11 +3,11 @@
 import React from "react";
 
 import { money } from "@/lib/sales/calculations";
-import type { WholesalerLedgerEntry } from "@/lib/sales/types";
+import type { WholesalerTransaction } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type WholesalerLedgerTableProps = {
-  entries: WholesalerLedgerEntry[];
+  entries: WholesalerTransaction[];
   onDelete: (id: string) => void;
   deletingId: string | null;
 };
