@@ -61,6 +61,7 @@ export type SalesSettings = {
   fac: number;
   zeroActualCourier: boolean;
   customExpenses: CustomExpense[];
+  wholesalerLegacyMigrated?: boolean;
   updatedAt?: number;
 };
 
@@ -84,7 +85,11 @@ export type LegacySalesSettingsDoc = Partial<
 
 export type NumericSettingsKey = Exclude<
   keyof SalesSettings,
-  "catalogProducts" | "customExpenses" | "updatedAt" | "zeroActualCourier"
+  | "catalogProducts"
+  | "customExpenses"
+  | "updatedAt"
+  | "zeroActualCourier"
+  | "wholesalerLegacyMigrated"
 >;
 
 export type SalesOrderProduct = {
@@ -239,3 +244,23 @@ export type WholesalerLedgerEntry = {
 };
 
 export type WholesalerLedgerPayload = Omit<WholesalerLedgerEntry, "id">;
+
+export type WholesalerAccount = {
+  id: string;
+  name: string;
+  createdAt: number;
+  isLegacySeed?: boolean;
+};
+
+export type WholesalerAccountPayload = Omit<WholesalerAccount, "id">;
+
+export type WholesalerTransaction = {
+  id: string;
+  type: WholesalerLedgerType;
+  date: string;
+  amount: number;
+  note: string;
+  createdAt: number;
+};
+
+export type WholesalerTransactionPayload = Omit<WholesalerTransaction, "id">;

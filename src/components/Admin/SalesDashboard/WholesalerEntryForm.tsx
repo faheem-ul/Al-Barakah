@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 
 type WholesalerEntryFormProps = {
   entryType: WholesalerLedgerType;
+  wholesalerName: string;
+  disabled?: boolean;
   onSave: (draft: {
     type: WholesalerLedgerType;
     date: string;
@@ -37,6 +39,8 @@ const FORM_COPY: Record<
 
 const WholesalerEntryForm: React.FC<WholesalerEntryFormProps> = ({
   entryType,
+  wholesalerName,
+  disabled = false,
   onSave,
   saving,
 }) => {
@@ -70,7 +74,10 @@ const WholesalerEntryForm: React.FC<WholesalerEntryFormProps> = ({
   return (
     <div className="rounded-xl border border-[#e5e7eb] bg-[#fafafa] p-4">
       <h3 className="text-[16px] font-semibold">{copy.title}</h3>
-      <p className="text-[12px] text-[#6b7280] mt-1 mb-4">{copy.subtitle}</p>
+      <p className="text-[12px] text-[#6b7280] mt-1 mb-1">{copy.subtitle}</p>
+      <p className="text-[12px] text-[#374151] mb-4 font-medium">
+        Wholesaler: {wholesalerName || "—"}
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <label className="block">
@@ -79,7 +86,8 @@ const WholesalerEntryForm: React.FC<WholesalerEntryFormProps> = ({
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 bg-white"
+            disabled={disabled}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 bg-white disabled:opacity-60"
           />
         </label>
 
@@ -98,19 +106,19 @@ const WholesalerEntryForm: React.FC<WholesalerEntryFormProps> = ({
               )
             }
             placeholder="Amount"
-            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 bg-white"
+            disabled={disabled}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 bg-white disabled:opacity-60"
           />
         </label>
 
         <label className="block">
-          <span className="text-[13px] text-[#6b7280] mb-1 block">
-            Note
-          </span>
+          <span className="text-[13px] text-[#6b7280] mb-1 block">Note</span>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={copy.notePlaceholder}
-            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 bg-white"
+            disabled={disabled}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 bg-white disabled:opacity-60"
           />
         </label>
       </div>
@@ -119,7 +127,8 @@ const WholesalerEntryForm: React.FC<WholesalerEntryFormProps> = ({
         type="button"
         onClick={handleSave}
         isLoading={saving}
-        className={`rounded-lg px-5 py-2.5 text-[14px] hover:opacity-90 text-white ${
+        disabled={disabled}
+        className={`rounded-lg px-5 py-2.5 text-[14px] hover:opacity-90 text-white disabled:opacity-60 ${
           entryType === "credit" ? "bg-[#b45309]" : "bg-[#047857]"
         }`}
       >
