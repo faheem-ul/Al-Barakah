@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Pencil, Plus, Store } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Store, Trash2 } from "lucide-react";
 
 import { currentMonthValue, money } from "@/lib/sales/calculations";
 import {
   createWholesaler,
   createWholesalerTransaction,
+  deleteWholesaler,
   deleteWholesalerTransaction,
   updateWholesaler,
 } from "@/lib/sales/wholesalers";
@@ -80,6 +81,9 @@ const WholesalerPaymentsTab: React.FC<WholesalerPaymentsTabProps> = ({
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
   const [isRenamingWholesaler, setIsRenamingWholesaler] = useState(false);
+  const [deletingWholesalerId, setDeletingWholesalerId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!wholesalers.length) {
@@ -159,6 +163,43 @@ const WholesalerPaymentsTab: React.FC<WholesalerPaymentsTabProps> = ({
   const handleCancelRename = () => {
     setRenameValue(selectedWholesaler?.name ?? "");
     setIsRenamingWholesaler(false);
+  };
+
+  const handleDeleteWholesaler = async () => {
+    if (!selectedWholesaler) return;
+
+    const transactionCount = selectedTransactions.length;
+    const transactionLine =
+      transactionCount === 0
+        ? "No transactions will be removed."
+        : `This will permanently remove ${transactionCount} credit/payment ${
+            transactionCount === 1 ? "entry" : "entries"
+          }.`;
+
+    const confirmed = window.confirm(
+      `Delete wholesaler "${selectedWholesaler.name}"?\n\n${transactionLine}\n\nThis cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingWholesalerId(selectedWholesaler.id);
+    try {
+      await deleteWholesaler(selectedWholesaler.id);
+
+      const nextTransactions = { ...transactionsByWholesaler };
+      delete nextTransactions[selectedWholesaler.id];
+      onTransactionsByWholesalerChange(nextTransactions);
+      onWholesalersChange(
+        wholesalers.filter((account) => account.id !== selectedWholesaler.id),
+      );
+      window.alert("Wholesaler account deleted.");
+    } catch (error) {
+      console.error("Failed to delete wholesaler", error);
+      window.alert(
+        "Failed to delete wholesaler account. Please refresh and try again.",
+      );
+    } finally {
+      setDeletingWholesalerId(null);
+    }
   };
 
   const handleRenameWholesaler = async () => {
@@ -344,7 +385,8 @@ const WholesalerPaymentsTab: React.FC<WholesalerPaymentsTabProps> = ({
                       onClick={startRename}
                       aria-label="Edit wholesaler name"
                       title="Rename account"
-                      className="shrink-0 rounded-md p-1.5 text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#1f2937]"
+                      disabled={deletingWholesalerId === selectedWholesaler.id}
+                      className="shrink-0 rounded-md p-1.5 text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#1f2937] disabled:opacity-60"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -359,6 +401,16 @@ const WholesalerPaymentsTab: React.FC<WholesalerPaymentsTabProps> = ({
                     Balance due: {money(wholesalerSummary.balanceDue)}
                   </p>
                 </div>
+                <Button
+                  type="button"
+                  onClick={handleDeleteWholesaler}
+                  isLoading={deletingWholesalerId === selectedWholesaler.id}
+                  aria-label="Delete wholesaler account"
+                  title="Delete account"
+                  className="shrink-0 rounded-lg bg-[#fef2f2] text-[#b91c1c] px-3 py-2 text-[13px] hover:opacity-90"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             )}
 

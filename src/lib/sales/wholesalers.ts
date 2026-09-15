@@ -145,6 +145,16 @@ export async function deleteWholesalerTransaction(
   );
 }
 
+export async function deleteWholesaler(wholesalerId: string): Promise<void> {
+  const transactions = await getWholesalerTransactions(wholesalerId);
+
+  for (const transaction of transactions) {
+    await deleteWholesalerTransaction(wholesalerId, transaction.id);
+  }
+
+  await deleteDoc(doc(db, "sales-wholesalers", wholesalerId));
+}
+
 export async function migrateLegacyWholesalerLedger(): Promise<void> {
   const settings = await getSalesSettings();
   if (settings.wholesalerLegacyMigrated) return;
