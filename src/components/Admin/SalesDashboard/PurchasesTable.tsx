@@ -3,17 +3,20 @@
 import React from "react";
 
 import { money } from "@/lib/sales/calculations";
-import type { StockPurchase } from "@/lib/sales/types";
+import { getWholesalerDisplayName } from "@/lib/sales/wholesalers";
+import type { StockPurchase, WholesalerAccount } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type PurchasesTableProps = {
   purchases: StockPurchase[];
+  wholesalers: WholesalerAccount[];
   onDelete: (id: string) => void;
   deletingId: string | null;
 };
 
 const PurchasesTable: React.FC<PurchasesTableProps> = ({
   purchases,
+  wholesalers,
   onDelete,
   deletingId,
 }) => {
@@ -27,10 +30,11 @@ const PurchasesTable: React.FC<PurchasesTableProps> = ({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-[14px]">
+      <table className="w-full min-w-[860px] text-left text-[14px]">
         <thead>
           <tr className="border-b border-[#e5e7eb] text-[#6b7280]">
             <th className="py-3 pr-3 font-medium">Date</th>
+            <th className="py-3 pr-3 font-medium">Wholesaler</th>
             <th className="py-3 pr-3 font-medium">Product</th>
             <th className="py-3 pr-3 font-medium">Variant</th>
             <th className="py-3 pr-3 font-medium">Qty</th>
@@ -40,28 +44,48 @@ const PurchasesTable: React.FC<PurchasesTableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {purchases.map((purchase) => (
-            <tr key={purchase.id} className="border-b border-[#f3f4f6]">
-              <td className="py-3 pr-3">{purchase.date}</td>
-              <td className="py-3 pr-3">{purchase.product}</td>
-              <td className="py-3 pr-3">{purchase.variant}</td>
-              <td className="py-3 pr-3">{purchase.qty}</td>
-              <td className="py-3 pr-3">{money(purchase.unitPrice)}</td>
-              <td className="py-3 pr-3 font-semibold">
-                {money(purchase.totalCost)}
-              </td>
-              <td className="py-3">
-                <Button
-                  type="button"
-                  onClick={() => onDelete(purchase.id)}
-                  isLoading={deletingId === purchase.id}
-                  className="rounded-lg bg-[#fef2f2] text-[#b91c1c] px-3 py-1.5 text-[13px] hover:opacity-90"
+          {purchases.map((purchase) => {
+            const wholesalerLabel = getWholesalerDisplayName(
+              purchase.wholesalerId,
+              wholesalers,
+            );
+            const isDeletedAccount = wholesalerLabel === "Deleted account";
+            const isLegacy = wholesalerLabel === "------";
+
+            return (
+              <tr key={purchase.id} className="border-b border-[#f3f4f6]">
+                <td className="py-3 pr-3">{purchase.date}</td>
+                <td
+                  className={`py-3 pr-3 ${
+                    isDeletedAccount
+                      ? "text-[#b91c1c]"
+                      : isLegacy
+                        ? "text-[#9ca3af]"
+                        : ""
+                  }`}
                 >
-                  Delete
-                </Button>
-              </td>
-            </tr>
-          ))}
+                  {wholesalerLabel}
+                </td>
+                <td className="py-3 pr-3">{purchase.product}</td>
+                <td className="py-3 pr-3">{purchase.variant}</td>
+                <td className="py-3 pr-3">{purchase.qty}</td>
+                <td className="py-3 pr-3">{money(purchase.unitPrice)}</td>
+                <td className="py-3 pr-3 font-semibold">
+                  {money(purchase.totalCost)}
+                </td>
+                <td className="py-3">
+                  <Button
+                    type="button"
+                    onClick={() => onDelete(purchase.id)}
+                    isLoading={deletingId === purchase.id}
+                    className="rounded-lg bg-[#fef2f2] text-[#b91c1c] px-3 py-1.5 text-[13px] hover:opacity-90"
+                  >
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

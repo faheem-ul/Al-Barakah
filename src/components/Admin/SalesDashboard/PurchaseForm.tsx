@@ -8,28 +8,32 @@ import {
   getStockProductNames,
   getVariantsForProduct,
 } from "@/lib/sales/products";
-import type { SalesCatalogProduct } from "@/lib/sales/types";
+import type { SalesCatalogProduct, WholesalerAccount } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type PurchaseFormProps = {
   catalog: SalesCatalogProduct[];
+  wholesalers: WholesalerAccount[];
   onSave: (draft: {
     date: string;
     key: string;
     qty: number;
     unitPrice: number;
+    wholesalerId: string;
   }) => Promise<void>;
   saving: boolean;
 };
 
 const PurchaseForm: React.FC<PurchaseFormProps> = ({
   catalog,
+  wholesalers,
   onSave,
   saving,
 }) => {
   const [date, setDate] = useState(todayIsoDate());
   const [product, setProduct] = useState("");
   const [variantKey, setVariantKey] = useState("");
+  const [wholesalerId, setWholesalerId] = useState("");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState<number | "">("");
 
@@ -53,6 +57,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
     setDate(todayIsoDate());
     setProduct("");
     setVariantKey("");
+    setWholesalerId("");
     setQty(1);
     setUnitPrice("");
   };
@@ -60,6 +65,10 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
   const handleSave = async () => {
     if (!selected) {
       window.alert("Please select a product and variant.");
+      return;
+    }
+    if (!wholesalerId) {
+      window.alert("Please select a wholesaler.");
       return;
     }
     if (qty <= 0) {
@@ -76,6 +85,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
       key: selected.id,
       qty,
       unitPrice,
+      wholesalerId,
     });
 
     resetForm();
@@ -96,6 +106,24 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
             onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           />
+        </label>
+
+        <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Wholesaler
+          </span>
+          <select
+            value={wholesalerId}
+            onChange={(e) => setWholesalerId(e.target.value)}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          >
+            <option value="">Select Wholesaler</option>
+            {wholesalers.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="block">
@@ -174,11 +202,19 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
         </label>
       </div>
 
+      {wholesalers.length === 0 && (
+        <p className="mb-4 text-[13px] text-[#b45309]">
+          Add a wholesaler account under Payments → Wholesaler before recording
+          stock purchases.
+        </p>
+      )}
+
       <Button
         type="button"
         onClick={handleSave}
         isLoading={saving}
-        className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90"
+        disabled={wholesalers.length === 0}
+        className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90 disabled:opacity-60"
       >
         Add Purchase
       </Button>

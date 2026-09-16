@@ -209,6 +209,7 @@ const SalesDashboard: React.FC = () => {
             {tab === "stock" && (
               <StockTab
                 catalog={settings.catalogProducts}
+                wholesalers={wholesalers}
                 purchases={purchases}
                 onPurchasesChange={setPurchases}
                 expenses={expenses}

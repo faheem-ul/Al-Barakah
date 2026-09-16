@@ -18,6 +18,11 @@ function mapPurchase(
   const qty = Number(data.qty) || 0;
   const unitPrice = Number(data.unitPrice) || 0;
 
+  const wholesalerId =
+    typeof data.wholesalerId === "string" && data.wholesalerId.trim()
+      ? data.wholesalerId.trim()
+      : undefined;
+
   return {
     id,
     date: data.date ?? "",
@@ -27,6 +32,7 @@ function mapPurchase(
     qty,
     unitPrice,
     totalCost: Number(data.totalCost) || qty * unitPrice,
+    wholesalerId,
     createdAt: data.createdAt ?? Date.now(),
   };
 }
@@ -46,6 +52,7 @@ export async function createStockPurchase(
   const docRef = await addDoc(collection(db, "sales-purchases"), {
     ...payload,
     totalCost: payload.qty * payload.unitPrice,
+    ...(payload.wholesalerId ? { wholesalerId: payload.wholesalerId } : {}),
   });
   return docRef.id;
 }

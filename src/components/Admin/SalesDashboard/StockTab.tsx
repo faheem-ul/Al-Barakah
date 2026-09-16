@@ -17,6 +17,7 @@ import type {
   SalesCatalogProduct,
   StockExpense,
   StockPurchase,
+  WholesalerAccount,
 } from "@/lib/sales/types";
 
 import ExpenseForm from "./ExpenseForm";
@@ -31,6 +32,7 @@ import PurchasesTable from "./PurchasesTable";
 
 type StockTabProps = {
   catalog: SalesCatalogProduct[];
+  wholesalers: WholesalerAccount[];
   purchases: StockPurchase[];
   onPurchasesChange: (purchases: StockPurchase[]) => void;
   expenses: StockExpense[];
@@ -55,6 +57,7 @@ function formatMonthLabel(month: string): string {
 
 const StockTab: React.FC<StockTabProps> = ({
   catalog,
+  wholesalers,
   purchases,
   onPurchasesChange,
   expenses,
@@ -142,6 +145,7 @@ const StockTab: React.FC<StockTabProps> = ({
       key: string;
       qty: number;
       unitPrice: number;
+      wholesalerId: string;
     }) => {
       setSavingPurchase(true);
       try {
@@ -159,6 +163,7 @@ const StockTab: React.FC<StockTabProps> = ({
           qty: draft.qty,
           unitPrice: draft.unitPrice,
           totalCost: draft.qty * draft.unitPrice,
+          wholesalerId: draft.wholesalerId,
           createdAt: Date.now(),
         };
 
@@ -249,6 +254,7 @@ const StockTab: React.FC<StockTabProps> = ({
     <div>
       <PurchaseForm
         catalog={catalog}
+        wholesalers={wholesalers}
         onSave={handleSavePurchase}
         saving={savingPurchase}
       />
@@ -283,6 +289,7 @@ const StockTab: React.FC<StockTabProps> = ({
 
         <PurchasesTable
           purchases={filteredPurchases}
+          wholesalers={wholesalers}
           onDelete={handleDeletePurchase}
           deletingId={deletingPurchaseId}
         />

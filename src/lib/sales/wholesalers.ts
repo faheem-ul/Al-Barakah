@@ -22,6 +22,16 @@ import type {
 
 export const LEGACY_WHOLESALER_DEFAULT_NAME = "Unnamed";
 
+export function getWholesalerDisplayName(
+  wholesalerId: string | undefined,
+  wholesalers: WholesalerAccount[],
+): string {
+  if (!wholesalerId) return "------";
+  const account = wholesalers.find((w) => w.id === wholesalerId);
+  if (!account) return "Deleted account";
+  return account.name;
+}
+
 function mapWholesalerAccount(
   id: string,
   data: Partial<WholesalerAccountPayload>,

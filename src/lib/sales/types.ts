@@ -206,6 +206,7 @@ export type StockPurchase = {
   qty: number;
   unitPrice: number;
   totalCost: number;
+  wholesalerId?: string;
   createdAt: number;
 };
 
