@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 type PurchasesTableProps = {
   purchases: StockPurchase[];
   wholesalers: WholesalerAccount[];
+  editingId: string | null;
+  onEdit: (purchase: StockPurchase) => void;
   onDelete: (id: string) => void;
   deletingId: string | null;
 };
@@ -17,6 +19,8 @@ type PurchasesTableProps = {
 const PurchasesTable: React.FC<PurchasesTableProps> = ({
   purchases,
   wholesalers,
+  editingId,
+  onEdit,
   onDelete,
   deletingId,
 }) => {
@@ -74,14 +78,25 @@ const PurchasesTable: React.FC<PurchasesTableProps> = ({
                   {money(purchase.totalCost)}
                 </td>
                 <td className="py-3">
-                  <Button
-                    type="button"
-                    onClick={() => onDelete(purchase.id)}
-                    isLoading={deletingId === purchase.id}
-                    className="rounded-lg bg-[#fef2f2] text-[#b91c1c] px-3 py-1.5 text-[13px] hover:opacity-90"
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => onEdit(purchase)}
+                      disabled={deletingId === purchase.id}
+                      className="rounded-lg bg-[#f3f4f6] text-[#374151] px-3 py-1.5 text-[13px] hover:opacity-90 disabled:opacity-50"
+                    >
+                      {editingId === purchase.id ? "Editing" : "Edit"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => onDelete(purchase.id)}
+                      isLoading={deletingId === purchase.id}
+                      disabled={editingId === purchase.id}
+                      className="rounded-lg bg-[#fef2f2] text-[#b91c1c] px-3 py-1.5 text-[13px] hover:opacity-90 disabled:opacity-50"
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </td>
               </tr>
             );

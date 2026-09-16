@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { money, todayIsoDate } from "@/lib/sales/calculations";
 import {
@@ -8,12 +8,18 @@ import {
   getStockProductNames,
   getVariantsForProduct,
 } from "@/lib/sales/products";
-import type { SalesCatalogProduct, WholesalerAccount } from "@/lib/sales/types";
+import type {
+  SalesCatalogProduct,
+  StockPurchase,
+  WholesalerAccount,
+} from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type PurchaseFormProps = {
   catalog: SalesCatalogProduct[];
   wholesalers: WholesalerAccount[];
+  editPurchase?: StockPurchase | null;
+  onCancelEdit?: () => void;
   onSave: (draft: {
     date: string;
     key: string;
@@ -27,6 +33,8 @@ type PurchaseFormProps = {
 const PurchaseForm: React.FC<PurchaseFormProps> = ({
   catalog,
   wholesalers,
+  editPurchase = null,
+  onCancelEdit,
   onSave,
   saving,
 }) => {
@@ -62,6 +70,20 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
     setUnitPrice("");
   };
 
+  useEffect(() => {
+    if (!editPurchase) {
+      resetForm();
+      return;
+    }
+
+    setDate(editPurchase.date);
+    setProduct(editPurchase.product);
+    setVariantKey(editPurchase.key);
+    setWholesalerId(editPurchase.wholesalerId ?? "");
+    setQty(editPurchase.qty);
+    setUnitPrice(editPurchase.unitPrice);
+  }, [editPurchase]);
+
   const handleSave = async () => {
     if (!selected) {
       window.alert("Please select a product and variant.");
@@ -88,12 +110,16 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
       wholesalerId,
     });
 
-    resetForm();
+    if (!editPurchase) {
+      resetForm();
+    }
   };
 
   return (
     <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
-      <h2 className="text-[19px] font-semibold mb-4">Add Stock Purchase</h2>
+      <h2 className="text-[19px] font-semibold mb-4">
+        {editPurchase ? "Edit Stock Purchase" : "Add Stock Purchase"}
+      </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
         <label className="block">
@@ -209,15 +235,28 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({
         </p>
       )}
 
-      <Button
-        type="button"
-        onClick={handleSave}
-        isLoading={saving}
-        disabled={wholesalers.length === 0}
-        className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90 disabled:opacity-60"
-      >
-        Add Purchase
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={handleSave}
+          isLoading={saving}
+          disabled={wholesalers.length === 0}
+          className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90 disabled:opacity-60"
+        >
+          {editPurchase ? "Update Purchase" : "Add Purchase"}
+        </Button>
+
+        {editPurchase && onCancelEdit && (
+          <Button
+            type="button"
+            onClick={onCancelEdit}
+            disabled={saving}
+            className="rounded-lg border border-[#e5e7eb] bg-white text-[#374151] px-5 py-2.5 text-[14px] hover:bg-[#f9fafb] disabled:opacity-60"
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

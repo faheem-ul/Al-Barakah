@@ -7,6 +7,7 @@ import {
   orderBy,
   doc,
   deleteDoc,
+  updateDoc,
 } from "@/lib/firebase";
 
 import type { StockPurchase, StockPurchasePayload } from "./types";
@@ -59,4 +60,21 @@ export async function createStockPurchase(
 
 export async function deleteStockPurchase(id: string): Promise<void> {
   await deleteDoc(doc(db, "sales-purchases", id));
+}
+
+export async function updateStockPurchase(
+  id: string,
+  payload: StockPurchasePayload,
+): Promise<void> {
+  await updateDoc(doc(db, "sales-purchases", id), {
+    date: payload.date,
+    product: payload.product,
+    variant: payload.variant,
+    key: payload.key,
+    qty: payload.qty,
+    unitPrice: payload.unitPrice,
+    totalCost: payload.qty * payload.unitPrice,
+    createdAt: payload.createdAt,
+    wholesalerId: payload.wholesalerId,
+  });
 }
