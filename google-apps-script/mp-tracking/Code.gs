@@ -660,8 +660,9 @@ function buildMpBookingPayload_(sheet, cols, row) {
   var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
   var sizeCol = cols[CONFIG.HEADERS.BOTTLE_SIZE];
   var pieces = 0;
-  var products = [];
+  var productRows = [];
   var weightKg = 0;
+  var hasDeal = false;
   for (var i = 0; i < block.count; i++) {
     var r = block.start + i;
     var q = 0;
@@ -670,15 +671,28 @@ function buildMpBookingPayload_(sheet, cols, row) {
       if (isFinite(q) && q > 0) pieces += q;
       else q = 0;
     }
+    var detail = "";
     if (productCol) {
-      var p = String(sheet.getRange(r, productCol).getValue() || "").trim();
-      if (p) products.push(p);
+      detail = String(sheet.getRange(r, productCol).getValue() || "").trim();
+      if (detail && isDealProductDetail_(detail)) hasDeal = true;
     }
+    var sizeRaw = "";
     if (sizeCol) {
-      var sizeRaw = String(sheet.getRange(r, sizeCol).getValue() || "").trim();
+      sizeRaw = String(sheet.getRange(r, sizeCol).getValue() || "").trim();
       var unitKg = parseBottleSizeKg_(sizeRaw);
       if (unitKg > 0 && q > 0) weightKg += unitKg * q;
     }
+    if (detail || sizeRaw) {
+      productRows.push({ detail: detail, size: sizeRaw, qty: q });
+    }
+  }
+  // Deal/combo = one parcel on M&P (not one piece per jar row)
+  var productLabels = productRows.map(function (row) {
+    return row.detail;
+  });
+  if (hasDeal || orderBlockLooksLikeDeal_(productLabels)) {
+    pieces = 1;
+    log_("M&P pieces forced to 1 — order has deal/combo");
   }
   if (pieces < 1) pieces = 1;
   if (pieces > 99) pieces = 99;
@@ -720,6 +734,16 @@ function buildMpBookingPayload_(sheet, cols, row) {
   var returnLoc = ids.returnLocation;
   if (String(returnLoc).match(/^\d+$/)) returnLoc = Number(returnLoc);
 
+  var productDetails = formatMpProductDetails_(productRows);
+  log_(
+    "M&P booking products",
+    JSON.stringify(
+      productRows.map(function (row) {
+        return { detail: row.detail, size: row.size, qty: row.qty };
+      }),
+    ),
+  );
+
   var body = {
     username: creds.username,
     password: creds.password,
@@ -732,7 +756,7 @@ function buildMpBookingPayload_(sheet, cols, row) {
     weight: weightForApi,
     codAmount: codAmount,
     custRefNo: orderNumber.slice(0, 50),
-    productDetails: asciiProductDetails_(products),
+    productDetails: productDetails,
     fragile: "No",
     service: service,
     remarks: CONFIG.MP_API.REMARKS,
@@ -801,11 +825,223 @@ function pickMpService_(weightKg) {
   return CONFIG.MP_API.SERVICE_OVERNIGHT;
 }
 
+/**
+ * Sheet combo rows look like "Immunity Duo — Sidr Honey" (em/en dash or hyphen).
+ */
+function splitDealProductDetail_(detail) {
+  var s = String(detail || "").replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  // Allow optional spaces around dash (ASCII hyphen, en, em, minus)
+  var m = s.match(/^(.+?)\s*[\u2014\u2013\u2212\-]\s*(.+)$/);
+  if (!m) return null;
+  var deal = String(m[1] || "").trim();
+  var honey = String(m[2] || "").trim();
+  if (!deal || !honey) return null;
+  // Avoid treating "1 - 2 kg" style as a deal
+  if (/^\d/.test(deal) && /kg|g\b/i.test(honey)) return null;
+  return { deal: deal, honey: honey };
+}
+
+function isDealProductDetail_(detail) {
+  if (splitDealProductDetail_(detail)) return true;
+  var s = String(detail || "").toLowerCase();
+  return (
+    /\bduo\b/.test(s) ||
+    /\bfamily\b/.test(s) ||
+    /\bmix\s*pack\b/.test(s) ||
+    /\bgift\b/.test(s) ||
+    /\btrio\b/.test(s) ||
+    /\bcombo\b/.test(s) ||
+    /\bpack\b/.test(s)
+  );
+}
+
+/** Same deal title repeated on multiple jar rows (legacy sheet without " — honey"). */
+function orderBlockLooksLikeDeal_(products) {
+  var list = (products || []).map(function (p) {
+    return String(p || "").replace(/\s+/g, " ").trim();
+  }).filter(Boolean);
+  if (list.length < 2) return false;
+  var first = list[0].toLowerCase();
+  if (!first) return false;
+  for (var i = 1; i < list.length; i++) {
+    if (list[i].toLowerCase() !== first) return false;
+  }
+  return isDealProductDetail_(list[0]);
+}
+
+function sanitizeMpProductText_(text) {
+  return String(text || "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Bottle Size "1/2 kg" / "1 kg" → "(1/2 kg)" for Product Details (matches combo SS).
+ */
+function formatMpWeightLabel_(sizeRaw) {
+  var s = sanitizeMpProductText_(sizeRaw);
+  if (!s) return "";
+  if (/^\([^)]+\)$/.test(s)) return s;
+
+  if (
+    /\b1\s*\/\s*2\s*(kg|kgs|kilo|kilogram)?\b/i.test(s) ||
+    /\bhalf\s*(kg|kilo)?\b/i.test(s) ||
+    /\b0\.5\s*(kg|kgs)?\b/i.test(s)
+  ) {
+    return "(1/2 kg)";
+  }
+
+  var grams = s.match(/\b(\d+(?:\.\d+)?)\s*(g|gm|grams?)\b/i);
+  if (grams) {
+    var g = Number(grams[1]);
+    if (isFinite(g) && g > 0) {
+      if (g === 500) return "(1/2 kg)";
+      return "(" + g + "g)";
+    }
+  }
+
+  var kg = s.match(/\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilo|kilogram)\b/i);
+  if (kg) {
+    var k = Number(kg[1]);
+    if (isFinite(k) && k > 0) {
+      if (k === 0.5) return "(1/2 kg)";
+      return "(" + k + " kg)";
+    }
+  }
+
+  if (/^\d+(?:\.\d+)?$/.test(s)) {
+    var n = Number(s);
+    if (n === 0.5) return "(1/2 kg)";
+    if (isFinite(n) && n > 0) return "(" + n + " kg)";
+  }
+
+  return "(" + s + ")";
+}
+
+/** "(1/2 kg) بڑی مکھی کا جنگلی شہد" — weight beside the honey name. */
+function formatMpJarLine_(honeyName, sizeRaw) {
+  var name = sanitizeMpProductText_(honeyName);
+  var weight = formatMpWeightLabel_(sizeRaw);
+
+  // Name already includes "(1/2 kg) …"
+  if (/\([^)]*(?:kg|g|Half)[^)]*\)/i.test(name)) {
+    return name;
+  }
+  if (weight && name) return weight + " " + name;
+  if (name) return name;
+  return weight || "";
+}
+
+/**
+ * Build M&P Product Details (jar weight goes WITH the name, not only in Weight field):
+ *   Wellness Duo: (1/2 kg) بڑی مکھی کا جنگلی شہد; (1/2 kg) چھوٹی مکھی کا جنگلی شہد
+ */
+function formatMpProductDetails_(productRows) {
+  var rows = productRows || [];
+  var dealMap = {};
+  var dealOrder = [];
+  var singles = [];
+
+  for (var i = 0; i < rows.length; i++) {
+    var detail = sanitizeMpProductText_(rows[i].detail);
+    var size = sanitizeMpProductText_(rows[i].size);
+    if (!detail && !size) continue;
+
+    var split = detail ? splitDealProductDetail_(detail) : null;
+    if (split) {
+      var key = split.deal.toLowerCase();
+      if (!dealMap[key]) {
+        dealMap[key] = { deal: split.deal, jars: [] };
+        dealOrder.push(key);
+      }
+      var honeyKey = split.honey.toLowerCase();
+      var already = false;
+      for (var h = 0; h < dealMap[key].jars.length; h++) {
+        if (dealMap[key].jars[h].honey.toLowerCase() === honeyKey) {
+          already = true;
+          // Prefer a size if this duplicate row has one and earlier didn't
+          if (!dealMap[key].jars[h].size && size) {
+            dealMap[key].jars[h].size = size;
+          }
+          break;
+        }
+      }
+      if (!already) {
+        dealMap[key].jars.push({ honey: split.honey, size: size });
+      }
+    } else if (detail) {
+      singles.push({ detail: detail, size: size });
+    } else if (size) {
+      singles.push({ detail: "", size: size });
+    }
+  }
+
+  var parts = [];
+  for (var d = 0; d < dealOrder.length; d++) {
+    var entry = dealMap[dealOrder[d]];
+    var jarLines = [];
+    for (var j = 0; j < entry.jars.length; j++) {
+      var line = formatMpJarLine_(entry.jars[j].honey, entry.jars[j].size);
+      if (line) jarLines.push(line);
+    }
+    if (jarLines.length) {
+      parts.push(entry.deal + ": " + jarLines.join("; "));
+    } else {
+      parts.push(entry.deal);
+    }
+  }
+
+  var singleLabels = singles.map(function (row) {
+    return row.detail;
+  });
+
+  // Legacy: same deal title on every jar row — use Bottle Size with blank honey
+  if (!parts.length && singles.length >= 2 && orderBlockLooksLikeDeal_(singleLabels)) {
+    var legacyJars = [];
+    for (var s = 0; s < singles.length; s++) {
+      var legacyLine = formatMpJarLine_(singles[s].detail, singles[s].size);
+      // Avoid repeating bare deal title on every jar; prefer size-only label if same
+      if (
+        singles[s].size &&
+        singles[s].detail.toLowerCase() === singles[0].detail.toLowerCase()
+      ) {
+        legacyLine = formatMpJarLine_("", singles[s].size);
+      }
+      if (legacyLine) legacyJars.push(legacyLine);
+    }
+    if (legacyJars.length) {
+      parts.push(singles[0].detail + ": " + legacyJars.join("; "));
+    } else {
+      parts.push(singles[0].detail);
+    }
+  } else if (!dealOrder.length) {
+    var seenSingle = {};
+    for (var t = 0; t < singles.length; t++) {
+      var sk = (singles[t].detail || singles[t].size).toLowerCase();
+      if (seenSingle[sk]) continue;
+      seenSingle[sk] = true;
+      var singleLine = formatMpJarLine_(singles[t].detail, singles[t].size);
+      if (singleLine) parts.push(singleLine);
+    }
+  }
+
+  var joined = sanitizeMpProductText_(parts.join("; "));
+  if (!joined) joined = "Honey";
+  // M&P field is short; keep readable head of the string
+  if (joined.length > 180) joined = joined.slice(0, 177) + "...";
+  log_("M&P productDetails →", joined);
+  return joined;
+}
+
+/** @deprecated use formatMpProductDetails_ */
 function asciiProductDetails_(products) {
-  var raw = (products || []).join("; ");
-  var ascii = raw.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
-  if (!ascii) ascii = "Honey";
-  return ascii.slice(0, 50);
+  return formatMpProductDetails_(
+    (products || []).map(function (detail) {
+      return { detail: detail, size: "", qty: 0 };
+    }),
+  );
 }
 
 function getMpApiCreds_() {
