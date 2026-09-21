@@ -1,0 +1,3 @@
+export const SOCIAL_MAX_IMAGES = 10;
+export const SOCIAL_FACEBOOK_MAX_PHOTOS = 4;
+export const SOCIAL_INSTAGRAM_CAROUSEL_MIN = 2;
