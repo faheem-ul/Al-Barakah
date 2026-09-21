@@ -1,7 +1,12 @@
 import "server-only";
 
+export type VerifiedAdmin = {
+  uid: string;
+  email: string | null;
+};
+
 type FirebaseLookupResponse = {
-  users?: Array<{ localId: string }>;
+  users?: Array<{ localId?: string; email?: string }>;
   error?: { message?: string };
 };
 
@@ -9,7 +14,9 @@ type FirebaseLookupResponse = {
  * Verify a Firebase ID token via the Identity Toolkit REST API.
  * Avoids firebase-admin/auth + jwks-rsa, which breaks on Vercel (jose ESM).
  */
-export async function verifyFirebaseIdToken(idToken: string): Promise<boolean> {
+export async function verifyFirebaseIdToken(
+  idToken: string,
+): Promise<VerifiedAdmin | null> {
   const apiKey = process.env.NEXT_PUBLIC_apiKey?.trim();
   if (!apiKey) {
     throw new Error("Missing NEXT_PUBLIC_apiKey for token verification");
@@ -26,9 +33,18 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<boolean> {
   );
 
   if (!response.ok) {
-    return false;
+    return null;
   }
 
   const data = (await response.json()) as FirebaseLookupResponse;
-  return Boolean(data.users?.length);
+  const user = data.users?.[0];
+  if (!user) return null;
+
+  const uid = user.localId?.trim();
+  if (!uid) return null;
+
+  return {
+    uid,
+    email: user.email?.trim() || null,
+  };
 }
