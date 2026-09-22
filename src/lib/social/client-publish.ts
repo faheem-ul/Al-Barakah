@@ -34,7 +34,14 @@ function replayProgressFromPost(
         ? [post.mediaUrl]
         : [];
 
-  if (mediaUrls.length > 1) {
+  if (post.mediaType === "video" && mediaUrls.length === 1) {
+    onProgress?.({
+      type: "progress",
+      step: "cloudinary",
+      status: "completed",
+      message: "Cloudinary: video uploaded",
+    });
+  } else if (mediaUrls.length > 1) {
     onProgress?.({
       type: "progress",
       step: "cloudinary",

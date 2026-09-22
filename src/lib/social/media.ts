@@ -6,15 +6,18 @@ import { getCloudinaryEnv } from "@/lib/social/env";
 import { redactUrlHost, socialLog } from "@/lib/social/logger";
 import type { PublishProgressReporter } from "@/lib/social/progress";
 
-export type SocialImageFile = {
+export type SocialMediaFile = {
   buffer: Buffer;
   filename: string;
   mimeType: string;
 };
 
-function safeFilename(name: string) {
+/** @deprecated Use SocialMediaFile */
+export type SocialImageFile = SocialMediaFile;
+
+function safeFilename(name: string, fallback = "media") {
   const base = name.replace(/[^\w.\-]+/g, "_").replace(/^\.+/, "");
-  return (base || "image").slice(0, 80);
+  return (base || fallback).slice(0, 80);
 }
 
 function configureCloudinary() {
@@ -34,7 +37,8 @@ function configureCloudinary() {
 }
 
 async function uploadBufferToCloudinary(
-  image: SocialImageFile,
+  file: SocialMediaFile,
+  resourceType: "image" | "video",
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   if (!configureCloudinary()) {
     return {
@@ -45,7 +49,8 @@ async function uploadBufferToCloudinary(
   }
 
   const { folder } = getCloudinaryEnv();
-  const publicId = `${Date.now()}-${safeFilename(image.filename).replace(/\.[^.]+$/, "")}`;
+  const fallback = resourceType === "video" ? "video" : "image";
+  const publicId = `${Date.now()}-${safeFilename(file.filename, fallback).replace(/\.[^.]+$/, "")}`;
 
   try {
     const result = await new Promise<{ secure_url: string }>(
@@ -54,7 +59,10 @@ async function uploadBufferToCloudinary(
           {
             folder,
             public_id: publicId,
-            resource_type: "image",
+            resource_type: resourceType,
+            ...(resourceType === "video"
+              ? { format: "mp4", video_codec: "h264" }
+              : {}),
           },
           (error, uploadResult) => {
             if (error) {
@@ -69,11 +77,16 @@ async function uploadBufferToCloudinary(
           },
         );
 
-        stream.end(image.buffer);
+        stream.end(file.buffer);
       },
     );
 
-    return { ok: true, url: result.secure_url };
+    const url =
+      resourceType === "video"
+        ? toInstagramVideoUrl(result.secure_url)
+        : result.secure_url;
+
+    return { ok: true, url };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Cloudinary upload failed.";
@@ -81,12 +94,19 @@ async function uploadBufferToCloudinary(
   }
 }
 
+/** H.264 MP4 delivery URL for Meta video/Reels ingestion. */
+export function toInstagramVideoUrl(url: string): string {
+  if (!url.includes("/video/upload/")) return url;
+  if (url.includes("/f_mp4/") || url.includes(",f_mp4/")) return url;
+  return url.replace("/video/upload/", "/video/upload/f_mp4/");
+}
+
 export type StoreSocialImageResult =
   | { ok: true; url: string }
   | { ok: false; error: string };
 
 export async function storeSocialImage(
-  image: SocialImageFile,
+  image: SocialMediaFile,
   options?: { onProgress?: PublishProgressReporter },
 ): Promise<StoreSocialImageResult> {
   const onProgress = options?.onProgress;
@@ -101,9 +121,10 @@ export async function storeSocialImage(
   socialLog("info", "cloudinary upload", "start", {
     bytes: image.buffer.byteLength,
     filename: image.filename,
+    resourceType: "image",
   });
 
-  const uploaded = await uploadBufferToCloudinary(image);
+  const uploaded = await uploadBufferToCloudinary(image, "image");
   const durationMs = Date.now() - startedAt;
 
   if (!uploaded.ok) {
@@ -136,12 +157,65 @@ export async function storeSocialImage(
   return uploaded;
 }
 
+export async function storeSocialVideo(
+  video: SocialMediaFile,
+  options?: { onProgress?: PublishProgressReporter },
+): Promise<StoreSocialImageResult> {
+  const onProgress = options?.onProgress;
+  const startedAt = Date.now();
+
+  onProgress?.({
+    type: "progress",
+    step: "cloudinary",
+    status: "started",
+    message: "Uploading video to Cloudinary…",
+  });
+  socialLog("info", "cloudinary upload", "start", {
+    bytes: video.buffer.byteLength,
+    filename: video.filename,
+    resourceType: "video",
+  });
+
+  const uploaded = await uploadBufferToCloudinary(video, "video");
+  const durationMs = Date.now() - startedAt;
+
+  if (!uploaded.ok) {
+    socialLog("error", "cloudinary upload", "failed", {
+      durationMs,
+      error: uploaded.error,
+    });
+    onProgress?.({
+      type: "progress",
+      step: "cloudinary",
+      status: "failed",
+      error: uploaded.error,
+      durationMs,
+    });
+    return uploaded;
+  }
+
+  socialLog("info", "cloudinary upload", "done", {
+    durationMs,
+    host: redactUrlHost(uploaded.url),
+    resourceType: "video",
+  });
+  onProgress?.({
+    type: "progress",
+    step: "cloudinary",
+    status: "completed",
+    message: "Cloudinary: video uploaded",
+    durationMs,
+  });
+
+  return uploaded;
+}
+
 export type StoreSocialImagesResult =
   | { ok: true; urls: string[] }
   | { ok: false; error: string; urls: string[] };
 
 export async function storeSocialImages(
-  images: SocialImageFile[],
+  images: SocialMediaFile[],
   options?: { onProgress?: PublishProgressReporter },
 ): Promise<StoreSocialImagesResult> {
   if (images.length === 0) {
@@ -202,7 +276,7 @@ export async function storeSocialImages(
       filename: image.filename,
     });
 
-    const uploaded = await uploadBufferToCloudinary(image);
+    const uploaded = await uploadBufferToCloudinary(image, "image");
     const durationMs = Date.now() - startedAt;
 
     if (!uploaded.ok) {

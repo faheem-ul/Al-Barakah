@@ -28,6 +28,7 @@ function stepLoadingMessage(event: SocialPublishProgressEvent) {
     return "Uploading image to Cloudinary…";
   }
   if (event.step === "facebook") return "Publishing to Facebook…";
+  if (event.message?.toLowerCase().includes("reel")) return event.message;
   return "Publishing to Instagram…";
 }
 
@@ -115,7 +116,8 @@ const SocialPublisher: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [caption, setCaption] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imageInputKey, setImageInputKey] = useState(0);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [mediaInputKey, setMediaInputKey] = useState(0);
   const [facebook, setFacebook] = useState(true);
   const [instagram, setInstagram] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -127,11 +129,22 @@ const SocialPublisher: React.FC = () => {
     [imageFiles],
   );
 
+  const videoPreviewUrl = useMemo(
+    () => (videoFile ? URL.createObjectURL(videoFile) : null),
+    [videoFile],
+  );
+
   useEffect(() => {
     return () => {
       previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [previewUrls]);
+
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    };
+  }, [videoPreviewUrl]);
 
   const loadHistory = useCallback(async () => {
     if (!user) {
@@ -164,11 +177,31 @@ const SocialPublisher: React.FC = () => {
     void loadHistory();
   }, [loadHistory]);
 
-  const handleImageSelection = (files: FileList | null) => {
-    if (!files) return;
+  const handleMediaSelection = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
+    const selected = Array.from(files);
+    const hasVideo = selected.some((file) => file.type.startsWith("video/"));
+    const hasImage = selected.some((file) => file.type.startsWith("image/"));
+
+    if (hasVideo && hasImage) {
+      toast.error("Upload either one video or images, not both.");
+      return;
+    }
+
+    if (hasVideo) {
+      if (selected.length > 1) {
+        toast.error("Only one video can be uploaded per post.");
+        return;
+      }
+      setImageFiles([]);
+      setVideoFile(selected[0]);
+      return;
+    }
+
+    setVideoFile(null);
     const next = [...imageFiles];
-    for (const file of Array.from(files)) {
+    for (const file of selected) {
       if (next.length >= SOCIAL_MAX_IMAGES) break;
       next.push(file);
     }
@@ -182,6 +215,10 @@ const SocialPublisher: React.FC = () => {
 
   const removeImageAt = (index: number) => {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearVideo = () => {
+    setVideoFile(null);
   };
 
   const handlePublish = async (event: React.FormEvent) => {
@@ -200,13 +237,20 @@ const SocialPublisher: React.FC = () => {
     }
 
     const nextCaption = caption.trim();
-    if (!nextCaption && imageFiles.length === 0) {
-      toast.error("Add a caption or an image.");
+    const hasMedia = imageFiles.length > 0 || Boolean(videoFile);
+
+    if (!nextCaption && !hasMedia) {
+      toast.error("Add a caption or media.");
       return;
     }
 
-    if (instagram && imageFiles.length === 0) {
-      toast.error("Instagram requires at least one image.");
+    if (instagram && !hasMedia) {
+      toast.error("Instagram requires an image or video.");
+      return;
+    }
+
+    if (videoFile && imageFiles.length > 0) {
+      toast.error("Upload either one video or images, not both.");
       return;
     }
 
@@ -223,7 +267,11 @@ const SocialPublisher: React.FC = () => {
       const form = new FormData();
       form.set("caption", nextCaption);
       form.set("platforms", JSON.stringify(platforms));
-      imageFiles.forEach((file) => form.append("images", file));
+      if (videoFile) {
+        form.set("video", videoFile);
+      } else {
+        imageFiles.forEach((file) => form.append("images", file));
+      }
 
       const result = await publishWithProgress({
         formData: form,
@@ -242,7 +290,8 @@ const SocialPublisher: React.FC = () => {
       setHistory((prev) => [post, ...prev]);
       setCaption("");
       setImageFiles([]);
-      setImageInputKey((key) => key + 1);
+      setVideoFile(null);
+      setMediaInputKey((key) => key + 1);
 
       const { published, failed } = summarizePublishResults(post, platforms);
       const facebookWarning = post.platformResults.facebook?.warning;
@@ -336,8 +385,10 @@ const SocialPublisher: React.FC = () => {
                 Create post
               </Text>
               <Text className="text-[13px] text-[#6B6B6B] mb-5">
-                Instagram: up to {SOCIAL_MAX_IMAGES} images (carousel). Facebook:
-                up to 4 photos (first 4 used if you select more).
+                Upload one video (MP4/MOV, max 100MB) or up to {SOCIAL_MAX_IMAGES}{" "}
+                images. Instagram carousel: 2–{SOCIAL_MAX_IMAGES} images. Facebook
+                photos: up to 4 (first 4 used if you select more). Video posts
+                publish as Facebook video and Instagram Reels (shared to feed).
               </Text>
 
               <form onSubmit={handlePublish} className="space-y-5">
@@ -356,26 +407,44 @@ const SocialPublisher: React.FC = () => {
 
                 <label className="block">
                   <span className="block text-[13px] font-semibold text-black mb-1.5">
-                    Images
-                    {imageFiles.length > 0 ? (
+                    Media
+                    {videoFile ? (
+                      <span className="font-normal text-[#6B6B6B]"> (1 video)</span>
+                    ) : imageFiles.length > 0 ? (
                       <span className="font-normal text-[#6B6B6B]">
                         {" "}
-                        ({imageFiles.length}/{SOCIAL_MAX_IMAGES})
+                        ({imageFiles.length}/{SOCIAL_MAX_IMAGES} images)
                       </span>
                     ) : null}
                   </span>
                   <input
-                    key={imageInputKey}
+                    key={mediaInputKey}
                     type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/gif,image/webp,image/bmp"
+                    multiple={!videoFile}
+                    accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,video/mp4,video/quicktime"
                     onChange={(e) => {
-                      handleImageSelection(e.target.files);
+                      handleMediaSelection(e.target.files);
                       e.target.value = "";
                     }}
                     className="block w-full text-[13px] text-[#6B6B6B] file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-1.5 file:text-[13px] file:font-semibold file:text-white"
                   />
-                  {previewUrls.length > 0 ? (
+                  {videoPreviewUrl ? (
+                    <div className="mt-3 relative rounded-lg border border-black/10 bg-[#F7F7F7] overflow-hidden max-w-sm">
+                      <video
+                        src={videoPreviewUrl}
+                        controls
+                        className="w-full max-h-48 object-contain bg-black"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Remove video"
+                        onClick={clearVideo}
+                        className="absolute top-1.5 right-1.5 size-6 rounded-full bg-black/75 text-white text-[14px] leading-none"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : previewUrls.length > 0 ? (
                     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {previewUrls.map((url, index) => (
                         <div
@@ -429,7 +498,7 @@ const SocialPublisher: React.FC = () => {
                       <span>
                         Instagram
                         <span className="block text-[12px] text-[#6B6B6B]">
-                          Requires at least one image (separate from Facebook Page)
+                          Requires an image or video (separate from Facebook Page)
                         </span>
                       </span>
                     </label>
@@ -495,12 +564,21 @@ const SocialPublisher: React.FC = () => {
                               <div className="flex items-center gap-2 min-w-0">
                                 {mediaUrls[0] ? (
                                   <div className="relative shrink-0">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={mediaUrls[0]}
-                                      alt=""
-                                      className="size-10 rounded object-cover border border-black/10"
-                                    />
+                                    {post.mediaType === "video" ? (
+                                      <video
+                                        src={mediaUrls[0]}
+                                        className="size-10 rounded object-cover border border-black/10 bg-black"
+                                        muted
+                                        playsInline
+                                      />
+                                    ) : (
+                                      /* eslint-disable-next-line @next/next/no-img-element */
+                                      <img
+                                        src={mediaUrls[0]}
+                                        alt=""
+                                        className="size-10 rounded object-cover border border-black/10"
+                                      />
+                                    )}
                                     {extraCount > 0 ? (
                                       <span className="absolute -bottom-1 -right-1 rounded bg-black px-1 py-0.5 text-[10px] text-white">
                                         +{extraCount}
@@ -509,7 +587,8 @@ const SocialPublisher: React.FC = () => {
                                   </div>
                                 ) : null}
                                 <span className="truncate">
-                                  {post.caption || "(image)"}
+                                  {post.caption ||
+                                    (post.mediaType === "video" ? "(video)" : "(image)")}
                                 </span>
                               </div>
                             </td>

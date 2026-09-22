@@ -4,7 +4,7 @@ import { getMetaPublisherEnv } from "@/lib/social/env";
 import { SOCIAL_FACEBOOK_MAX_PHOTOS } from "@/lib/social/limits";
 import { socialLog } from "@/lib/social/logger";
 import type { PublishProgressReporter } from "@/lib/social/progress";
-import type { SocialPlatformResult } from "@/lib/social/types";
+import type { SocialMediaType, SocialPlatformResult } from "@/lib/social/types";
 
 type FacebookImage = {
   buffer: Buffer;
@@ -22,9 +22,29 @@ type GraphErrorBody = {
   post_id?: string;
 };
 
-function graphUrl(pageId: string, edge: "photos" | "feed") {
+function graphUrl(pageId: string, edge: "photos" | "feed" | "videos") {
   const { graphVersion } = getMetaPublisherEnv();
   return `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}/${edge}`;
+}
+
+async function publishVideoToFacebook(
+  pageId: string,
+  input: { caption: string; mediaUrl: string },
+): Promise<
+  { ok: true; postId: string } | { ok: false; error: string }
+> {
+  const form = new FormData();
+  form.set("file_url", input.mediaUrl);
+  form.set("description", input.caption);
+  form.set("published", "true");
+
+  const result = await graphRequest(graphUrl(pageId, "videos"), {
+    method: "POST",
+    body: form,
+  });
+
+  if (!result.ok) return result;
+  return { ok: true, postId: result.postId || result.id };
 }
 
 function publicGraphError(body: GraphErrorBody, fallback: string) {
@@ -171,6 +191,7 @@ async function publishMultiPhotoToFacebook(
 export async function publishFacebookPost(
   input: {
     caption: string;
+    mediaType?: SocialMediaType;
     images?: FacebookImage[];
     mediaUrls?: string[];
   },
@@ -188,6 +209,7 @@ export async function publishFacebookPost(
   const images = input.images ?? [];
   const mediaUrls = input.mediaUrls ?? [];
   const imageCount = Math.max(images.length, mediaUrls.length);
+  const isVideo = input.mediaType === "video";
 
   const startedAt = Date.now();
   onProgress?.({
@@ -200,6 +222,7 @@ export async function publishFacebookPost(
     pageId,
     imageCount,
     multiPhoto: imageCount > 1,
+    isVideo,
   });
 
   try {
@@ -207,7 +230,17 @@ export async function publishFacebookPost(
       | { ok: true; postId: string; warning?: string }
       | { ok: false; error: string };
 
-    if (imageCount > 1) {
+    if (isVideo) {
+      result = mediaUrls[0]
+        ? await publishVideoToFacebook(pageId, {
+            caption: input.caption,
+            mediaUrl: mediaUrls[0],
+          })
+        : {
+            ok: false,
+            error: "Facebook video upload requires a public video URL.",
+          };
+    } else if (imageCount > 1) {
       result = await publishMultiPhotoToFacebook(pageId, {
         caption: input.caption,
         images,
