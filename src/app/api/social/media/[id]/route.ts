@@ -45,17 +45,43 @@ export async function GET(
     let buffer: Buffer | null = null;
 
     if (data.sourceUrl) {
-      const upstream = await fetch(data.sourceUrl, { cache: "no-store" });
-      if (!upstream.ok) {
+      let lastStatus = 0;
+
+      for (let attempt = 1; attempt <= 4; attempt += 1) {
+        const upstream = await fetch(data.sourceUrl, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(30_000),
+          headers: { Accept: "image/jpeg,image/*,*/*" },
+        });
+
+        lastStatus = upstream.status;
+        if (upstream.ok) {
+          buffer = Buffer.from(await upstream.arrayBuffer());
+          if (
+            buffer.length >= 3 &&
+            buffer[0] === 0xff &&
+            buffer[1] === 0xd8 &&
+            buffer[2] === 0xff
+          ) {
+            break;
+          }
+          buffer = null;
+        }
+
+        if (attempt < 4) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+        }
+      }
+
+      if (!buffer) {
         console.error("[social/media] Upstream fetch failed", {
-          status: upstream.status,
+          status: lastStatus,
         });
         return NextResponse.json(
           { error: "Could not load image." },
           { status: 502 },
         );
       }
-      buffer = Buffer.from(await upstream.arrayBuffer());
     } else if (data.data) {
       buffer = Buffer.from(data.data, "base64");
     }

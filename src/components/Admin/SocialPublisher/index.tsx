@@ -140,17 +140,12 @@ const SocialPublisher: React.FC = () => {
 
     try {
       const token = await user.getIdToken();
-      const form = new FormData();
-      form.set("caption", caption);
-      form.set("platforms", JSON.stringify(platforms));
-      if (videoFile) {
-        form.set("video", videoFile);
-      } else {
-        imageFiles.forEach((file) => form.append("images", file));
-      }
 
       const result = await publishWithProgress({
-        formData: form,
+        caption,
+        platforms,
+        imageFiles,
+        videoFile,
         token,
         onProgress: handlePublishProgress,
       });

@@ -74,6 +74,7 @@ export async function publishSocialPost(
   socialLog("info", "publish", "start", {
     platforms: input.platforms,
     imageCount: input.images?.length ?? 0,
+    mediaUrlCount: mediaUrls.length,
     hasVideo: isVideo,
     createdBy: input.createdBy,
   });
@@ -82,24 +83,26 @@ export async function publishSocialPost(
     throw new SocialPublishError("Upload either one video or images, not both.");
   }
 
-  if (input.video) {
-    const stored = await storeSocialVideo(input.video, { onProgress });
-    if (!stored.ok) {
-      throw new SocialPublishError(stored.error);
-    }
-    mediaUrls = [stored.url];
-  } else if (input.images && input.images.length > 0) {
-    const stored = await storeSocialImages(input.images, { onProgress });
-    if (!stored.ok) {
-      if (input.platforms.includes("instagram")) {
+  if (mediaUrls.length === 0) {
+    if (input.video) {
+      const stored = await storeSocialVideo(input.video, { onProgress });
+      if (!stored.ok) {
         throw new SocialPublishError(stored.error);
       }
-      if (stored.urls.length === 0) {
-        throw new SocialPublishError(stored.error);
+      mediaUrls = [stored.url];
+    } else if (input.images && input.images.length > 0) {
+      const stored = await storeSocialImages(input.images, { onProgress });
+      if (!stored.ok) {
+        if (input.platforms.includes("instagram")) {
+          throw new SocialPublishError(stored.error);
+        }
+        if (stored.urls.length === 0) {
+          throw new SocialPublishError(stored.error);
+        }
       }
-    }
-    if (stored.urls.length > 0) {
-      mediaUrls = stored.urls;
+      if (stored.urls.length > 0) {
+        mediaUrls = stored.urls;
+      }
     }
   }
 
