@@ -1,10 +1,17 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
+
 import { v2 as cloudinary } from "cloudinary";
 
+import { getAdminDb } from "@/lib/firebase/admin";
 import { getCloudinaryEnv } from "@/lib/social/env";
 import { redactUrlHost, socialLog } from "@/lib/social/logger";
 import type { PublishProgressReporter } from "@/lib/social/progress";
+
+export const SOCIAL_TEMP_MEDIA_COLLECTION = "social-media-temp";
+
+const TEMP_MEDIA_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type SocialMediaFile = {
   buffer: Buffer;
@@ -99,6 +106,92 @@ export function toInstagramVideoUrl(url: string): string {
   if (!url.includes("/video/upload/")) return url;
   if (url.includes("/f_mp4/") || url.includes(",f_mp4/")) return url;
   return url.replace("/video/upload/", "/video/upload/f_mp4/");
+}
+
+/** Instagram accepts JPEG only, max width 1440. */
+const INSTAGRAM_IMAGE_TRANSFORMS = "f_jpg,q_auto:good,c_limit,w_1440";
+
+export function toInstagramImageUrl(url: string): string {
+  const marker = "/image/upload/";
+  if (!url.includes(marker)) return url;
+  if (url.includes(`${marker}f_jpg`)) return url;
+  return url.replace(marker, `${marker}${INSTAGRAM_IMAGE_TRANSFORMS}/`);
+}
+
+/** Public HTTPS origin Meta can fetch. Live domain in prod, ngrok in dev. */
+export function getSocialPublicBaseUrl() {
+  const raw =
+    process.env.SOCIAL_PUBLIC_BASE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+    "";
+  return raw.replace(/\/+$/, "");
+}
+
+function isUnreachableByMeta(baseUrl: string) {
+  try {
+    const parsed = new URL(baseUrl);
+    const host = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== "https:") return true;
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host.endsWith(".local")
+    );
+  } catch {
+    return true;
+  }
+}
+
+export type StageInstagramImagesResult =
+  | { ok: true; urls: string[] }
+  | { ok: false; error: string };
+
+/**
+ * Meta's media fetcher rejects many CDN hosts (including Cloudinary) with
+ * error 9004. Re-serve the images from our own domain instead, converting to
+ * JPEG via Cloudinary since Instagram only accepts JPEG.
+ */
+export async function stageInstagramImages(
+  cloudinaryUrls: string[],
+): Promise<StageInstagramImagesResult> {
+  const baseUrl = getSocialPublicBaseUrl();
+
+  if (!baseUrl || isUnreachableByMeta(baseUrl)) {
+    return {
+      ok: false,
+      error:
+        "Instagram needs a public HTTPS address to download images from. Set SOCIAL_PUBLIC_BASE_URL in .env.local to your live site URL (or an ngrok https URL for local testing) and restart the dev server.",
+    };
+  }
+
+  if (cloudinaryUrls.length === 0) {
+    return { ok: false, error: "No uploaded images to publish." };
+  }
+
+  const db = getAdminDb();
+  const batch = db.batch();
+  const expiresAt = Date.now() + TEMP_MEDIA_TTL_MS;
+  const urls: string[] = [];
+
+  for (const cloudinaryUrl of cloudinaryUrls) {
+    const id = randomUUID();
+    batch.set(db.collection(SOCIAL_TEMP_MEDIA_COLLECTION).doc(id), {
+      sourceUrl: toInstagramImageUrl(cloudinaryUrl),
+      mimeType: "image/jpeg",
+      expiresAt,
+    });
+    urls.push(`${baseUrl}/api/social/media/${id}.jpg`);
+  }
+
+  await batch.commit();
+
+  socialLog("info", "instagram media", "staged images", {
+    count: urls.length,
+    baseHost: new URL(baseUrl).host,
+  });
+
+  return { ok: true, urls };
 }
 
 export type StoreSocialImageResult =

@@ -4,6 +4,7 @@ import { socialLog } from "@/lib/social/logger";
 import { publishFacebookPost } from "./meta/facebook";
 import { publishInstagramPost } from "./meta/instagram";
 import {
+  stageInstagramImages,
   storeSocialImages,
   storeSocialVideo,
   type SocialMediaFile,
@@ -116,6 +117,18 @@ export async function publishSocialPost(
 
   const mediaType = resolveMediaType(input, mediaUrls);
 
+  let instagramMediaUrls = mediaUrls;
+  let instagramStagingError: string | null = null;
+
+  if (input.platforms.includes("instagram") && !isVideo) {
+    const staged = await stageInstagramImages(mediaUrls);
+    if (staged.ok) {
+      instagramMediaUrls = staged.urls;
+    } else {
+      instagramStagingError = staged.error;
+    }
+  }
+
   for (const platform of input.platforms) {
     if (platform === "facebook") {
       platformResults.facebook = await publishFacebookPost(
@@ -131,11 +144,28 @@ export async function publishSocialPost(
     }
 
     if (platform === "instagram") {
+      if (instagramStagingError) {
+        socialLog("error", "instagram publish", "staging failed", {
+          error: instagramStagingError,
+        });
+        onProgress?.({
+          type: "progress",
+          step: "instagram",
+          status: "failed",
+          error: instagramStagingError,
+        });
+        platformResults.instagram = {
+          status: "failed",
+          error: instagramStagingError,
+        };
+        continue;
+      }
+
       platformResults.instagram = await publishInstagramPost(
         {
           caption: input.caption,
           mediaType,
-          mediaUrls,
+          mediaUrls: instagramMediaUrls,
         },
         { onProgress },
       );
