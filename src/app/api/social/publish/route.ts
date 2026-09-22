@@ -18,7 +18,7 @@ import {
   type PublishSocialPostInput,
   type SocialMediaFile,
 } from "@/lib/social/publisher";
-import type { SocialPlatform } from "@/lib/social/types";
+import type { SocialMediaType, SocialPlatform } from "@/lib/social/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,11 +54,39 @@ function parsePlatforms(value: unknown): SocialPlatform[] {
 
 function wantsProgressStream(
   request: NextRequest,
-  formProgress?: string | null,
+  progressFlag?: string | null,
 ) {
   return (
-    request.headers.get("x-social-progress") === "1" || formProgress === "1"
+    request.headers.get("x-social-progress") === "1" || progressFlag === "1"
   );
+}
+
+function isCloudinaryMediaUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "res.cloudinary.com" &&
+      (url.pathname.includes("/image/upload/") ||
+        url.pathname.includes("/video/upload/"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function parseMediaType(value: unknown): SocialMediaType | undefined {
+  if (value === "image" || value === "video" || value === "carousel") {
+    return value;
+  }
+  return undefined;
+}
+
+function parseMediaUrls(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => String(entry || "").trim())
+    .filter((entry) => isCloudinaryMediaUrl(entry));
 }
 
 async function parseImageFile(file: File): Promise<
@@ -149,6 +177,8 @@ async function parsePublishRequest(
   let images: SocialMediaFile[] = [];
   let video: SocialMediaFile | undefined;
   let formProgress: string | null = null;
+  let mediaUrls: string[] = [];
+  let mediaType: SocialMediaType | undefined;
 
   try {
     if (contentType.includes("multipart/form-data")) {
@@ -198,9 +228,37 @@ async function parsePublishRequest(
       const body = (await request.json()) as {
         caption?: string;
         platforms?: unknown;
+        mediaUrls?: unknown;
+        mediaType?: unknown;
+        socialProgress?: string;
       };
+      formProgress = String(body.socialProgress || "").trim() || null;
       caption = String(body.caption || "").trim();
       platforms = parsePlatforms(body.platforms);
+      mediaUrls = parseMediaUrls(body.mediaUrls);
+      mediaType = parseMediaType(body.mediaType);
+
+      if (Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0) {
+        if (mediaUrls.length !== body.mediaUrls.length) {
+          return {
+            ok: false,
+            response: NextResponse.json(
+              { error: "Media URLs must be HTTPS Cloudinary links." },
+              { status: 400 },
+            ),
+          };
+        }
+
+        if (mediaUrls.length > SOCIAL_MAX_IMAGES) {
+          return {
+            ok: false,
+            response: NextResponse.json(
+              { error: `You can upload up to ${SOCIAL_MAX_IMAGES} images.` },
+              { status: 400 },
+            ),
+          };
+        }
+      }
     }
   } catch {
     return {
@@ -212,7 +270,7 @@ async function parsePublishRequest(
     };
   }
 
-  const hasMedia = images.length > 0 || Boolean(video);
+  const hasMedia = images.length > 0 || Boolean(video) || mediaUrls.length > 0;
 
   if (!caption && !hasMedia) {
     return {
@@ -257,17 +315,25 @@ async function parsePublishRequest(
     };
   }
 
-  const mediaType = video ? "video" : images.length > 1 ? "carousel" : "image";
+  const mediaCount = Math.max(images.length, mediaUrls.length, video ? 1 : 0);
+  const resolvedMediaType =
+    mediaType ??
+    (video || mediaUrls.some((url) => url.includes("/video/upload/"))
+      ? "video"
+      : mediaCount > 1
+        ? "carousel"
+        : "image");
 
   return {
     ok: true,
     input: {
       caption,
-      mediaType,
+      mediaType: resolvedMediaType,
       platforms,
       createdBy: admin.email || admin.uid,
       images: images.length > 0 ? images : undefined,
       video,
+      mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
     },
     streamProgress: wantsProgressStream(request, formProgress),
   };

@@ -111,11 +111,98 @@ export function toInstagramVideoUrl(url: string): string {
 /** Instagram accepts JPEG only, max width 1440. */
 const INSTAGRAM_IMAGE_TRANSFORMS = "f_jpg,q_auto:good,c_limit,w_1440";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isJpegBuffer(buffer: Buffer) {
+  return (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  );
+}
+
 export function toInstagramImageUrl(url: string): string {
   const marker = "/image/upload/";
   if (!url.includes(marker)) return url;
-  if (url.includes(`${marker}f_jpg`)) return url;
-  return url.replace(marker, `${marker}${INSTAGRAM_IMAGE_TRANSFORMS}/`);
+
+  const withTransforms = `${marker}${INSTAGRAM_IMAGE_TRANSFORMS}/`;
+  if (url.includes(withTransforms)) return url;
+
+  if (url.includes(`${marker}f_jpg`)) {
+    return url.replace(/\/image\/upload\/[^/]+\//, withTransforms);
+  }
+
+  return url.replace(marker, withTransforms);
+}
+
+async function fetchCloudinaryJpeg(sourceUrl: string, maxAttempts = 5) {
+  let lastError = "Cloudinary did not return a ready JPEG image.";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(sourceUrl, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(30_000),
+        headers: { Accept: "image/jpeg,image/*,*/*" },
+      });
+
+      if (!response.ok) {
+        lastError = `Cloudinary returned HTTP ${response.status} while preparing the image.`;
+        await sleep(Math.min(attempt * 700, 3_000));
+        continue;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!isJpegBuffer(buffer)) {
+        lastError = "Cloudinary did not return a valid JPEG for Instagram.";
+        await sleep(Math.min(attempt * 700, 3_000));
+        continue;
+      }
+
+      return buffer;
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error.message : lastError;
+      await sleep(Math.min(attempt * 700, 3_000));
+    }
+  }
+
+  throw new Error(lastError);
+}
+
+async function prewarmPublicMediaUrl(url: string, maxAttempts = 4) {
+  let lastStatus = 0;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        cache: "no-store",
+        signal: AbortSignal.timeout(30_000),
+        headers: {
+          Accept: "image/jpeg,image/*,*/*",
+          "User-Agent": "facebookexternalhit/1.1",
+        },
+      });
+
+      lastStatus = response.status;
+      if (response.ok) {
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (isJpegBuffer(buffer)) return;
+      }
+    } catch {
+      // retry below
+    }
+
+    await sleep(attempt * 1_000);
+  }
+
+  throw new Error(
+    `Instagram image URL is not publicly reachable (HTTP ${lastStatus || "network error"}). Set SOCIAL_PUBLIC_BASE_URL to your live HTTPS domain (recommended) or a working ngrok URL, then restart the dev server.`,
+  );
 }
 
 /** Public HTTPS origin Meta can fetch. Live domain in prod, ngrok in dev. */
@@ -174,10 +261,23 @@ export async function stageInstagramImages(
   const expiresAt = Date.now() + TEMP_MEDIA_TTL_MS;
   const urls: string[] = [];
 
-  for (const cloudinaryUrl of cloudinaryUrls) {
+  for (const [index, cloudinaryUrl] of cloudinaryUrls.entries()) {
+    const sourceUrl = toInstagramImageUrl(cloudinaryUrl);
+
+    try {
+      await fetchCloudinaryJpeg(sourceUrl);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Image preparation failed.";
+      return {
+        ok: false,
+        error: `Image ${index + 1}/${cloudinaryUrls.length}: ${message}`,
+      };
+    }
+
     const id = randomUUID();
     batch.set(db.collection(SOCIAL_TEMP_MEDIA_COLLECTION).doc(id), {
-      sourceUrl: toInstagramImageUrl(cloudinaryUrl),
+      sourceUrl,
       mimeType: "image/jpeg",
       expiresAt,
     });
@@ -185,6 +285,19 @@ export async function stageInstagramImages(
   }
 
   await batch.commit();
+
+  for (const [index, publicUrl] of urls.entries()) {
+    try {
+      await prewarmPublicMediaUrl(publicUrl);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Public image URL is not ready.";
+      return {
+        ok: false,
+        error: `Image ${index + 1}/${urls.length}: ${message}`,
+      };
+    }
+  }
 
   socialLog("info", "instagram media", "staged images", {
     count: urls.length,

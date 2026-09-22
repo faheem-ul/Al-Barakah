@@ -88,6 +88,38 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isMediaFetchError(error: string) {
+  const lower = error.toLowerCase();
+  return (
+    lower.includes("only photo or video") ||
+    lower.includes("could not be fetched") ||
+    lower.includes("2207052")
+  );
+}
+
+async function instagramRequestWithMediaRetry<T extends GraphErrorBody>(
+  url: string,
+  init: RequestInit,
+  options?: { timeoutMs?: number; maxAttempts?: number },
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  const maxAttempts = options?.maxAttempts ?? 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await instagramRequest<T>(url, init, options);
+    if (result.ok || !isMediaFetchError(result.error) || attempt === maxAttempts) {
+      return result;
+    }
+
+    socialLog("warn", "instagram publish", "retry media container", {
+      attempt,
+      error: result.error,
+    });
+    await sleep(attempt * 2_000);
+  }
+
+  return { ok: false, error: "Instagram could not fetch the image." };
+}
+
 async function resolveInstagramUserId(): Promise<
   { ok: true; userId: string; username?: string } | { ok: false; error: string }
 > {
@@ -271,12 +303,13 @@ async function publishSingleImageToInstagram(
 ): Promise<
   { ok: true; postId: string } | { ok: false; error: string }
 > {
-  const container = await instagramRequest<{ id?: string }>(
+  const container = await instagramRequestWithMediaRetry<{ id?: string }>(
     instagramUrl(`${encodeURIComponent(userId)}/media`),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        media_type: "IMAGE",
         image_url: input.mediaUrl,
         caption: input.caption,
       }),
@@ -329,12 +362,13 @@ async function publishCarouselToInstagram(
   const childIds: string[] = [];
 
   for (const [index, mediaUrl] of input.mediaUrls.entries()) {
-    const child = await instagramRequest<{ id?: string }>(
+    const child = await instagramRequestWithMediaRetry<{ id?: string }>(
       instagramUrl(`${encodeURIComponent(userId)}/media`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          media_type: "IMAGE",
           image_url: mediaUrl,
           is_carousel_item: true,
         }),
@@ -370,6 +404,10 @@ async function publishCarouselToInstagram(
     }
 
     childIds.push(childId);
+
+    if (index < input.mediaUrls.length - 1) {
+      await sleep(1_500);
+    }
   }
 
   const carousel = await instagramRequest<{ id?: string }>(
