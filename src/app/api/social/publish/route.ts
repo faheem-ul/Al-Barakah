@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import type { VerifiedAdmin } from "@/lib/firebase/verify-id-token";
 import { socialLog } from "@/lib/social/logger";
-import { SOCIAL_MAX_IMAGES } from "@/lib/social/limits";
+import {
+  ALLOWED_VIDEO_MIME_TYPES,
+  SOCIAL_MAX_IMAGES,
+  SOCIAL_MAX_VIDEO_BYTES,
+} from "@/lib/social/limits";
 import {
   serializePublishEvent,
   type SocialPublishStreamEvent,
@@ -12,12 +16,13 @@ import {
   publishSocialPost,
   SocialPublishError,
   type PublishSocialPostInput,
-  type SocialImageFile,
+  type SocialMediaFile,
 } from "@/lib/social/publisher";
 import type { SocialPlatform } from "@/lib/social/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const ALLOWED_PLATFORMS: SocialPlatform[] = ["facebook", "instagram"];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -57,7 +62,7 @@ function wantsProgressStream(
 }
 
 async function parseImageFile(file: File): Promise<
-  | { ok: true; image: SocialImageFile }
+  | { ok: true; image: SocialMediaFile }
   | { ok: false; response: NextResponse }
 > {
   if (file.size > MAX_IMAGE_BYTES) {
@@ -91,6 +96,41 @@ async function parseImageFile(file: File): Promise<
   };
 }
 
+async function parseVideoFile(file: File): Promise<
+  | { ok: true; video: SocialMediaFile }
+  | { ok: false; response: NextResponse }
+> {
+  if (file.size > SOCIAL_MAX_VIDEO_BYTES) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Video must be 100MB or smaller." },
+        { status: 400 },
+      ),
+    };
+  }
+
+  const mimeType = file.type || "video/mp4";
+  if (!ALLOWED_VIDEO_MIME_TYPES.has(mimeType)) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Use MP4 or MOV video only." },
+        { status: 400 },
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    video: {
+      buffer: Buffer.from(await file.arrayBuffer()),
+      filename: file.name || "video.mp4",
+      mimeType,
+    },
+  };
+}
+
 type ParsedPublishRequest =
   | {
       ok: true;
@@ -106,7 +146,8 @@ async function parsePublishRequest(
   const contentType = request.headers.get("content-type") || "";
   let caption = "";
   let platforms: SocialPlatform[] = [];
-  let images: SocialImageFile[] = [];
+  let images: SocialMediaFile[] = [];
+  let video: SocialMediaFile | undefined;
   let formProgress: string | null = null;
 
   try {
@@ -116,10 +157,27 @@ async function parsePublishRequest(
       caption = String(form.get("caption") || "").trim();
       platforms = parsePlatforms(form.get("platforms"));
 
+      const videoEntry = form.get("video");
+      if (videoEntry instanceof File && videoEntry.size > 0) {
+        const parsedVideo = await parseVideoFile(videoEntry);
+        if (!parsedVideo.ok) return parsedVideo;
+        video = parsedVideo.video;
+      }
+
       const files = [
         ...form.getAll("images"),
         ...(form.get("image") ? [form.get("image")] : []),
       ].filter((entry): entry is File => entry instanceof File && entry.size > 0);
+
+      if (video && files.length > 0) {
+        return {
+          ok: false,
+          response: NextResponse.json(
+            { error: "Upload either one video or images, not both." },
+            { status: 400 },
+          ),
+        };
+      }
 
       if (files.length > SOCIAL_MAX_IMAGES) {
         return {
@@ -154,11 +212,13 @@ async function parsePublishRequest(
     };
   }
 
-  if (!caption && images.length === 0) {
+  const hasMedia = images.length > 0 || Boolean(video);
+
+  if (!caption && !hasMedia) {
     return {
       ok: false,
       response: NextResponse.json(
-        { error: "Add a caption or an image." },
+        { error: "Add a caption or media." },
         { status: 400 },
       ),
     };
@@ -187,24 +247,27 @@ async function parsePublishRequest(
     };
   }
 
-  if (platforms.includes("instagram") && images.length === 0) {
+  if (platforms.includes("instagram") && !hasMedia) {
     return {
       ok: false,
       response: NextResponse.json(
-        { error: "Instagram requires at least one image." },
+        { error: "Instagram requires an image or video." },
         { status: 400 },
       ),
     };
   }
 
+  const mediaType = video ? "video" : images.length > 1 ? "carousel" : "image";
+
   return {
     ok: true,
     input: {
       caption,
-      mediaType: images.length > 1 ? "carousel" : "image",
+      mediaType,
       platforms,
       createdBy: admin.email || admin.uid,
       images: images.length > 0 ? images : undefined,
+      video,
     },
     streamProgress: wantsProgressStream(request, formProgress),
   };
@@ -263,6 +326,7 @@ export async function POST(request: NextRequest) {
   socialLog("info", "publish request", "accepted", {
     platforms: parsed.input.platforms,
     imageCount: parsed.input.images?.length ?? 0,
+    hasVideo: Boolean(parsed.input.video),
     admin: auth.admin.email || auth.admin.uid,
     streaming: parsed.streamProgress,
   });

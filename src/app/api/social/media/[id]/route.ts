@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAdminDb } from "@/lib/firebase/admin";
+import { SOCIAL_TEMP_MEDIA_COLLECTION } from "@/lib/social/media";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 type TempMediaDoc = {
   mimeType?: string;
   data?: string;
+  sourceUrl?: string;
   expiresAt?: number;
 };
 
@@ -16,14 +18,17 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
-  const mediaId = String(id || "").trim();
+  const mediaId = String(id || "")
+    .trim()
+    .replace(/\.(jpe?g|png|webp)$/i, "");
+
   if (!mediaId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
     const snap = await getAdminDb()
-      .collection("social-media-temp")
+      .collection(SOCIAL_TEMP_MEDIA_COLLECTION)
       .doc(mediaId)
       .get();
 
@@ -36,16 +41,37 @@ export async function GET(
       return NextResponse.json({ error: "Expired" }, { status: 410 });
     }
 
-    if (!data.data) {
+    const mimeType = data.mimeType || "image/jpeg";
+    let buffer: Buffer | null = null;
+
+    if (data.sourceUrl) {
+      const upstream = await fetch(data.sourceUrl, { cache: "no-store" });
+      if (!upstream.ok) {
+        console.error("[social/media] Upstream fetch failed", {
+          status: upstream.status,
+        });
+        return NextResponse.json(
+          { error: "Could not load image." },
+          { status: 502 },
+        );
+      }
+      buffer = Buffer.from(await upstream.arrayBuffer());
+    } else if (data.data) {
+      buffer = Buffer.from(data.data, "base64");
+    }
+
+    if (!buffer) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const buffer = Buffer.from(data.data, "base64");
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        "Content-Type": data.mimeType || "image/jpeg",
-        "Cache-Control": "public, max-age=86400",
+        "Content-Type": mimeType,
+        "Content-Length": String(buffer.byteLength),
+        "Cache-Control": "public, max-age=86400, immutable",
+        "Accept-Ranges": "bytes",
+        "X-Robots-Tag": "all",
       },
     });
   } catch (error) {

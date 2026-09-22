@@ -1,5 +1,7 @@
 import "server-only";
 
+import { FieldPath } from "firebase-admin/firestore";
+
 import { getAdminDb } from "@/lib/firebase/admin";
 
 import type {
@@ -139,14 +141,70 @@ export async function createSocialPost(
   }
 }
 
-export async function listSocialPosts(limit = 25): Promise<SocialPost[]> {
-  const snap = await getAdminDb()
+export type SocialPostsPage = {
+  posts: SocialPost[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+type PostCursor = {
+  createdAt: number;
+  id: string;
+};
+
+function encodePostCursor(cursor: PostCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString("base64url");
+}
+
+function decodePostCursor(value: string): PostCursor | null {
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as PostCursor;
+    if (typeof parsed.createdAt !== "number" || !parsed.id) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function listSocialPostsPaginated(options?: {
+  limit?: number;
+  cursor?: string | null;
+}): Promise<SocialPostsPage> {
+  const pageSize = Math.min(Math.max(options?.limit ?? 10, 1), 10);
+  let query = getAdminDb()
     .collection(COLLECTION)
     .orderBy("createdAt", "desc")
-    .limit(limit)
-    .get();
+    .orderBy(FieldPath.documentId(), "desc")
+    .limit(pageSize + 1);
 
-  return snap.docs.map((doc) =>
+  if (options?.cursor) {
+    const decoded = decodePostCursor(options.cursor);
+    if (decoded) {
+      query = query.startAfter(decoded.createdAt, decoded.id);
+    }
+  }
+
+  const snap = await query.get();
+  const hasMore = snap.docs.length > pageSize;
+  const docs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+
+  const posts = docs.map((doc) =>
     mapPost(doc.id, doc.data() as Partial<SocialPost>),
   );
+
+  const last = docs.at(-1);
+  const nextCursor =
+    hasMore && last
+      ? encodePostCursor({ createdAt: last.data().createdAt as number, id: last.id })
+      : null;
+
+  return { posts, nextCursor, hasMore };
+}
+
+/** @deprecated Use listSocialPostsPaginated */
+export async function listSocialPosts(limit = 25): Promise<SocialPost[]> {
+  const page = await listSocialPostsPaginated({ limit: Math.min(limit, 10) });
+  return page.posts;
 }

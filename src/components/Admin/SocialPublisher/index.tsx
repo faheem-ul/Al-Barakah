@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 
@@ -16,7 +16,10 @@ import type { SocialPost } from "@/lib/social/types";
 import { BurgerMenuIcon } from "@/ui/Icons";
 import logo from "@/public/logo.png";
 
+import CreatePostForm, { type PublishPayload } from "./CreatePostForm";
+import PublishingHistory from "./PublishingHistory";
 import SocialSheet from "./SocialSheet";
+import { useSocialHistory } from "./useSocialHistory";
 
 const MAIN_PUBLISH_TOAST_ID = "social-publish";
 
@@ -28,6 +31,7 @@ function stepLoadingMessage(event: SocialPublishProgressEvent) {
     return "Uploading image to Cloudinary…";
   }
   if (event.step === "facebook") return "Publishing to Facebook…";
+  if (event.message?.toLowerCase().includes("reel")) return event.message;
   return "Publishing to Instagram…";
 }
 
@@ -97,116 +101,32 @@ function summarizePublishResults(
   return { published, failed };
 }
 
-function getPostMediaUrls(post: SocialPost) {
-  if (post.mediaUrls?.length > 0) return post.mediaUrls;
-  return post.mediaUrl ? [post.mediaUrl] : [];
-}
-
-function platformLabel(status?: string) {
-  if (status === "published") return "Published";
-  if (status === "failed") return "Failed";
-  if (status === "not_implemented") return "Not connected yet";
-  if (status === "pending") return "Pending";
-  return "—";
-}
-
 const SocialPublisher: React.FC = () => {
   const { user, logout } = useAdminAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [caption, setCaption] = useState("");
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imageInputKey, setImageInputKey] = useState(0);
-  const [facebook, setFacebook] = useState(true);
-  const [instagram, setInstagram] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [history, setHistory] = useState<SocialPost[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [formResetSignal, setFormResetSignal] = useState(0);
 
-  const previewUrls = useMemo(
-    () => imageFiles.map((file) => URL.createObjectURL(file)),
-    [imageFiles],
-  );
-
-  useEffect(() => {
-    return () => {
-      previewUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [previewUrls]);
-
-  const loadHistory = useCallback(async () => {
-    if (!user) {
-      setHistoryLoading(false);
-      return;
-    }
-    setHistoryLoading(true);
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch("/api/social/posts", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = (await response.json().catch(() => null)) as {
-        posts?: SocialPost[];
-        error?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(data?.error || "Could not load history.");
-      }
-      setHistory(data?.posts ?? []);
-    } catch (error) {
-      console.error("Failed to load social posts", error);
-      toast.error("Could not load publishing history.");
-    } finally {
-      setHistoryLoading(false);
-    }
+  const getToken = useCallback(async () => {
+    if (!user) return null;
+    return user.getIdToken();
   }, [user]);
 
-  useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+  const history = useSocialHistory(getToken);
 
-  const handleImageSelection = (files: FileList | null) => {
-    if (!files) return;
-
-    const next = [...imageFiles];
-    for (const file of Array.from(files)) {
-      if (next.length >= SOCIAL_MAX_IMAGES) break;
-      next.push(file);
-    }
-
-    if (next.length > SOCIAL_MAX_IMAGES) {
-      toast.error(`You can upload up to ${SOCIAL_MAX_IMAGES} images.`);
-    }
-
-    setImageFiles(next.slice(0, SOCIAL_MAX_IMAGES));
-  };
-
-  const removeImageAt = (index: number) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handlePublish = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handlePublish = async ({
+    caption,
+    imageFiles,
+    videoFile,
+    platforms,
+  }: PublishPayload) => {
     if (!user) {
       toast.error("You must be logged in.");
       return;
     }
-    const platforms: ("facebook" | "instagram")[] = [];
-    if (facebook) platforms.push("facebook");
-    if (instagram) platforms.push("instagram");
 
-    if (platforms.length === 0) {
-      toast.error("Select at least one platform.");
-      return;
-    }
-
-    const nextCaption = caption.trim();
-    if (!nextCaption && imageFiles.length === 0) {
-      toast.error("Add a caption or an image.");
-      return;
-    }
-
-    if (instagram && imageFiles.length === 0) {
-      toast.error("Instagram requires at least one image.");
+    if (videoFile && imageFiles.length > 0) {
+      toast.error("Upload either one video or images, not both.");
       return;
     }
 
@@ -221,9 +141,13 @@ const SocialPublisher: React.FC = () => {
     try {
       const token = await user.getIdToken();
       const form = new FormData();
-      form.set("caption", nextCaption);
+      form.set("caption", caption);
       form.set("platforms", JSON.stringify(platforms));
-      imageFiles.forEach((file) => form.append("images", file));
+      if (videoFile) {
+        form.set("video", videoFile);
+      } else {
+        imageFiles.forEach((file) => form.append("images", file));
+      }
 
       const result = await publishWithProgress({
         formData: form,
@@ -239,10 +163,8 @@ const SocialPublisher: React.FC = () => {
       }
 
       const post = result.post;
-      setHistory((prev) => [post, ...prev]);
-      setCaption("");
-      setImageFiles([]);
-      setImageInputKey((key) => key + 1);
+      setFormResetSignal((signal) => signal + 1);
+      await history.refresh();
 
       const { published, failed } = summarizePublishResults(post, platforms);
       const facebookWarning = post.platformResults.facebook?.warning;
@@ -331,221 +253,21 @@ const SocialPublisher: React.FC = () => {
 
         <main className="flex-1 min-h-0 overflow-y-auto scrollbar-light px-4 md:px-8 py-6 md:py-8">
           <div className="max-w-3xl mx-auto w-full space-y-6">
-            <section className="bg-white border border-black/10 rounded-xl p-5 md:p-6">
-              <Text className="text-[16px] font-semibold text-black mb-1">
-                Create post
-              </Text>
-              <Text className="text-[13px] text-[#6B6B6B] mb-5">
-                Instagram: up to {SOCIAL_MAX_IMAGES} images (carousel). Facebook:
-                up to 4 photos (first 4 used if you select more).
-              </Text>
-
-              <form onSubmit={handlePublish} className="space-y-5">
-                <label className="block">
-                  <span className="block text-[13px] font-semibold text-black mb-1.5">
-                    Caption
-                  </span>
-                  <textarea
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    rows={5}
-                    placeholder="Write the post caption…"
-                    className="w-full rounded-lg border border-black/15 bg-[#F7F7F7] px-3 py-2.5 text-[14px] text-black placeholder:text-[#9ca3af] outline-none focus:border-black/40"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="block text-[13px] font-semibold text-black mb-1.5">
-                    Images
-                    {imageFiles.length > 0 ? (
-                      <span className="font-normal text-[#6B6B6B]">
-                        {" "}
-                        ({imageFiles.length}/{SOCIAL_MAX_IMAGES})
-                      </span>
-                    ) : null}
-                  </span>
-                  <input
-                    key={imageInputKey}
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/gif,image/webp,image/bmp"
-                    onChange={(e) => {
-                      handleImageSelection(e.target.files);
-                      e.target.value = "";
-                    }}
-                    className="block w-full text-[13px] text-[#6B6B6B] file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-1.5 file:text-[13px] file:font-semibold file:text-white"
-                  />
-                  {previewUrls.length > 0 ? (
-                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {previewUrls.map((url, index) => (
-                        <div
-                          key={`${url}-${index}`}
-                          className="relative rounded-lg border border-black/10 bg-[#F7F7F7] overflow-hidden"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={url}
-                            alt={`Selected image ${index + 1}`}
-                            className="w-full h-28 object-cover"
-                          />
-                          <button
-                            type="button"
-                            aria-label={`Remove image ${index + 1}`}
-                            onClick={() => removeImageAt(index)}
-                            className="absolute top-1.5 right-1.5 size-6 rounded-full bg-black/75 text-white text-[14px] leading-none"
-                          >
-                            ×
-                          </button>
-                          <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
-                            {index + 1}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </label>
-
-                <fieldset>
-                  <legend className="text-[13px] font-semibold text-black mb-2">
-                    Publish to
-                  </legend>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-[14px] text-black">
-                      <input
-                        type="checkbox"
-                        checked={facebook}
-                        onChange={(e) => setFacebook(e.target.checked)}
-                        className="size-4 accent-black"
-                      />
-                      Facebook
-                    </label>
-                    <label className="flex items-start gap-2 text-[14px] text-black">
-                      <input
-                        type="checkbox"
-                        checked={instagram}
-                        onChange={(e) => setInstagram(e.target.checked)}
-                        className="size-4 mt-0.5 accent-black"
-                      />
-                      <span>
-                        Instagram
-                        <span className="block text-[12px] text-[#6B6B6B]">
-                          Requires at least one image (separate from Facebook Page)
-                        </span>
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-2 text-[14px] text-[#9ca3af]">
-                      <input
-                        type="checkbox"
-                        checked={false}
-                        disabled
-                        className="size-4 mt-0.5 accent-black"
-                      />
-                      <span>
-                        TikTok
-                        <span className="block text-[12px]">Coming later</span>
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
-
-                <Button
-                  type="submit"
-                  isLoading={publishing}
-                  disabled={publishing}
-                  fill="#ffffff"
-                  className="rounded-md bg-black text-white text-[14px] px-5 py-2.5 hover:opacity-90"
-                >
-                  Publish
-                </Button>
-              </form>
-            </section>
-
-            <section className="bg-white border border-black/10 rounded-xl p-5 md:p-6">
-              <Text className="text-[16px] font-semibold text-black mb-1">
-                Publishing history
-              </Text>
-              {historyLoading ? (
-                <Text className="text-[13px] text-[#6B6B6B]">Loading…</Text>
-              ) : history.length === 0 ? (
-                <Text className="text-[13px] text-[#6B6B6B]">
-                  No posts yet. Published posts will appear here.
-                </Text>
-              ) : (
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full text-left text-[13px]">
-                    <thead>
-                      <tr className="border-b border-black/10 text-[#6B6B6B]">
-                        <th className="py-2 pr-3 font-semibold">Date</th>
-                        <th className="py-2 pr-3 font-semibold">Caption</th>
-                        <th className="py-2 pr-3 font-semibold">Facebook</th>
-                        <th className="py-2 font-semibold">Instagram</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((post) => {
-                        const mediaUrls = getPostMediaUrls(post);
-                        const extraCount = mediaUrls.length - 1;
-
-                        return (
-                          <tr key={post.id} className="border-b border-black/5">
-                            <td className="py-2 pr-3 whitespace-nowrap text-[#6B6B6B]">
-                              {new Date(post.createdAt).toLocaleString()}
-                            </td>
-                            <td className="py-2 pr-3 text-black">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {mediaUrls[0] ? (
-                                  <div className="relative shrink-0">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={mediaUrls[0]}
-                                      alt=""
-                                      className="size-10 rounded object-cover border border-black/10"
-                                    />
-                                    {extraCount > 0 ? (
-                                      <span className="absolute -bottom-1 -right-1 rounded bg-black px-1 py-0.5 text-[10px] text-white">
-                                        +{extraCount}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                                <span className="truncate">
-                                  {post.caption || "(image)"}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-2 pr-3 text-black">
-                              <span>
-                                {platformLabel(post.platformResults.facebook?.status)}
-                              </span>
-                              {post.platformResults.facebook?.warning ? (
-                                <span className="block text-[12px] text-[#b54708]">
-                                  {post.platformResults.facebook.warning}
-                                </span>
-                              ) : null}
-                              {post.platformResults.facebook?.error ? (
-                                <span className="block text-[12px] text-[#b42318]">
-                                  {post.platformResults.facebook.error}
-                                </span>
-                              ) : null}
-                            </td>
-                            <td className="py-2 text-black">
-                              <span>
-                                {platformLabel(post.platformResults.instagram?.status)}
-                              </span>
-                              {post.platformResults.instagram?.error ? (
-                                <span className="block text-[12px] text-[#b42318]">
-                                  {post.platformResults.instagram.error}
-                                </span>
-                              ) : null}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            <CreatePostForm
+              publishing={publishing}
+              onPublish={handlePublish}
+              resetSignal={formResetSignal}
+            />
+            <PublishingHistory
+              posts={history.posts}
+              loading={history.loading}
+              page={history.page}
+              hasMore={history.hasMore}
+              rangeStart={history.rangeStart}
+              rangeEnd={history.rangeEnd}
+              onPrev={() => void history.goPrev()}
+              onNext={() => void history.goNext()}
+            />
           </div>
         </main>
       </div>

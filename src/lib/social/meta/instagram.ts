@@ -1,9 +1,10 @@
 import "server-only";
 
+import { toInstagramVideoUrl } from "@/lib/social/media";
 import { getInstagramPublisherEnv } from "@/lib/social/env";
 import { socialLog } from "@/lib/social/logger";
 import type { PublishProgressReporter } from "@/lib/social/progress";
-import type { SocialPlatformResult } from "@/lib/social/types";
+import type { SocialMediaType, SocialPlatformResult } from "@/lib/social/types";
 
 type GraphErrorBody = {
   error?: {
@@ -12,7 +13,12 @@ type GraphErrorBody = {
   };
   id?: string;
   status_code?: string;
+  status?: string;
 };
+
+const INSTAGRAM_FETCH_TIMEOUT_MS = 120_000;
+const INSTAGRAM_VIDEO_POLL_ATTEMPTS = 90;
+const INSTAGRAM_VIDEO_POLL_DELAY_MS = 3_000;
 
 function instagramUrl(path: string) {
   const { graphVersion } = getInstagramPublisherEnv();
@@ -25,29 +31,57 @@ function publicGraphError(body: GraphErrorBody, fallback: string) {
   return message.replace(/access_token=[^&\s]+/gi, "access_token=[redacted]");
 }
 
+function formatFetchError(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+
+  const cause =
+    error.cause instanceof Error
+      ? error.cause.message
+      : error.cause
+        ? String(error.cause)
+        : "";
+
+  if (cause && cause !== error.message) {
+    return `${error.message} (${cause})`;
+  }
+
+  return error.message || fallback;
+}
+
 async function instagramRequest<T extends GraphErrorBody>(
   url: string,
   init: RequestInit,
+  options?: { timeoutMs?: number },
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   const { accessToken } = getInstagramPublisherEnv();
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-      Authorization: `Bearer ${accessToken}`,
-    },
-    cache: "no-store",
-  });
+  const timeoutMs = options?.timeoutMs ?? INSTAGRAM_FETCH_TIMEOUT_MS;
 
-  const data = (await response.json().catch(() => ({}))) as T;
-  if (!response.ok || data.error) {
+  try {
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    const data = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok || data.error) {
+      return {
+        ok: false,
+        error: publicGraphError(data, "Instagram rejected the post."),
+      };
+    }
+
+    return { ok: true, data };
+  } catch (error) {
     return {
       ok: false,
-      error: publicGraphError(data, "Instagram rejected the post."),
+      error: formatFetchError(error, "Could not reach Instagram."),
     };
   }
-
-  return { ok: true, data };
 }
 
 function sleep(ms: number) {
@@ -98,28 +132,137 @@ async function resolveInstagramUserId(): Promise<
   return { ok: true, userId, username: me.data.username };
 }
 
-async function waitForContainer(containerId: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+async function waitForContainer(
+  containerId: string,
+  options?: { maxAttempts?: number; delayMs?: number },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const maxAttempts = options?.maxAttempts ?? 12;
+  const delayMs = options?.delayMs ?? 1000;
+  let consecutiveNetworkErrors = 0;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const result = await instagramRequest<GraphErrorBody>(
-      instagramUrl(`${encodeURIComponent(containerId)}?fields=status_code`),
+      instagramUrl(
+        `${encodeURIComponent(containerId)}?fields=status_code,status`,
+      ),
       { method: "GET" },
     );
 
-    if (!result.ok) return false;
+    if (!result.ok) {
+      consecutiveNetworkErrors += 1;
+      socialLog("warn", "instagram publish", "container poll failed", {
+        containerId,
+        attempt: attempt + 1,
+        error: result.error,
+      });
 
+      if (consecutiveNetworkErrors >= 5) {
+        return {
+          ok: false,
+          error: `Instagram stopped responding while processing media: ${result.error}`,
+        };
+      }
+
+      await sleep(delayMs);
+      continue;
+    }
+
+    consecutiveNetworkErrors = 0;
     const status = result.data.status_code;
     socialLog("debug", "instagram publish", "container status", {
       containerId,
       status,
+      detail: result.data.status,
       attempt: attempt + 1,
     });
-    if (status === "FINISHED") return true;
-    if (status === "ERROR") return false;
 
-    await sleep(1000);
+    if (status === "FINISHED") return { ok: true };
+
+    if (status === "ERROR") {
+      return {
+        ok: false,
+        error:
+          result.data.status?.trim() ||
+          "Instagram could not process the video. Use MP4 (H.264), 3–90 seconds, and under 100MB.",
+      };
+    }
+
+    await sleep(delayMs);
   }
 
-  return false;
+  return {
+    ok: false,
+    error:
+      "Instagram media processing timed out. Try a smaller MP4 video (under 100MB, 3–90 seconds).",
+  };
+}
+
+async function publishReelToInstagram(
+  userId: string,
+  input: { caption: string; mediaUrl: string },
+): Promise<
+  { ok: true; postId: string } | { ok: false; error: string }
+> {
+  const videoUrl = toInstagramVideoUrl(input.mediaUrl);
+  socialLog("info", "instagram publish", "reels container request", {
+    videoHost: new URL(videoUrl).host,
+  });
+
+  const container = await instagramRequest<{ id?: string }>(
+    instagramUrl(`${encodeURIComponent(userId)}/media`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        media_type: "REELS",
+        video_url: videoUrl,
+        caption: input.caption,
+        share_to_feed: true,
+      }),
+    },
+    { timeoutMs: INSTAGRAM_FETCH_TIMEOUT_MS },
+  );
+
+  if (!container.ok) {
+    return { ok: false, error: container.error };
+  }
+
+  const containerId = container.data.id;
+  if (!containerId) {
+    return { ok: false, error: "Instagram did not return a Reels container id." };
+  }
+
+  socialLog("info", "instagram publish", "reels container created", {
+    containerId,
+  });
+
+  const ready = await waitForContainer(containerId, {
+    maxAttempts: INSTAGRAM_VIDEO_POLL_ATTEMPTS,
+    delayMs: INSTAGRAM_VIDEO_POLL_DELAY_MS,
+  });
+  if (!ready.ok) {
+    return { ok: false, error: ready.error };
+  }
+
+  const published = await instagramRequest<{ id?: string }>(
+    instagramUrl(`${encodeURIComponent(userId)}/media_publish`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ creation_id: containerId }),
+    },
+  );
+
+  if (!published.ok) {
+    return { ok: false, error: published.error };
+  }
+
+  const postId = published.data.id;
+  if (!postId) {
+    return { ok: false, error: "Instagram did not return a published Reels id." };
+  }
+
+  return { ok: true, postId };
 }
 
 async function publishSingleImageToInstagram(
@@ -152,11 +295,8 @@ async function publishSingleImageToInstagram(
   socialLog("debug", "instagram publish", "container created", { containerId });
 
   const ready = await waitForContainer(containerId);
-  if (!ready) {
-    return {
-      ok: false,
-      error: "Instagram media container was not ready to publish.",
-    };
+  if (!ready.ok) {
+    return { ok: false, error: ready.error };
   }
 
   const published = await instagramRequest<{ id?: string }>(
@@ -222,10 +362,10 @@ async function publishCarouselToInstagram(
     });
 
     const ready = await waitForContainer(childId);
-    if (!ready) {
+    if (!ready.ok) {
       return {
         ok: false,
-        error: `Instagram carousel image ${index + 1} was not ready.`,
+        error: ready.error || `Instagram carousel image ${index + 1} was not ready.`,
       };
     }
 
@@ -257,10 +397,10 @@ async function publishCarouselToInstagram(
   socialLog("debug", "instagram carousel", "parent created", { carouselId });
 
   const parentReady = await waitForContainer(carouselId);
-  if (!parentReady) {
+  if (!parentReady.ok) {
     return {
       ok: false,
-      error: "Instagram carousel container was not ready to publish.",
+      error: parentReady.error || "Instagram carousel container was not ready to publish.",
     };
   }
 
@@ -288,6 +428,7 @@ async function publishCarouselToInstagram(
 export async function publishInstagramPost(
   input: {
     caption: string;
+    mediaType?: SocialMediaType;
     mediaUrls: string[];
   },
   options?: { onProgress?: PublishProgressReporter },
@@ -305,7 +446,16 @@ export async function publishInstagramPost(
     return {
       status: "failed",
       error:
-        "Instagram requires a public image URL. Upload an image and check Cloudinary settings.",
+        input.mediaType === "video"
+          ? "Instagram requires a public video URL. Upload a video and check Cloudinary settings."
+          : "Instagram requires a public image URL. Upload an image and check Cloudinary settings.",
+    };
+  }
+
+  if (input.mediaType === "video" && input.mediaUrls.length > 1) {
+    return {
+      status: "failed",
+      error: "Instagram supports one video per post.",
     };
   }
 
@@ -314,85 +464,78 @@ export async function publishInstagramPost(
     type: "progress",
     step: "instagram",
     status: "started",
-    message: "Publishing to Instagram",
+    message:
+      input.mediaType === "video"
+        ? "Publishing Reel to Instagram (this may take a few minutes)…"
+        : "Publishing to Instagram",
   });
 
-  try {
-    const resolved = await resolveInstagramUserId();
-    if (!resolved.ok) {
-      const durationMs = Date.now() - startedAt;
-      onProgress?.({
-        type: "progress",
-        step: "instagram",
-        status: "failed",
-        error: resolved.error,
-        durationMs,
-      });
-      return { status: "failed", error: resolved.error };
-    }
-
-    const { userId, username } = resolved;
-    socialLog("info", "instagram publish", "start", {
-      userId,
-      username,
-      imageCount: input.mediaUrls.length,
-      carousel: input.mediaUrls.length > 1,
-    });
-
-    const result =
-      input.mediaUrls.length > 1
-        ? await publishCarouselToInstagram(userId, input)
-        : await publishSingleImageToInstagram(userId, {
-            caption: input.caption,
-            mediaUrl: input.mediaUrls[0],
-          });
-
+  const resolved = await resolveInstagramUserId();
+  if (!resolved.ok) {
     const durationMs = Date.now() - startedAt;
-
-    if (!result.ok) {
-      socialLog("error", "instagram publish", "failed", {
-        durationMs,
-        error: result.error,
-      });
-      onProgress?.({
-        type: "progress",
-        step: "instagram",
-        status: "failed",
-        error: result.error,
-        durationMs,
-      });
-      return { status: "failed", error: result.error };
-    }
-
-    socialLog("info", "instagram publish", "done", {
-      durationMs,
-      postId: result.postId,
-    });
     onProgress?.({
       type: "progress",
       step: "instagram",
-      status: "completed",
-      message: "Published to Instagram",
-      postId: result.postId,
+      status: "failed",
+      error: resolved.error,
       durationMs,
     });
+    return { status: "failed", error: resolved.error };
+  }
 
-    return { status: "published", postId: result.postId };
-  } catch (error) {
-    const durationMs = Date.now() - startedAt;
+  const { userId, username } = resolved;
+  const isVideo = input.mediaType === "video";
+  socialLog("info", "instagram publish", "start", {
+    userId,
+    username,
+    imageCount: input.mediaUrls.length,
+    carousel: !isVideo && input.mediaUrls.length > 1,
+    isVideo,
+  });
+
+  const result = isVideo
+    ? await publishReelToInstagram(userId, {
+        caption: input.caption,
+        mediaUrl: input.mediaUrls[0],
+      })
+    : input.mediaUrls.length > 1
+      ? await publishCarouselToInstagram(userId, input)
+      : await publishSingleImageToInstagram(userId, {
+          caption: input.caption,
+          mediaUrl: input.mediaUrls[0],
+        });
+
+  const durationMs = Date.now() - startedAt;
+
+  if (!result.ok) {
     socialLog("error", "instagram publish", "failed", {
       durationMs,
-      error: error instanceof Error ? error.message : "unknown",
+      error: result.error,
     });
     onProgress?.({
       type: "progress",
       step: "instagram",
       status: "failed",
-      error: "Could not reach Instagram.",
+      error: result.error,
       durationMs,
     });
-    return { status: "failed", error: "Could not reach Instagram." };
+    return { status: "failed", error: result.error };
   }
+
+  socialLog("info", "instagram publish", "done", {
+    durationMs,
+    postId: result.postId,
+  });
+  onProgress?.({
+    type: "progress",
+    step: "instagram",
+    status: "completed",
+    message: isVideo ? "Published Reel to Instagram" : "Published to Instagram",
+    postId: result.postId,
+    durationMs,
+  });
+
+  return { status: "published", postId: result.postId };
 }
 
 /** @deprecated Use publishInstagramPost */
