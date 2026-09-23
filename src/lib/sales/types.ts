@@ -26,19 +26,21 @@ export type AppliedCustomExpense = {
   amount: number;
 };
 
+export type SalesCatalogProduct = {
+  id: string;
+  product: string;
+  variant: string;
+  sellingPrice: number;
+  purchasePrice: number;
+  weight: number;
+  packUnits500: number;
+  packUnits1000: number;
+  stockItem: boolean;
+  createdAt: number;
+};
+
 export type SalesSettings = {
-  p_m500: number;
-  c_m500: number;
-  p_m1000: number;
-  c_m1000: number;
-  p_f500: number;
-  c_f500: number;
-  p_f1000: number;
-  c_f1000: number;
-  p_s500: number;
-  c_s500: number;
-  p_s1000: number;
-  c_s1000: number;
+  catalogProducts: SalesCatalogProduct[];
   freeThreshold: number;
   ship1: number;
   ship3: number;
@@ -59,12 +61,35 @@ export type SalesSettings = {
   fac: number;
   zeroActualCourier: boolean;
   customExpenses: CustomExpense[];
+  wholesalerLegacyMigrated?: boolean;
   updatedAt?: number;
 };
 
+export type LegacySalesPriceKey =
+  | "p_m500"
+  | "c_m500"
+  | "p_m1000"
+  | "c_m1000"
+  | "p_f500"
+  | "c_f500"
+  | "p_f1000"
+  | "c_f1000"
+  | "p_s500"
+  | "c_s500"
+  | "p_s1000"
+  | "c_s1000";
+
+export type LegacySalesSettingsDoc = Partial<
+  Record<LegacySalesPriceKey, number>
+>;
+
 export type NumericSettingsKey = Exclude<
   keyof SalesSettings,
-  "customExpenses" | "updatedAt" | "zeroActualCourier"
+  | "catalogProducts"
+  | "customExpenses"
+  | "updatedAt"
+  | "zeroActualCourier"
+  | "wholesalerLegacyMigrated"
 >;
 
 export type SalesOrderProduct = {
@@ -92,6 +117,7 @@ export type SalesOrder = {
   id: string;
   orderNumber: string;
   buyerName: string;
+  consignmentNumber?: string;
   date: string;
   status: OrderStatus;
   courierService: CourierService;
@@ -113,6 +139,7 @@ export type OrderDraftProduct = {
 export type OrderDraft = {
   orderNumber: string;
   buyerName: string;
+  consignmentNumber?: string;
   date: string;
   status: OrderStatus;
   courierService: CourierService;
@@ -179,6 +206,7 @@ export type StockPurchase = {
   qty: number;
   unitPrice: number;
   totalCost: number;
+  wholesalerId?: string;
   createdAt: number;
 };
 
@@ -217,3 +245,23 @@ export type WholesalerLedgerEntry = {
 };
 
 export type WholesalerLedgerPayload = Omit<WholesalerLedgerEntry, "id">;
+
+export type WholesalerAccount = {
+  id: string;
+  name: string;
+  createdAt: number;
+  isLegacySeed?: boolean;
+};
+
+export type WholesalerAccountPayload = Omit<WholesalerAccount, "id">;
+
+export type WholesalerTransaction = {
+  id: string;
+  type: WholesalerLedgerType;
+  date: string;
+  amount: number;
+  note: string;
+  createdAt: number;
+};
+
+export type WholesalerTransactionPayload = Omit<WholesalerTransaction, "id">;

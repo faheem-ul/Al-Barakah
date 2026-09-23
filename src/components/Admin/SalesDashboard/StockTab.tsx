@@ -11,9 +11,15 @@ import {
 import {
   createStockPurchase,
   deleteStockPurchase,
+  updateStockPurchase,
 } from "@/lib/sales/purchases";
-import { getProductByKey } from "@/lib/sales/products";
-import type { StockExpense, StockPurchase } from "@/lib/sales/types";
+import { getProductById } from "@/lib/sales/products";
+import type {
+  SalesCatalogProduct,
+  StockExpense,
+  StockPurchase,
+  WholesalerAccount,
+} from "@/lib/sales/types";
 
 import ExpenseForm from "./ExpenseForm";
 import ExpensesTable from "./ExpensesTable";
@@ -26,6 +32,8 @@ import PurchaseMonthTabs, {
 import PurchasesTable from "./PurchasesTable";
 
 type StockTabProps = {
+  catalog: SalesCatalogProduct[];
+  wholesalers: WholesalerAccount[];
   purchases: StockPurchase[];
   onPurchasesChange: (purchases: StockPurchase[]) => void;
   expenses: StockExpense[];
@@ -49,6 +57,8 @@ function formatMonthLabel(month: string): string {
 }
 
 const StockTab: React.FC<StockTabProps> = ({
+  catalog,
+  wholesalers,
   purchases,
   onPurchasesChange,
   expenses,
@@ -62,6 +72,10 @@ const StockTab: React.FC<StockTabProps> = ({
     [purchases],
   );
   const purchaseMonthInitialized = useRef(false);
+  const purchaseFormRef = useRef<HTMLDivElement>(null);
+  const [editingPurchase, setEditingPurchase] = useState<StockPurchase | null>(
+    null,
+  );
 
   useEffect(() => {
     if (purchaseMonthInitialized.current) return;
@@ -130,31 +144,79 @@ const StockTab: React.FC<StockTabProps> = ({
     };
   }, [filteredExpenses]);
 
+  const buildPurchasePayload = useCallback(
+    (
+      draft: {
+        date: string;
+        key: string;
+        qty: number;
+        unitPrice: number;
+        wholesalerId: string;
+      },
+      createdAt: number,
+    ) => {
+      const product = getProductById(catalog, draft.key);
+      if (!product) return null;
+
+      return {
+        date: draft.date,
+        product: product.product,
+        variant: product.variant,
+        key: product.id,
+        qty: draft.qty,
+        unitPrice: draft.unitPrice,
+        totalCost: draft.qty * draft.unitPrice,
+        wholesalerId: draft.wholesalerId,
+        createdAt,
+      };
+    },
+    [catalog],
+  );
+
   const handleSavePurchase = useCallback(
     async (draft: {
       date: string;
       key: string;
       qty: number;
       unitPrice: number;
+      wholesalerId: string;
     }) => {
       setSavingPurchase(true);
       try {
-        const product = getProductByKey(draft.key);
-        if (!product) {
-          window.alert("Invalid product selected.");
+        if (editingPurchase) {
+          const payload = buildPurchasePayload(
+            draft,
+            editingPurchase.createdAt,
+          );
+          if (!payload) {
+            window.alert("Invalid product selected.");
+            return;
+          }
+
+          await updateStockPurchase(editingPurchase.id, payload);
+          onPurchasesChange(
+            purchases.map((purchase) =>
+              purchase.id === editingPurchase.id
+                ? { id: editingPurchase.id, ...payload }
+                : purchase,
+            ),
+          );
+          setEditingPurchase(null);
+
+          const savedMonth = draft.date.slice(0, 7);
+          if (savedMonth.startsWith(String(CURRENT_YEAR))) {
+            setPurchaseMonth(savedMonth);
+          }
+
+          window.alert("Purchase updated successfully.");
           return;
         }
 
-        const payload = {
-          date: draft.date,
-          product: product.product,
-          variant: product.variant,
-          key: product.key,
-          qty: draft.qty,
-          unitPrice: draft.unitPrice,
-          totalCost: draft.qty * draft.unitPrice,
-          createdAt: Date.now(),
-        };
+        const payload = buildPurchasePayload(draft, Date.now());
+        if (!payload) {
+          window.alert("Invalid product selected.");
+          return;
+        }
 
         const id = await createStockPurchase(payload);
         onPurchasesChange([{ id, ...payload }, ...purchases]);
@@ -167,13 +229,35 @@ const StockTab: React.FC<StockTabProps> = ({
         window.alert("Purchase saved successfully.");
       } catch (error) {
         console.error("Failed to save purchase", error);
-        window.alert("Failed to save purchase. Please try again.");
+        window.alert(
+          editingPurchase
+            ? "Failed to update purchase. Please try again."
+            : "Failed to save purchase. Please try again.",
+        );
       } finally {
         setSavingPurchase(false);
       }
     },
-    [purchases, onPurchasesChange],
+    [
+      buildPurchasePayload,
+      catalog,
+      editingPurchase,
+      purchases,
+      onPurchasesChange,
+    ],
   );
+
+  const handleEditPurchase = (purchase: StockPurchase) => {
+    setEditingPurchase(purchase);
+    purchaseFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const handleCancelEditPurchase = () => {
+    setEditingPurchase(null);
+  };
 
   const handleSaveExpense = useCallback(
     async (draft: { name: string; amount: number; date: string }) => {
@@ -241,7 +325,16 @@ const StockTab: React.FC<StockTabProps> = ({
 
   return (
     <div>
-      <PurchaseForm onSave={handleSavePurchase} saving={savingPurchase} />
+      <div ref={purchaseFormRef}>
+        <PurchaseForm
+          catalog={catalog}
+          wholesalers={wholesalers}
+          editPurchase={editingPurchase}
+          onCancelEdit={handleCancelEditPurchase}
+          onSave={handleSavePurchase}
+          saving={savingPurchase}
+        />
+      </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
         <div className="mb-4">
@@ -273,6 +366,9 @@ const StockTab: React.FC<StockTabProps> = ({
 
         <PurchasesTable
           purchases={filteredPurchases}
+          wholesalers={wholesalers}
+          editingId={editingPurchase?.id ?? null}
+          onEdit={handleEditPurchase}
           onDelete={handleDeletePurchase}
           deletingId={deletingPurchaseId}
         />

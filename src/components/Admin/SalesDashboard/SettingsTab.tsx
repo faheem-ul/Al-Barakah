@@ -2,8 +2,17 @@
 
 import React, { useState } from "react";
 
-import { PRODUCTS } from "@/lib/sales/products";
-import type { CustomExpense, NumericSettingsKey, SalesSettings } from "@/lib/sales/types";
+import {
+  formatProfitMarginPercent,
+  profitMarginPercent,
+} from "@/lib/sales/calculations";
+import { createEmptyCatalogProduct } from "@/lib/sales/products";
+import type {
+  CustomExpense,
+  NumericSettingsKey,
+  SalesCatalogProduct,
+  SalesSettings,
+} from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type SettingsTabProps = {
@@ -152,6 +161,60 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
     });
   };
 
+  const updateCatalogProduct = (
+    id: string,
+    patch: Partial<
+      Pick<
+        SalesCatalogProduct,
+        | "product"
+        | "variant"
+        | "sellingPrice"
+        | "purchasePrice"
+        | "weight"
+        | "packUnits500"
+        | "packUnits1000"
+        | "stockItem"
+      >
+    >,
+  ) => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      catalogProducts: settings.catalogProducts.map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
+    });
+  };
+
+  const addCatalogProduct = () => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      catalogProducts: [
+        ...settings.catalogProducts,
+        createEmptyCatalogProduct(),
+      ],
+    });
+  };
+
+  const removeCatalogProduct = (id: string) => {
+    if (
+      !window.confirm(
+        "Remove this product from the catalog? Existing orders are not affected.",
+      )
+    ) {
+      return;
+    }
+
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      catalogProducts: settings.catalogProducts.filter(
+        (item) => item.id !== id,
+      ),
+    });
+  };
+
   const handleSave = async () => {
     setSaveMessage(null);
     const ok = await onSave(settings);
@@ -165,49 +228,181 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
   return (
     <div>
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
-        <h2 className="text-[19px] font-semibold mb-4">
-          Product Pricing & Purchase Costs
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[19px] font-semibold">
+            Product Catalog & Pricing
+          </h2>
+          <Button
+            type="button"
+            onClick={addCatalogProduct}
+            className="rounded-md border border-[#e5e7eb] bg-white text-black text-[14px] px-4 py-2 hover:bg-[#f9fafb]"
+          >
+            Add Product
+          </Button>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-[14px]">
+          <table className="w-full min-w-[960px] text-left text-[14px]">
             <thead>
               <tr className="border-b border-[#e5e7eb] text-[#6b7280]">
                 <th className="py-3 pr-3 font-medium">Product</th>
                 <th className="py-3 pr-3 font-medium">Variant</th>
-                <th className="py-3 pr-3 font-medium">Selling Price</th>
-                <th className="py-3 font-medium">Purchase Price</th>
+                <th className="py-3 pr-3 font-medium w-[90px]">Weight</th>
+                <th className="py-3 pr-3 font-medium">Selling</th>
+                <th className="py-3 pr-3 font-medium">Purchase</th>
+                <th className="py-3 pr-3 font-medium">Profit %</th>
+                <th className="py-3 pr-3 font-medium w-[90px]">Pack 500g</th>
+                <th className="py-3 pr-3 font-medium w-[90px]">Pack 1kg</th>
+                <th className="py-3 pr-3 font-medium w-[70px] text-center">
+                  Stock
+                </th>
+                <th className="py-3 font-medium w-[80px]">Delete</th>
               </tr>
             </thead>
             <tbody>
-              {PRODUCTS.map((product) => (
-                <tr key={product.key} className="border-b border-[#f3f4f6]">
-                  <td className="py-3 pr-3">{product.product}</td>
-                  <td className="py-3 pr-3">{product.variant}</td>
-                  <td className="py-3 pr-3">
-                    <input
-                      type="number"
-                      value={settings[product.priceKey]}
-                      onChange={(e) =>
-                        updateField(product.priceKey, e.target.value)
-                      }
-                      className="w-full max-w-[140px] rounded-lg border border-[#e5e7eb] px-3 py-2"
-                    />
-                  </td>
-                  <td className="py-3">
-                    <input
-                      type="number"
-                      value={settings[product.costKey]}
-                      onChange={(e) =>
-                        updateField(product.costKey, e.target.value)
-                      }
-                      className="w-full max-w-[140px] rounded-lg border border-[#e5e7eb] px-3 py-2"
-                    />
-                  </td>
-                </tr>
-              ))}
+              {settings.catalogProducts.map((product) => {
+                const margin = profitMarginPercent(
+                  product.sellingPrice,
+                  product.purchasePrice,
+                );
+
+                return (
+                  <tr key={product.id} className="border-b border-[#f3f4f6]">
+                    <td className="py-3 pr-3">
+                      <input
+                        type="text"
+                        value={product.product}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            product: e.target.value,
+                          })
+                        }
+                        className="w-full min-w-[120px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="text"
+                        value={product.variant}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            variant: e.target.value,
+                          })
+                        }
+                        className="w-full min-w-[100px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        value={product.weight}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            weight: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[80px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={product.sellingPrice}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            sellingPrice: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[100px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={product.purchasePrice}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            purchasePrice: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[100px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <span
+                        className={`font-semibold ${
+                          margin === null
+                            ? "text-[#6b7280]"
+                            : margin < 0
+                              ? "text-[#b91c1c]"
+                              : "text-[#047857]"
+                        }`}
+                      >
+                        {formatProfitMarginPercent(margin)}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={product.packUnits500}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            packUnits500: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[70px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={product.packUnits1000}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            packUnits1000: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[70px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={product.stockItem}
+                        onChange={(e) =>
+                          updateCatalogProduct(product.id, {
+                            stockItem: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 rounded border-[#d1d5db] accent-black"
+                        aria-label={`Stock item ${product.product}`}
+                      />
+                    </td>
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => removeCatalogProduct(product.id)}
+                        className="text-[13px] font-medium text-[#b91c1c] hover:text-[#991b1b] hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+        <p className="mt-4 text-[12px] text-[#6b7280]">
+          Combos use the same name in Product and Variant (e.g. Daily Duo /
+          Daily Duo). Weight drives shipping and courier; pack units drive
+          packing cost per unit sold.
+        </p>
       </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
@@ -231,7 +426,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
           onUpdate={updateField}
         />
         <p className="mt-4 text-[12px] text-[#6b7280]">
-          Applied per unit based on variant weight — 500g or 1kg.
+          Applied per unit sold using each product&apos;s pack units (Option C).
         </p>
       </div>
 

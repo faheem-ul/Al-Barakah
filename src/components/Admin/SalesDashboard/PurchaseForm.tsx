@@ -1,34 +1,59 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { money, todayIsoDate } from "@/lib/sales/calculations";
 import {
-  getProductByKey,
+  getProductById,
+  getStockProductNames,
   getVariantsForProduct,
-  PRODUCT_NAMES,
 } from "@/lib/sales/products";
+import type {
+  SalesCatalogProduct,
+  StockPurchase,
+  WholesalerAccount,
+} from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
 type PurchaseFormProps = {
+  catalog: SalesCatalogProduct[];
+  wholesalers: WholesalerAccount[];
+  editPurchase?: StockPurchase | null;
+  onCancelEdit?: () => void;
   onSave: (draft: {
     date: string;
     key: string;
     qty: number;
     unitPrice: number;
+    wholesalerId: string;
   }) => Promise<void>;
   saving: boolean;
 };
 
-const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
+const PurchaseForm: React.FC<PurchaseFormProps> = ({
+  catalog,
+  wholesalers,
+  editPurchase = null,
+  onCancelEdit,
+  onSave,
+  saving,
+}) => {
   const [date, setDate] = useState(todayIsoDate());
   const [product, setProduct] = useState("");
   const [variantKey, setVariantKey] = useState("");
+  const [wholesalerId, setWholesalerId] = useState("");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState<number | "">("");
 
-  const variants = product ? getVariantsForProduct(product) : [];
-  const selected = variantKey ? getProductByKey(variantKey) : undefined;
+  const stockProducts = useMemo(
+    () => catalog.filter((item) => item.stockItem),
+    [catalog],
+  );
+  const productNames = getStockProductNames(stockProducts);
+  const variants = product
+    ? getVariantsForProduct(stockProducts, product)
+    : [];
+  const selected = variantKey ? getProductById(stockProducts, variantKey) : undefined;
 
   const totalCost = useMemo(() => {
     const price = typeof unitPrice === "number" ? unitPrice : 0;
@@ -40,13 +65,32 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
     setDate(todayIsoDate());
     setProduct("");
     setVariantKey("");
+    setWholesalerId("");
     setQty(1);
     setUnitPrice("");
   };
 
+  useEffect(() => {
+    if (!editPurchase) {
+      resetForm();
+      return;
+    }
+
+    setDate(editPurchase.date);
+    setProduct(editPurchase.product);
+    setVariantKey(editPurchase.key);
+    setWholesalerId(editPurchase.wholesalerId ?? "");
+    setQty(editPurchase.qty);
+    setUnitPrice(editPurchase.unitPrice);
+  }, [editPurchase]);
+
   const handleSave = async () => {
     if (!selected) {
       window.alert("Please select a product and variant.");
+      return;
+    }
+    if (!wholesalerId) {
+      window.alert("Please select a wholesaler.");
       return;
     }
     if (qty <= 0) {
@@ -60,17 +104,22 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
 
     await onSave({
       date,
-      key: selected.key,
+      key: selected.id,
       qty,
       unitPrice,
+      wholesalerId,
     });
 
-    resetForm();
+    if (!editPurchase) {
+      resetForm();
+    }
   };
 
   return (
     <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
-      <h2 className="text-[19px] font-semibold mb-4">Add Stock Purchase</h2>
+      <h2 className="text-[19px] font-semibold mb-4">
+        {editPurchase ? "Edit Stock Purchase" : "Add Stock Purchase"}
+      </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
         <label className="block">
@@ -86,6 +135,24 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
         </label>
 
         <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Wholesaler
+          </span>
+          <select
+            value={wholesalerId}
+            onChange={(e) => setWholesalerId(e.target.value)}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          >
+            <option value="">Select Wholesaler</option>
+            {wholesalers.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">Product</span>
           <select
             value={product}
@@ -96,7 +163,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           >
             <option value="">Select Product</option>
-            {PRODUCT_NAMES.map((name) => (
+            {productNames.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -114,7 +181,7 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
           >
             <option value="">Select Variant</option>
             {variants.map((variant) => (
-              <option key={variant.key} value={variant.key}>
+              <option key={variant.id} value={variant.id}>
                 {variant.variant}
               </option>
             ))}
@@ -161,14 +228,35 @@ const PurchaseForm: React.FC<PurchaseFormProps> = ({ onSave, saving }) => {
         </label>
       </div>
 
-      <Button
-        type="button"
-        onClick={handleSave}
-        isLoading={saving}
-        className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90"
-      >
-        Add Purchase
-      </Button>
+      {wholesalers.length === 0 && (
+        <p className="mb-4 text-[13px] text-[#b45309]">
+          Add a wholesaler account under Payments → Wholesaler before recording
+          stock purchases.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={handleSave}
+          isLoading={saving}
+          disabled={wholesalers.length === 0}
+          className="rounded-lg bg-black text-white px-5 py-2.5 text-[14px] hover:opacity-90 disabled:opacity-60"
+        >
+          {editPurchase ? "Update Purchase" : "Add Purchase"}
+        </Button>
+
+        {editPurchase && onCancelEdit && (
+          <Button
+            type="button"
+            onClick={onCancelEdit}
+            disabled={saving}
+            className="rounded-lg border border-[#e5e7eb] bg-white text-[#374151] px-5 py-2.5 text-[14px] hover:bg-[#f9fafb] disabled:opacity-60"
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

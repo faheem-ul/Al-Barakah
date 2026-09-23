@@ -9,8 +9,12 @@ import { getAllSalesOrders } from "@/lib/sales/orders";
 import { getAllCodSettlements } from "@/lib/sales/cod-settlements";
 import { getAllStockExpenses } from "@/lib/sales/expenses";
 import { getAllStockPurchases } from "@/lib/sales/purchases";
-import { getAllWholesalerLedger } from "@/lib/sales/wholesaler-ledger";
 import { getSalesSettings, saveSalesSettings } from "@/lib/sales/settings";
+import {
+  getAllWholesalers,
+  getAllWholesalerTransactionsMap,
+  migrateLegacyWholesalerLedger,
+} from "@/lib/sales/wholesalers";
 import type {
   CodSettlement,
   SalesOrder,
@@ -18,7 +22,8 @@ import type {
   SalesTab,
   StockPurchase,
   StockExpense,
-  WholesalerLedgerEntry,
+  WholesalerAccount,
+  WholesalerTransaction,
 } from "@/lib/sales/types";
 
 import DashboardTab from "./DashboardTab";
@@ -40,9 +45,10 @@ const SalesDashboard: React.FC = () => {
   const [purchases, setPurchases] = useState<StockPurchase[]>([]);
   const [expenses, setExpenses] = useState<StockExpense[]>([]);
   const [codSettlements, setCodSettlements] = useState<CodSettlement[]>([]);
-  const [wholesalerLedger, setWholesalerLedger] = useState<
-    WholesalerLedgerEntry[]
-  >([]);
+  const [wholesalers, setWholesalers] = useState<WholesalerAccount[]>([]);
+  const [transactionsByWholesaler, setTransactionsByWholesaler] = useState<
+    Record<string, WholesalerTransaction[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -57,7 +63,9 @@ const SalesDashboard: React.FC = () => {
     let purchasesResult: StockPurchase[] = [];
     let expensesResult: StockExpense[] = [];
     let codSettlementsResult: CodSettlement[] = [];
-    let wholesalerLedgerResult: WholesalerLedgerEntry[] = [];
+    let wholesalersResult: WholesalerAccount[] = [];
+    let transactionsByWholesalerResult: Record<string, WholesalerTransaction[]> =
+      {};
     const errors: string[] = [];
 
     try {
@@ -96,10 +104,14 @@ const SalesDashboard: React.FC = () => {
     }
 
     try {
-      wholesalerLedgerResult = await getAllWholesalerLedger();
+      await migrateLegacyWholesalerLedger();
+      wholesalersResult = await getAllWholesalers();
+      transactionsByWholesalerResult =
+        await getAllWholesalerTransactionsMap(wholesalersResult);
+      settingsResult = await getSalesSettings();
     } catch (error) {
-      console.error("Failed to load wholesaler ledger", error);
-      errors.push("Could not load wholesaler ledger from Firestore.");
+      console.error("Failed to load wholesaler accounts", error);
+      errors.push("Could not load wholesaler accounts from Firestore.");
     }
 
     setSettings(settingsResult);
@@ -107,7 +119,8 @@ const SalesDashboard: React.FC = () => {
     setPurchases(purchasesResult);
     setExpenses(expensesResult);
     setCodSettlements(codSettlementsResult);
-    setWholesalerLedger(wholesalerLedgerResult);
+    setWholesalers(wholesalersResult);
+    setTransactionsByWholesaler(transactionsByWholesalerResult);
     setLoadError(errors.length ? errors.join(" ") : null);
     setLoading(false);
   }, []);
@@ -195,6 +208,8 @@ const SalesDashboard: React.FC = () => {
             )}
             {tab === "stock" && (
               <StockTab
+                catalog={settings.catalogProducts}
+                wholesalers={wholesalers}
                 purchases={purchases}
                 onPurchasesChange={setPurchases}
                 expenses={expenses}
@@ -209,8 +224,10 @@ const SalesDashboard: React.FC = () => {
             )}
             {tab === "payments-wholesaler" && (
               <WholesalerPaymentsTab
-                wholesalerLedger={wholesalerLedger}
-                onWholesalerLedgerChange={setWholesalerLedger}
+                wholesalers={wholesalers}
+                onWholesalersChange={setWholesalers}
+                transactionsByWholesaler={transactionsByWholesaler}
+                onTransactionsByWholesalerChange={setTransactionsByWholesaler}
               />
             )}
             {tab === "settings" && (

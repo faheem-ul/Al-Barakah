@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
+import { useAdminAuth } from "@/components/Admin/AdminAuthProvider";
 import {
   calculateSavedProducts,
   recomputeCalculationFromSnapshot,
@@ -11,7 +12,7 @@ import {
   deleteSalesOrder,
   updateSalesOrder,
 } from "@/lib/sales/orders";
-import { getProductByKey } from "@/lib/sales/products";
+import { getProductById } from "@/lib/sales/products";
 import type {
   CourierService,
   CourierZone,
@@ -32,6 +33,7 @@ type OrdersTabProps = {
 type OrderDraftInput = {
   orderNumber: string;
   buyerName: string;
+  consignmentNumber: string;
   date: string;
   status: OrderStatus;
   courierService: CourierService;
@@ -47,9 +49,13 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
   orders,
   onOrdersChange,
 }) => {
+  const { user } = useAdminAuth();
   const formRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sendingComplaintId, setSendingComplaintId] = useState<string | null>(
+    null,
+  );
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
 
   const sortedOrders = useMemo(
@@ -64,12 +70,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     (draft: OrderDraftInput, createdAt: number) => {
       const productsData = draft.lines
         .map((line) => {
-          const product = getProductByKey(line.key);
+          const product = getProductById(settings.catalogProducts, line.key);
           if (!product) return null;
           return {
             product: product.product,
             variant: product.variant,
-            key: product.key,
+            key: product.id,
             qty: line.qty,
           };
         })
@@ -77,6 +83,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
 
       const calculation = calculateSavedProducts(
         settings,
+        settings.catalogProducts,
         productsData,
         draft.status,
         draft.courierService,
@@ -90,6 +97,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       return {
         orderNumber: draft.orderNumber,
         buyerName: draft.buyerName,
+        consignmentNumber: draft.consignmentNumber.trim(),
         date: draft.date,
         status: draft.status,
         courierService: draft.courierService,
@@ -113,6 +121,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       return {
         orderNumber: draft.orderNumber,
         buyerName: draft.buyerName,
+        consignmentNumber: draft.consignmentNumber.trim(),
         date: draft.date,
         status: draft.status,
         courierService: existing.courierService,
@@ -171,6 +180,50 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     setEditingOrder(null);
   };
 
+  const handleSendMpComplaint = async (order: SalesOrder) => {
+    if (!user) {
+      window.alert("Please sign in to send complaint emails.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Send M&P complaint email for order ${order.orderNumber}?`,
+      )
+    ) {
+      return;
+    }
+
+    setSendingComplaintId(order.id);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/admin/sales/mp-complaint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        window.alert(data?.error || "Failed to send complaint email.");
+        return;
+      }
+
+      window.alert("M&P complaint email sent successfully.");
+    } catch (error) {
+      console.error("Failed to send M&P complaint email", error);
+      window.alert("Failed to send complaint email. Please try again.");
+    } finally {
+      setSendingComplaintId(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this order?")) return;
     setDeletingId(id);
@@ -206,8 +259,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           orders={sortedOrders}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onSendMpComplaint={handleSendMpComplaint}
           editingId={editingOrder?.id ?? null}
           deletingId={deletingId}
+          sendingComplaintId={sendingComplaintId}
         />
       </div>
     </div>

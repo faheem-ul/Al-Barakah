@@ -13,14 +13,13 @@ const getRequiredEnv = (name: string) => {
   return value;
 };
 
-// Get the Firebase admin app
-const getFirebaseAdminApp = () => {
+export const getFirebaseAdminApp = () => {
   const existingApp = getApps()[0];
 
   if (existingApp) {
     return existingApp;
   }
-  // Initialize the Firebase admin app 
+
   return initializeApp({
     credential: cert({
       projectId: getRequiredEnv("FIREBASE_PROJECT_ID"),
