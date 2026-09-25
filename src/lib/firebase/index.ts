@@ -19,6 +19,7 @@ import {
   Timestamp,
   updateDoc,
   deleteDoc,
+  deleteField,
   setDoc,
 } from "firebase/firestore";
 
@@ -50,6 +51,7 @@ export {
   Timestamp,
   updateDoc,
   deleteDoc,
+  deleteField,
   setDoc,
 };
 

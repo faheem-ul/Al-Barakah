@@ -8,9 +8,31 @@ import type { OrderPreviewResult, OrderStatus } from "@/lib/sales/types";
 type OrderPreviewProps = {
   result: OrderPreviewResult | null;
   status: OrderStatus;
+  productPacking?: number;
+  boxPacking?: number;
 };
 
-const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
+function PreviewCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3">
+      <p className="text-[12px] text-[#6b7280]">{label}</p>
+      <p className="text-[15px] font-semibold text-[#1f2937]">{value}</p>
+    </div>
+  );
+}
+
+const OrderPreview: React.FC<OrderPreviewProps> = ({
+  result,
+  status,
+  productPacking,
+  boxPacking,
+}) => {
   if (!result || result.units <= 0) return null;
 
   const profitLabel =
@@ -20,12 +42,29 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
         ? "Giveaway Expense"
         : "Order Profit";
 
-  const previewItems: { key: string; label: string; value: string }[] = [
-    { key: "product-total", label: "Product Total", value: money(result.productRevenue) },
+  const showPackingBreakdown =
+    productPacking !== undefined && boxPacking !== undefined;
+
+  const topItems: { key: string; label: string; value: string }[] = [
+    {
+      key: "product-total",
+      label: "Product Total",
+      value: money(result.productRevenue),
+    },
     ...(status === "promotional"
-      ? [{ key: "product-cost", label: "Actual Product Cost", value: money(result.honeyCost) }]
+      ? [
+          {
+            key: "product-cost",
+            label: "Actual Product Cost",
+            value: money(result.honeyCost),
+          },
+        ]
       : []),
-    { key: "weight", label: "Total Weight", value: `${result.weight.toFixed(2)} kg` },
+    {
+      key: "weight",
+      label: "Total Weight",
+      value: `${result.weight.toFixed(2)} kg`,
+    },
     {
       key: "customer-shipping",
       label: "Customer Shipping",
@@ -39,8 +78,14 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
       label: "COD Amount",
       value: status === "delivered" ? money(result.revenue) : "Rs. 0",
     },
-    { key: "packing", label: "Packing", value: money(result.packing) },
-    { key: "courier", label: "Actual Courier", value: money(result.courier) },
+  ];
+
+  const rightItems: { key: string; label: string; value: string }[] = [
+    {
+      key: "courier",
+      label: "Actual Courier",
+      value: money(result.courier),
+    },
     ...(result.customExpenses.length
       ? result.customExpenses.map((expense) => ({
           key: expense.id,
@@ -51,20 +96,55 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({ result, status }) => {
     { key: "expenses", label: "Expenses", value: money(result.expenses) },
   ];
 
+  const totalPacking = showPackingBreakdown
+    ? productPacking + boxPacking
+    : result.packing;
+
   return (
     <div className="mt-4 space-y-3">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {previewItems.map((item) => (
-          <div
-            key={item.key}
-            className="rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3"
-          >
-            <p className="text-[12px] text-[#6b7280]">{item.label}</p>
-            <p className="text-[15px] font-semibold text-[#1f2937]">
-              {item.value}
-            </p>
-          </div>
+        {topItems.map((item) => (
+          <PreviewCard key={item.key} label={item.label} value={item.value} />
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          {showPackingBreakdown ? (
+            <div className="rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3 h-full">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[12px] text-[#6b7280]">Product Packing</p>
+                  <p className="text-[15px] font-semibold text-[#1f2937]">
+                    {money(productPacking)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[12px] text-[#6b7280]">Box Packing</p>
+                  <p className="text-[15px] font-semibold text-[#1f2937]">
+                    {money(boxPacking)}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 border-t border-[#e5e7eb] pt-3">
+                <p className="text-[12px] text-[#6b7280]">
+                  Product Packing + Box Packing
+                </p>
+                <p className="text-[15px] font-semibold text-[#1f2937]">
+                  Total Packing: {money(totalPacking)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <PreviewCard label="Packing" value={money(result.packing)} />
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
+          {rightItems.map((item) => (
+            <PreviewCard key={item.key} label={item.label} value={item.value} />
+          ))}
+        </div>
       </div>
 
       <div

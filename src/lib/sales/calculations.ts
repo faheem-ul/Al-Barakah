@@ -272,7 +272,8 @@ export function calculateOrderPreview(
     lines,
     options,
   );
-  const packing = calculatePackingCost(settings, catalog, lines);
+  const boxRate = Math.max(0, Number(options?.boxRate) || 0);
+  const packing = calculatePackingCost(settings, catalog, lines) + boxRate;
   const courier =
     options?.courierOverride !== undefined
       ? Math.max(0, options.courierOverride)
@@ -390,16 +391,21 @@ export function recomputeCalculationFromSnapshot(
     status: OrderStatus;
     shipping: number;
     courier: number;
+    packing?: number;
   },
 ): SalesOrderCalculation {
   const {
     productRevenue,
     honeyCost,
-    packing,
     weight,
     units,
     customExpenses = [],
   } = base;
+
+  const packing =
+    params.packing !== undefined
+      ? Math.max(0, params.packing)
+      : Math.max(0, Number(base.packing) || 0);
 
   const shipping = Math.max(0, params.shipping);
   const courier = Math.max(0, params.courier);

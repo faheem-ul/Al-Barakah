@@ -5,10 +5,16 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import {
   calculateOrderPreview,
+  calculatePackingCost,
   calculationToPreview,
   recomputeCalculationFromSnapshot,
   todayIsoDate,
 } from "@/lib/sales/calculations";
+import {
+  adjustPackingForBoxChange,
+  formatBoxSizeOption,
+  resolveBoxRate,
+} from "@/lib/sales/box-sizes";
 import {
   getProductById,
   getProductNames,
@@ -49,6 +55,7 @@ type OrderFormProps = {
     customerShipping: number;
     actualCourier: number;
     courierTouched: boolean;
+    boxSizeId: string;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -108,7 +115,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
   const [shippingTouched, setShippingTouched] = useState(false);
   const [actualCourier, setActualCourier] = useState(0);
   const [courierTouched, setCourierTouched] = useState(false);
+  const [boxSizeId, setBoxSizeId] = useState("");
   const [initialized, setInitialized] = useState(false);
+
+  const boxSizes = settings.boxSizes ?? [];
 
   useEffect(() => {
     if (editOrder) {
@@ -124,6 +134,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setShippingTouched(true);
       setActualCourier(editOrder.calculation.courier ?? 0);
       setCourierTouched(true);
+      setBoxSizeId(editOrder.boxSizeId ?? "");
       setInitialized(true);
       return;
     }
@@ -229,16 +240,27 @@ const OrderForm: React.FC<OrderFormProps> = ({
     editOrder,
   ]);
 
+  const previewBoxRate = useMemo(
+    () => (boxSizeId.trim() ? resolveBoxRate(settings, boxSizeId) : 0),
+    [settings, boxSizeId],
+  );
+
   const preview = useMemo(() => {
     if (!lines.length) return null;
 
     if (editOrder) {
+      const adjustedPacking = adjustPackingForBoxChange(
+        editOrder.calculation.packing,
+        editOrder.boxRate,
+        previewBoxRate,
+      );
       const calculation = recomputeCalculationFromSnapshot(
         editOrder.calculation,
         {
           status,
           shipping: customerShipping,
           courier: actualCourier,
+          packing: adjustedPacking,
         },
       );
       return calculationToPreview(calculation);
@@ -254,6 +276,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       {
         customerShippingOverride: displayShipping,
         courierOverride: displayCourier,
+        boxRate: previewBoxRate,
       },
     );
   }, [
@@ -266,6 +289,26 @@ const OrderForm: React.FC<OrderFormProps> = ({
     editOrder,
     displayShipping,
     displayCourier,
+    previewBoxRate,
+    customerShipping,
+    actualCourier,
+  ]);
+
+  const boxPacking = previewBoxRate;
+
+  const productPacking = useMemo(() => {
+    if (!lines.length) return 0;
+    if (editOrder) {
+      return Math.max(0, (preview?.packing ?? 0) - boxPacking);
+    }
+    return calculatePackingCost(settings, catalog, lines);
+  }, [
+    boxPacking,
+    catalog,
+    editOrder,
+    lines,
+    preview?.packing,
+    settings,
   ]);
 
   const updateRow = (index: number, patch: Partial<ProductRow>) => {
@@ -294,6 +337,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setShippingTouched(false);
     setActualCourier(0);
     setCourierTouched(false);
+    setBoxSizeId("");
     clearDraft();
   };
 
@@ -323,6 +367,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       customerShipping: displayShipping,
       actualCourier: displayCourier,
       courierTouched,
+      boxSizeId: boxSizeId.trim(),
     });
 
     if (!editOrder) {
@@ -449,7 +494,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">
             Customer Shipping (Rs.)
@@ -480,6 +525,28 @@ const OrderForm: React.FC<OrderFormProps> = ({
             }}
             className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
           />
+        </label>
+
+        <label className="block">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">Box Size</span>
+          <select
+            value={boxSizeId}
+            onChange={(e) => setBoxSizeId(e.target.value)}
+            disabled={!boxSizes.length}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 disabled:bg-[#f9fafb] disabled:text-[#9ca3af]"
+          >
+            <option value="">None</option>
+            {boxSizes.map((box) => (
+              <option key={box.id} value={box.id}>
+                {formatBoxSizeOption(box)}
+              </option>
+            ))}
+          </select>
+          {!boxSizes.length && (
+            <span className="mt-1 block text-[12px] text-[#6b7280]">
+              Add box sizes under Settings.
+            </span>
+          )}
         </label>
       </div>
       <p className="text-[12px] text-[#6b7280] mb-4">
@@ -618,7 +685,12 @@ const OrderForm: React.FC<OrderFormProps> = ({
         </Button>
       )}
 
-      <OrderPreview result={preview} status={status} />
+      <OrderPreview
+        result={preview}
+        status={status}
+        productPacking={productPacking}
+        boxPacking={boxPacking}
+      />
 
       <div className="mt-4 flex flex-wrap gap-3">
         <Button

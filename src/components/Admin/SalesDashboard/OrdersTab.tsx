@@ -4,6 +4,10 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/Admin/AdminAuthProvider";
 import {
+  adjustPackingForBoxChange,
+  resolveBoxRate,
+} from "@/lib/sales/box-sizes";
+import {
   calculateSavedProducts,
   recomputeCalculationFromSnapshot,
 } from "@/lib/sales/calculations";
@@ -18,6 +22,7 @@ import type {
   CourierZone,
   OrderStatus,
   SalesOrder,
+  SalesOrderPayload,
   SalesSettings,
 } from "@/lib/sales/types";
 
@@ -42,6 +47,7 @@ type OrderDraftInput = {
   customerShipping: number;
   actualCourier: number;
   courierTouched: boolean;
+  boxSizeId: string;
 };
 
 const OrdersTab: React.FC<OrdersTabProps> = ({
@@ -81,6 +87,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         })
         .filter(Boolean) as SalesOrder["products"];
 
+      const boxId = draft.boxSizeId.trim();
+      const boxRate = boxId ? resolveBoxRate(settings, boxId) : 0;
+
       const calculation = calculateSavedProducts(
         settings,
         settings.catalogProducts,
@@ -91,10 +100,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         {
           customerShippingOverride: draft.customerShipping,
           courierOverride: draft.actualCourier,
+          boxRate,
         },
       );
 
-      return {
+      const payload: SalesOrderPayload = {
         orderNumber: draft.orderNumber,
         buyerName: draft.buyerName,
         consignmentNumber: draft.consignmentNumber.trim(),
@@ -106,19 +116,38 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         calculation,
         createdAt,
       };
+
+      if (boxId) {
+        payload.boxSizeId = boxId;
+        payload.boxRate = boxRate;
+      }
+
+      return payload;
     },
     [settings],
   );
 
   const buildEditPayload = useCallback(
     (draft: OrderDraftInput, existing: SalesOrder) => {
-      const calculation = recomputeCalculationFromSnapshot(existing.calculation, {
-        status: draft.status,
-        shipping: draft.customerShipping,
-        courier: draft.actualCourier,
-      });
+      const boxId = draft.boxSizeId.trim();
+      const boxRate = boxId ? resolveBoxRate(settings, boxId) : 0;
+      const adjustedPacking = adjustPackingForBoxChange(
+        existing.calculation.packing,
+        existing.boxRate,
+        boxRate,
+      );
 
-      return {
+      const calculation = recomputeCalculationFromSnapshot(
+        existing.calculation,
+        {
+          status: draft.status,
+          shipping: draft.customerShipping,
+          courier: draft.actualCourier,
+          packing: adjustedPacking,
+        },
+      );
+
+      const payload: SalesOrderPayload = {
         orderNumber: draft.orderNumber,
         buyerName: draft.buyerName,
         consignmentNumber: draft.consignmentNumber.trim(),
@@ -130,8 +159,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         calculation,
         createdAt: existing.createdAt,
       };
+
+      if (boxId) {
+        payload.boxSizeId = boxId;
+        payload.boxRate = boxRate;
+      }
+
+      return payload;
     },
-    [],
+    [settings],
   );
 
   const handleSave = useCallback(
@@ -140,12 +176,22 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       try {
         if (editingOrder) {
           const payload = buildEditPayload(draft, editingOrder);
-          await updateSalesOrder(editingOrder.id, payload);
+          const clearBoxFields =
+            !draft.boxSizeId.trim() && Boolean(editingOrder.boxSizeId);
+          await updateSalesOrder(editingOrder.id, payload, {
+            clearBoxFields,
+          });
+          const updatedOrder: SalesOrder = {
+            id: editingOrder.id,
+            ...payload,
+          };
+          if (clearBoxFields) {
+            delete updatedOrder.boxSizeId;
+            delete updatedOrder.boxRate;
+          }
           onOrdersChange(
             orders.map((order) =>
-              order.id === editingOrder.id
-                ? { id: editingOrder.id, ...payload }
-                : order,
+              order.id === editingOrder.id ? updatedOrder : order,
             ),
           );
           setEditingOrder(null);

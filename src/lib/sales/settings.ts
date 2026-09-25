@@ -7,6 +7,7 @@ import {
   LEGACY_PRICE_MAP,
 } from "./products";
 import type {
+  BoxSize,
   CustomExpense,
   LegacySalesSettingsDoc,
   NumericSettingsKey,
@@ -16,6 +17,7 @@ import type {
 
 const SETTINGS_DOC_PATH = ["sales-settings", "default"] as const;
 const MAX_CUSTOM_EXPENSES = 20;
+const MAX_BOX_SIZES = 50;
 const MAX_CATALOG_PRODUCTS = 100;
 
 const NUMERIC_KEYS: NumericSettingsKey[] = [
@@ -63,6 +65,31 @@ function normalizeCustomExpenses(raw: unknown): CustomExpense[] {
   }
 
   return expenses;
+}
+
+function normalizeBoxSizes(raw: unknown): BoxSize[] {
+  if (!Array.isArray(raw)) return [];
+
+  const boxes: BoxSize[] = [];
+
+  for (const item of raw.slice(0, MAX_BOX_SIZES)) {
+    if (!item || typeof item !== "object") continue;
+
+    const record = item as Partial<BoxSize>;
+    const name = String(record.name ?? "").trim();
+    if (!name) continue;
+
+    boxes.push({
+      id:
+        typeof record.id === "string" && record.id
+          ? record.id
+          : crypto.randomUUID(),
+      name: name.slice(0, 80),
+      rate: Math.max(0, Number(record.rate) || 0),
+    });
+  }
+
+  return boxes;
 }
 
 function applyPackUnitsFallback(
@@ -248,6 +275,7 @@ function normalizeSettings(
   }
 
   normalized.customExpenses = normalizeCustomExpenses(data.customExpenses);
+  normalized.boxSizes = normalizeBoxSizes(data.boxSizes);
 
   if (typeof data.zeroActualCourier === "boolean") {
     normalized.zeroActualCourier = data.zeroActualCourier;

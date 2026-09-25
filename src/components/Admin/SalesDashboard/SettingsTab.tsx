@@ -8,6 +8,7 @@ import {
 } from "@/lib/sales/calculations";
 import { createEmptyCatalogProduct } from "@/lib/sales/products";
 import type {
+  BoxSize,
   CustomExpense,
   NumericSettingsKey,
   SalesCatalogProduct,
@@ -158,6 +159,42 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
       customExpenses: (settings.customExpenses ?? []).filter(
         (expense) => expense.id !== id,
       ),
+    });
+  };
+
+  const updateBoxSize = (
+    id: string,
+    patch: Partial<Pick<BoxSize, "name" | "rate">>,
+  ) => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      boxSizes: (settings.boxSizes ?? []).map((box) =>
+        box.id === id ? { ...box, ...patch } : box,
+      ),
+    });
+  };
+
+  const addBoxSize = () => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      boxSizes: [
+        ...(settings.boxSizes ?? []),
+        {
+          id: crypto.randomUUID(),
+          name: "",
+          rate: 0,
+        },
+      ],
+    });
+  };
+
+  const removeBoxSize = (id: string) => {
+    setSaveMessage(null);
+    onChange({
+      ...settings,
+      boxSizes: (settings.boxSizes ?? []).filter((box) => box.id !== id),
     });
   };
 
@@ -519,6 +556,90 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
         <p className="mt-4 text-[12px] text-[#6b7280]">
           FAC is added as a percentage to the calculated courier charge. Second
           Day rates apply when Second Day is selected on the order form.
+        </p>
+      </div>
+
+      <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[19px] font-semibold">Box Sizes</h2>
+          <Button
+            type="button"
+            onClick={addBoxSize}
+            className="rounded-md border border-[#e5e7eb] bg-white text-black text-[14px] px-4 py-2 hover:bg-[#f9fafb]"
+          >
+            Add Box
+          </Button>
+        </div>
+
+        {!settings.boxSizes?.length ? (
+          <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280] text-[14px]">
+            No box sizes yet. Add one to select packaging on orders and include
+            the rate in order packing costs.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-left text-[14px]">
+              <thead>
+                <tr className="border-b border-[#e5e7eb] text-[#6b7280]">
+                  <th className="py-3 pr-3 font-medium">Size (dimensions)</th>
+                  <th className="py-3 pr-3 font-medium w-[140px]">
+                    Rate (Rs.)
+                  </th>
+                  <th className="py-3 font-medium w-[100px] text-right">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {settings.boxSizes.map((box) => (
+                  <tr
+                    key={box.id}
+                    className="border-b border-[#f3f4f6] last:border-b-0"
+                  >
+                    <td className="py-3 pr-3">
+                      <input
+                        type="text"
+                        maxLength={80}
+                        value={box.name}
+                        onChange={(e) =>
+                          updateBoxSize(box.id, { name: e.target.value })
+                        }
+                        placeholder="e.g. 7×5×4"
+                        className="w-full min-w-[180px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={box.rate}
+                        onChange={(e) =>
+                          updateBoxSize(box.id, {
+                            rate: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full max-w-[120px] rounded-lg border border-[#e5e7eb] px-3 py-2"
+                      />
+                    </td>
+                    <td className="py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeBoxSize(box.id)}
+                        className="text-[13px] font-medium text-[#b91c1c] hover:text-[#991b1b] hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="mt-4 text-[12px] text-[#6b7280]">
+          Charged once per order. The rate is added to product packing and
+          included in order profit calculations.
         </p>
       </div>
 
