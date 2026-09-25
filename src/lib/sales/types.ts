@@ -20,6 +20,12 @@ export type CustomExpense = {
   enabled: boolean;
 };
 
+export type BoxSize = {
+  id: string;
+  name: string;
+  rate: number;
+};
+
 export type AppliedCustomExpense = {
   id: string;
   name: string;
@@ -61,6 +67,7 @@ export type SalesSettings = {
   fac: number;
   zeroActualCourier: boolean;
   customExpenses: CustomExpense[];
+  boxSizes: BoxSize[];
   wholesalerLegacyMigrated?: boolean;
   updatedAt?: number;
 };
@@ -87,6 +94,7 @@ export type NumericSettingsKey = Exclude<
   keyof SalesSettings,
   | "catalogProducts"
   | "customExpenses"
+  | "boxSizes"
   | "updatedAt"
   | "zeroActualCourier"
   | "wholesalerLegacyMigrated"
@@ -125,6 +133,8 @@ export type SalesOrder = {
   products: SalesOrderProduct[];
   calculation: SalesOrderCalculation;
   freeDelivery?: boolean;
+  boxSizeId?: string;
+  boxRate?: number;
   createdAt: number;
 };
 
@@ -155,6 +165,7 @@ export type OrderPreviewOptions = {
   customerShippingOverride?: number;
   courierOverride?: number;
   preservedCustomExpenses?: AppliedCustomExpense[];
+  boxRate?: number;
 };
 
 export type ProductLineInput = {

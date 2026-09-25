@@ -23,4 +23,5 @@ export const DEFAULT_SALES_SETTINGS: SalesSettings = {
   fac: 10,
   zeroActualCourier: false,
   customExpenses: [],
+  boxSizes: [],
 };

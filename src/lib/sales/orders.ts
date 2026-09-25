@@ -8,6 +8,7 @@ import {
   doc,
   deleteDoc,
   updateDoc,
+  deleteField,
 } from "@/lib/firebase";
 
 import type {
@@ -61,6 +62,14 @@ export function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrd
     products: data.products ?? [],
     calculation: mapCalculation(data.calculation),
     freeDelivery: data.freeDelivery ?? false,
+    boxSizeId:
+      typeof data.boxSizeId === "string" && data.boxSizeId.trim()
+        ? data.boxSizeId.trim()
+        : undefined,
+    boxRate:
+      data.boxRate !== undefined && data.boxRate !== null
+        ? Math.max(0, Number(data.boxRate) || 0)
+        : undefined,
     createdAt: data.createdAt ?? Date.now(),
   };
 }
@@ -88,6 +97,12 @@ export async function deleteSalesOrder(id: string): Promise<void> {
 export async function updateSalesOrder(
   id: string,
   payload: SalesOrderPayload,
+  options?: { clearBoxFields?: boolean },
 ): Promise<void> {
-  await updateDoc(doc(db, "sales-orders", id), { ...payload });
+  const update: Record<string, unknown> = { ...payload };
+  if (options?.clearBoxFields) {
+    update.boxSizeId = deleteField();
+    update.boxRate = deleteField();
+  }
+  await updateDoc(doc(db, "sales-orders", id), update);
 }
