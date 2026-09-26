@@ -947,20 +947,24 @@ export async function updateOrderStatuses(
 
     if (!rowIndexes.length) continue;
     foundAnywhere = true;
+
+    // Only touch the top-most row for this order (avoids unmerging combo blocks)
+    const topRow = Math.min(...rowIndexes);
+    const rowIndexesToUpdate = [topRow];
     console.log(
-      `${LOG} Found order ${orderKey} on "${tab.title}" (${rowIndexes.length} row(s))`
+      `${LOG} Found order ${orderKey} on "${tab.title}" (${rowIndexes.length} row(s); updating top row ${topRow})`
     );
 
     const statusLetter = columnToLetter(statusCol);
     const existingStatusRes = await sheets.spreadsheets.values.batchGet({
       spreadsheetId,
-      ranges: rowIndexes.map(
+      ranges: rowIndexesToUpdate.map(
         (row) => sheetRange(tab.title, `${statusLetter}${row}`)
       ),
     });
 
     const data: { range: string; values: string[][] }[] = [];
-    for (let i = 0; i < rowIndexes.length; i++) {
+    for (let i = 0; i < rowIndexesToUpdate.length; i++) {
       const current = String(
         existingStatusRes.data.valueRanges?.[i]?.values?.[0]?.[0] ?? ""
       )
@@ -968,13 +972,13 @@ export async function updateOrderStatuses(
         .toLowerCase();
       if (protectedStatuses.has(current) || current.startsWith("error:")) {
         console.log(
-          `${LOG} Skipping Order Status overwrite on "${tab.title}" row ${rowIndexes[i]} (current: ${current})`
+          `${LOG} Skipping Order Status overwrite on "${tab.title}" row ${rowIndexesToUpdate[i]} (current: ${current})`
         );
         onlyProtected = true;
         continue;
       }
       data.push({
-        range: sheetRange(tab.title, `${statusLetter}${rowIndexes[i]}`),
+        range: sheetRange(tab.title, `${statusLetter}${rowIndexesToUpdate[i]}`),
         values: [[orderStatus]],
       });
     }
