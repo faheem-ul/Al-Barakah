@@ -284,8 +284,8 @@ function handleTrackingNumberEdit(e) {
     return;
   }
 
-  var row = e.range.getRow();
-  var rawValue = e.value || sheet.getRange(row, numberCol).getValue() || "";
+  var row = resolveOrderHeaderRow_(sheet, cols, e.range.getRow());
+  var rawValue = e.value || sheet.getRange(e.range.getRow(), numberCol).getValue() || "";
   var cn = String(rawValue).trim().replace(/\D/g, "");
   log_("Row:", row, "| raw:", rawValue, "| normalized CN:", cn || "(empty)");
 
@@ -295,8 +295,13 @@ function handleTrackingNumberEdit(e) {
     return;
   }
 
-  sheet.getRange(row, numberCol).setValue(cn);
-  log_("Fetching status for row", row, "...");
+  var cnCell = sheet.getRange(row, numberCol);
+  cnCell.setNumberFormat("@");
+  cnCell.setValue(cn);
+  if (e.range.getRow() !== row) {
+    sheet.getRange(e.range.getRow(), numberCol).clearContent();
+  }
+  log_("Fetching status for header row", row, "...");
   refreshRowMpTracking_(sheet, cols, row, cn, true);
   log_("===== handleTrackingNumberEdit DONE =====");
 }
@@ -316,6 +321,106 @@ function refreshAllMpTrackingStatuses() {
     refreshMpTrackingOnSheet_(sheetsToRefresh[s]);
   }
   log_("===== refreshAllMpTrackingStatuses DONE =====");
+}
+
+/**
+ * ONE-TIME / occasional cleanup for broken multi-row orders.
+ * Run from Apps Script editor → select cleanupMpOrderBlocks → Run.
+ * - Pulls Name/Contact/Status/CN onto the order header row
+ * - Clears those fields from jar/continuation rows
+ * - Re-merges order-level columns
+ * Does NOT send emails or call Shopify.
+ */
+function cleanupMpOrderBlocks() {
+  log_("===== cleanupMpOrderBlocks START =====");
+  ensureCurrentMonthSheet_();
+  var sheetsToFix = getTrackingRefreshSheets_();
+  var totalBlocks = 0;
+  for (var s = 0; s < sheetsToFix.length; s++) {
+    totalBlocks += cleanupMpOrderBlocksOnSheet_(sheetsToFix[s]);
+  }
+  log_("===== cleanupMpOrderBlocks DONE — blocks fixed:", totalBlocks, "=====");
+}
+
+function cleanupMpOrderBlocksOnSheet_(sheet) {
+  ensureTrackingHeadersOnSheet_(sheet);
+  var cols = getHeaderMapOnSheet_(sheet);
+  var orderCol = cols[CONFIG.HEADERS.ORDER_NUMBER];
+  var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
+  if (!orderCol) {
+    log_("cleanup skip — no Order Number column on", sheet.getName());
+    return 0;
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var fixed = 0;
+  var r = 2;
+  while (r <= lastRow) {
+    var order = String(sheet.getRange(r, orderCol).getValue() || "").trim();
+    var prod = productCol
+      ? String(sheet.getRange(r, productCol).getValue() || "").trim()
+      : "";
+    if (!order && !prod) {
+      r++;
+      continue;
+    }
+
+    var block = getOrderBlock_(sheet, cols, r);
+    if (block.count >= 1) {
+      var bestStatus = pickBestBlockStatus_(sheet, cols, block);
+      consolidateOrderBlock_(sheet, cols, block);
+      if (bestStatus && cols[CONFIG.HEADERS.ORDER_STATUS]) {
+        var cell = sheet.getRange(
+          block.start,
+          cols[CONFIG.HEADERS.ORDER_STATUS],
+        );
+        cell.setValue(bestStatus);
+        applyOrderStatusStyle_(cell, bestStatus);
+      }
+      remmergeOrderLevelColumns_(sheet, cols, block);
+      fixed++;
+      log_(
+        "cleanup",
+        sheet.getName(),
+        "rows",
+        block.start + "-" + (block.start + block.count - 1),
+        "order",
+        order ||
+          String(
+            sheet.getRange(block.start, orderCol).getValue() || "",
+          ).trim(),
+        "status",
+        bestStatus || "(none)",
+      );
+    }
+    r = block.start + block.count;
+  }
+
+  if (cols[CONFIG.HEADERS.ORDER_STATUS]) {
+    paintAllOrderStatusColors_(sheet, cols[CONFIG.HEADERS.ORDER_STATUS]);
+  }
+  log_("cleanup", sheet.getName(), "— blocks:", fixed);
+  return fixed;
+}
+
+/** Prefer Delivered if any row in the block has it, else first non-empty status. */
+function pickBestBlockStatus_(sheet, cols, block) {
+  var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
+  if (!statusCol) return "";
+  var delivered = "";
+  var other = "";
+  for (var r = block.start; r < block.start + block.count; r++) {
+    var s = String(sheet.getRange(r, statusCol).getValue() || "").trim();
+    if (!s) continue;
+    if (isDelivered_(s)) {
+      delivered = s;
+      break;
+    }
+    if (!other) other = s;
+  }
+  return delivered || other || "";
 }
 
 function refreshMpTrackingOnSheet_(sheet) {
@@ -347,6 +452,7 @@ function refreshMpTrackingOnSheet_(sheet) {
   var skippedEmpty = 0;
   var skippedDelivered = 0;
   var failed = 0;
+  var seenHeaders = {};
 
   for (var i = 0; i < numberValues.length; i++) {
     var row = i + 2;
@@ -358,16 +464,28 @@ function refreshMpTrackingOnSheet_(sheet) {
       continue;
     }
 
-    var status = String(statusValues[i][0] || "").trim();
+    var headerRow = resolveOrderHeaderRow_(sheet, cols, row);
+    if (seenHeaders[headerRow]) {
+      log_("Row", row, "CN", cn, "— already refreshed via header", headerRow);
+      continue;
+    }
+    seenHeaders[headerRow] = true;
+
+    var status = String(
+      sheet.getRange(headerRow, statusCol).getValue() || "",
+    ).trim();
+    if (!status) {
+      status = String(statusValues[i][0] || "").trim();
+    }
     if (isDelivered_(status)) {
-      log_("Row", row, "CN", cn, "— already Delivered — skip");
+      log_("Row", headerRow, "CN", cn, "— already Delivered — skip");
       skippedDelivered++;
       continue;
     }
 
     log_(
       "Row",
-      row,
+      headerRow,
       "CN",
       cn,
       "current status:",
@@ -375,9 +493,9 @@ function refreshMpTrackingOnSheet_(sheet) {
       "— refreshing",
     );
     try {
-      refreshRowMpTracking_(sheet, cols, row, cn, false);
+      refreshRowMpTracking_(sheet, cols, headerRow, cn, false);
       var newStatus = String(
-        sheet.getRange(row, statusCol).getValue() || "",
+        sheet.getRange(headerRow, statusCol).getValue() || "",
       ).trim();
       if (newStatus.indexOf("ERROR:") === 0) {
         failed++;
@@ -386,7 +504,7 @@ function refreshMpTrackingOnSheet_(sheet) {
       }
     } catch (err) {
       failed++;
-      log_("Row", row, "EXCEPTION:", String(err));
+      log_("Row", headerRow, "EXCEPTION:", String(err));
     }
     Utilities.sleep(CONFIG.FETCH_DELAY_MS);
   }
@@ -425,11 +543,12 @@ function normalizeVerifyValue_(value) {
 function handleVerifyEdit_(sheet, cols, e) {
   log_("===== handleVerifyEdit =====");
   var verifyCol = cols[CONFIG.HEADERS.VERIFY];
-  var row = e.range.getRow();
+  var row = resolveOrderHeaderRow_(sheet, cols, e.range.getRow());
   var merged = e.range.getMergedRanges();
   if (merged && merged.length) {
     row = merged[0].getRow();
   }
+  row = resolveOrderHeaderRow_(sheet, cols, row);
 
   var raw = e.value;
   if (raw === undefined || raw === null || raw === "") {
@@ -457,6 +576,8 @@ function handleVerifyEdit_(sheet, cols, e) {
 }
 
 function bookMpFromVerifyRow_(sheet, cols, row) {
+  var block = getOrderBlock_(sheet, cols, row);
+  row = block.start;
   var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
   var verifyCol = cols[CONFIG.HEADERS.VERIFY];
   var existingCn = numberCol
@@ -464,9 +585,14 @@ function bookMpFromVerifyRow_(sheet, cols, row) {
         .trim()
         .replace(/\D/g, "")
     : "";
+  if (!existingCn && block.count > 1 && numberCol) {
+    existingCn = String(blockFirstValue_(sheet, numberCol, block) || "")
+      .replace(/\D/g, "");
+  }
   if (existingCn.length >= 7) {
     log_("CN already on sheet — marking already done", existingCn);
     sheet.getRange(row, verifyCol).setValue(CONFIG.VERIFY_VALUES.DONE);
+    consolidateOrderBlock_(sheet, cols, block);
     refreshRowMpTracking_(sheet, cols, row, existingCn, true);
     markBookedIfTrackingEmpty_(sheet, cols, row);
     return;
@@ -503,25 +629,47 @@ function bookMpFromVerifyRow_(sheet, cols, row) {
     return;
   }
 
+  var dup = findDuplicateCnOrder_(sheet, cols, cn, row);
+  if (dup) {
+    log_(
+      "WARNING: newly booked CN",
+      cn,
+      "already used by order",
+      dup.orderNumber,
+      "row",
+      dup.row,
+    );
+  }
+
   sheet.getRange(row, verifyCol).setValue(CONFIG.VERIFY_VALUES.DONE);
   if (numberCol) {
     var cnCell = sheet.getRange(row, numberCol);
     cnCell.setNumberFormat("@");
     cnCell.setValue(cn);
   }
+  consolidateOrderBlock_(sheet, cols, getOrderBlock_(sheet, cols, row));
   refreshRowMpTracking_(sheet, cols, row, cn, true);
   markBookedIfTrackingEmpty_(sheet, cols, row);
 }
 
 function markBookedIfTrackingEmpty_(sheet, cols, row) {
+  var block = getOrderBlock_(sheet, cols, row);
+  row = block.start;
   var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
   if (!statusCol) return;
   var status = String(sheet.getRange(row, statusCol).getValue() || "").trim();
   var lower = status.toLowerCase();
   if (!status || lower.indexOf("error:") === 0 || lower === "pending") {
-    var cell = sheet.getRange(row, statusCol);
-    cell.setValue("Booked");
-    applyOrderStatusStyle_(cell, "Booked");
+    writeOrderTrackingFields_(
+      sheet,
+      cols,
+      block,
+      "Booked",
+      cellStr_(sheet, cols, row, CONFIG.HEADERS.TRACKING_LOCATION) || "LAHORE",
+      cellStr_(sheet, cols, row, CONFIG.HEADERS.TRACKING_DETAIL) ||
+        "Booked in M&P portal. Public tracking may update later.",
+    );
+    return;
   }
   var locCol = cols[CONFIG.HEADERS.TRACKING_LOCATION];
   if (locCol && !String(sheet.getRange(row, locCol).getValue() || "").trim()) {
@@ -619,13 +767,312 @@ function cellStr_(sheet, cols, row, headerKey) {
 }
 
 function getOrderBlock_(sheet, cols, startRow) {
+  var header = resolveOrderHeaderRow_(sheet, cols, startRow);
   var orderCol = cols[CONFIG.HEADERS.ORDER_NUMBER];
-  if (!orderCol) return { start: startRow, count: 1 };
-  var merges = sheet.getRange(startRow, orderCol).getMergedRanges();
-  if (merges && merges.length) {
-    return { start: merges[0].getRow(), count: merges[0].getNumRows() };
+  var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
+  var nameCol = cols[CONFIG.HEADERS.NAME];
+
+  if (orderCol) {
+    var merges = sheet.getRange(header, orderCol).getMergedRanges();
+    if (merges && merges.length) {
+      return { start: merges[0].getRow(), count: merges[0].getNumRows() };
+    }
   }
-  return { start: startRow, count: 1 };
+
+  // Broken / unmerged combo rows: walk down until blank separator or next order #
+  var count = 1;
+  var lastRow = sheet.getLastRow();
+  var headerName = nameCol
+    ? String(sheet.getRange(header, nameCol).getValue() || "").trim()
+    : "";
+  for (var r = header + 1; r <= lastRow; r++) {
+    var order = orderCol
+      ? String(sheet.getRange(r, orderCol).getValue() || "").trim()
+      : "";
+    if (order) break;
+    var name = nameCol
+      ? String(sheet.getRange(r, nameCol).getValue() || "").trim()
+      : "";
+    var prod = productCol
+      ? String(sheet.getRange(r, productCol).getValue() || "").trim()
+      : "";
+    if (!order && !name && !prod) break;
+    if (
+      name &&
+      headerName &&
+      name.toLowerCase() !== headerName.toLowerCase()
+    ) {
+      break;
+    }
+    count++;
+    if (count > 20) break;
+  }
+  return { start: header, count: count };
+}
+
+/**
+ * Top row of the order block (merged or broken multi-jar layout).
+ * Always use this before reading Name/Contact or writing Status/CN.
+ */
+function resolveOrderHeaderRow_(sheet, cols, row) {
+  row = Number(row) || 2;
+  if (row < 2) return 2;
+
+  var mergeCols = [
+    cols[CONFIG.HEADERS.ORDER_NUMBER],
+    cols[CONFIG.HEADERS.NAME],
+    cols[CONFIG.HEADERS.CONTACT],
+    cols[CONFIG.HEADERS.EMAIL],
+    cols[CONFIG.HEADERS.ORDER_STATUS],
+    cols[CONFIG.HEADERS.VERIFY],
+    cols[CONFIG.HEADERS.TRACKING_NUMBER],
+  ].filter(Boolean);
+
+  for (var i = 0; i < mergeCols.length; i++) {
+    var merges = sheet.getRange(row, mergeCols[i]).getMergedRanges();
+    if (merges && merges.length) {
+      return merges[0].getRow();
+    }
+  }
+
+  var orderCol = cols[CONFIG.HEADERS.ORDER_NUMBER];
+  var nameCol = cols[CONFIG.HEADERS.NAME];
+  var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
+  if (!orderCol) return row;
+
+  var r = row;
+  while (r > 2) {
+    var orderHere = String(sheet.getRange(r, orderCol).getValue() || "").trim();
+    if (orderHere) return r;
+
+    var above = r - 1;
+    var orderAbove = String(
+      sheet.getRange(above, orderCol).getValue() || "",
+    ).trim();
+    var nameAbove = nameCol
+      ? String(sheet.getRange(above, nameCol).getValue() || "").trim()
+      : "";
+    var prodAbove = productCol
+      ? String(sheet.getRange(above, productCol).getValue() || "").trim()
+      : "";
+    var prodHere = productCol
+      ? String(sheet.getRange(r, productCol).getValue() || "").trim()
+      : "";
+
+    if (!orderAbove && !nameAbove && !prodAbove) return r;
+    if (orderAbove) return above;
+    if (!orderHere && prodHere && (prodAbove || nameAbove)) {
+      r = above;
+      continue;
+    }
+    break;
+  }
+  return r;
+}
+
+/** First non-empty cell value in an order block for a column. */
+function blockFirstValue_(sheet, col, block) {
+  if (!col || !block) return "";
+  for (var r = block.start; r < block.start + block.count; r++) {
+    var v = String(sheet.getRange(r, col).getValue() || "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+/**
+ * Name / contact / order # from the order block (header first, then any row).
+ * Fixes "Customer" emails and missing WhatsApp when CN sat on a jar row.
+ */
+function resolveOrderIdentity_(sheet, cols, block) {
+  return {
+    orderNumber: blockFirstValue_(
+      sheet,
+      cols[CONFIG.HEADERS.ORDER_NUMBER],
+      block,
+    ),
+    customerName: blockFirstValue_(sheet, cols[CONFIG.HEADERS.NAME], block),
+    contactNumber: blockFirstValue_(
+      sheet,
+      cols[CONFIG.HEADERS.CONTACT],
+      block,
+    ),
+    email: blockFirstValue_(sheet, cols[CONFIG.HEADERS.EMAIL], block),
+    address: blockFirstValue_(sheet, cols[CONFIG.HEADERS.ADDRESS], block),
+    city: blockFirstValue_(sheet, cols[CONFIG.HEADERS.CITY], block),
+    additionalNote: blockFirstValue_(
+      sheet,
+      cols[CONFIG.HEADERS.ADDITIONAL_NOTE],
+      block,
+    ),
+    totalAmount: blockFirstValue_(
+      sheet,
+      cols[CONFIG.HEADERS.TOTAL_AMOUNT],
+      block,
+    ),
+  };
+}
+
+/** Another order block already uses this CN (different order number). */
+function findDuplicateCnOrder_(sheet, cols, cn, exceptHeaderRow) {
+  var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
+  var orderCol = cols[CONFIG.HEADERS.ORDER_NUMBER];
+  cn = String(cn || "").replace(/\D/g, "");
+  if (!numberCol || !cn || cn.length < 7) return null;
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  var exceptOrder = orderCol
+    ? String(
+        sheet.getRange(exceptHeaderRow, orderCol).getValue() || "",
+      )
+        .trim()
+        .replace(/^#/, "")
+        .toLowerCase()
+    : "";
+
+  var values = sheet.getRange(2, numberCol, lastRow - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    var row = i + 2;
+    var otherCn = String(values[i][0] || "")
+      .trim()
+      .replace(/\D/g, "");
+    if (!otherCn || otherCn !== cn) continue;
+    var header = resolveOrderHeaderRow_(sheet, cols, row);
+    if (header === exceptHeaderRow) continue;
+    var order = orderCol
+      ? String(sheet.getRange(header, orderCol).getValue() || "")
+          .trim()
+          .replace(/^#/, "")
+          .toLowerCase()
+      : "";
+    if (exceptOrder && order && order === exceptOrder) continue;
+    return { row: header, orderNumber: order };
+  }
+  return null;
+}
+
+var ORDER_LEVEL_HEADER_KEYS_ = [
+  "ORDER_NUMBER",
+  "NAME",
+  "ADDRESS",
+  "CITY",
+  "CONTACT",
+  "EMAIL",
+  "COD",
+  "TOTAL_AMOUNT",
+  "ORDER_STATUS",
+  "VERIFY",
+  "TRACKING_NUMBER",
+  "TRACKING_LOCATION",
+  "TRACKING_DETAIL",
+  "ADDITIONAL_NOTE",
+];
+
+/**
+ * Move order-level fields onto the header row, clear continuation rows,
+ * and re-merge so Status/CN cannot diverge inside one order.
+ */
+function consolidateOrderBlock_(sheet, cols, block) {
+  if (!block || block.count < 1) return;
+  var start = block.start;
+  var end = start + block.count - 1;
+
+  for (var i = 0; i < ORDER_LEVEL_HEADER_KEYS_.length; i++) {
+    var headerName = CONFIG.HEADERS[ORDER_LEVEL_HEADER_KEYS_[i]];
+    var col = cols[headerName];
+    if (!col) continue;
+    var best = blockFirstValue_(sheet, col, block);
+    var range = sheet.getRange(start, col, block.count, 1);
+    try {
+      range.breakApart();
+    } catch (e0) {
+      // not merged
+    }
+    sheet.getRange(start, col).setValue(best);
+    if (block.count > 1) {
+      sheet.getRange(start + 1, col, block.count - 1, 1).clearContent();
+    }
+  }
+
+  remmergeOrderLevelColumns_(sheet, cols, block);
+}
+
+function remmergeOrderLevelColumns_(sheet, cols, block) {
+  if (!block || block.count < 2) return;
+  for (var i = 0; i < ORDER_LEVEL_HEADER_KEYS_.length; i++) {
+    var headerName = CONFIG.HEADERS[ORDER_LEVEL_HEADER_KEYS_[i]];
+    var col = cols[headerName];
+    if (!col) continue;
+    var range = sheet.getRange(block.start, col, block.count, 1);
+    try {
+      range.breakApart();
+    } catch (e1) {
+      // ignore
+    }
+    try {
+      range.merge();
+    } catch (e2) {
+      log_(
+        "Merge failed col",
+        headerName,
+        "rows",
+        block.start + "-" + (block.start + block.count - 1),
+        String(e2 && e2.message ? e2.message : e2),
+      );
+    }
+  }
+}
+
+/**
+ * Write Status / Location / Detail only on the order header row.
+ * Writing into a merged continuation cell unmerges the block — avoid that.
+ */
+function writeOrderTrackingFields_(
+  sheet,
+  cols,
+  block,
+  status,
+  location,
+  detail,
+) {
+  var headerRow = block.start;
+  var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
+  if (statusCol) {
+    var statusCell = sheet.getRange(headerRow, statusCol);
+    statusCell.setValue(status || "");
+    applyOrderStatusStyle_(statusCell, status || "");
+  }
+  if (cols[CONFIG.HEADERS.TRACKING_LOCATION]) {
+    sheet
+      .getRange(headerRow, cols[CONFIG.HEADERS.TRACKING_LOCATION])
+      .setValue(location || "");
+  }
+  if (cols[CONFIG.HEADERS.TRACKING_DETAIL]) {
+    sheet
+      .getRange(headerRow, cols[CONFIG.HEADERS.TRACKING_DETAIL])
+      .setValue(detail || "");
+  }
+  if (block.count > 1) {
+    // Pull any stray CN/Name/Contact from jar rows onto header, then re-merge
+    consolidateOrderBlock_(sheet, cols, block);
+    if (statusCol) {
+      var again = sheet.getRange(headerRow, statusCol);
+      again.setValue(status || "");
+      applyOrderStatusStyle_(again, status || "");
+    }
+    if (cols[CONFIG.HEADERS.TRACKING_LOCATION]) {
+      sheet
+        .getRange(headerRow, cols[CONFIG.HEADERS.TRACKING_LOCATION])
+        .setValue(location || "");
+    }
+    if (cols[CONFIG.HEADERS.TRACKING_DETAIL]) {
+      sheet
+        .getRange(headerRow, cols[CONFIG.HEADERS.TRACKING_DETAIL])
+        .setValue(detail || "");
+    }
+    remmergeOrderLevelColumns_(sheet, cols, block);
+  }
 }
 
 function pakistanMobile_(raw) {
@@ -660,8 +1107,9 @@ function buildMpBookingPayload_(sheet, cols, row) {
   var productCol = cols[CONFIG.HEADERS.PRODUCT_DETAIL];
   var sizeCol = cols[CONFIG.HEADERS.BOTTLE_SIZE];
   var pieces = 0;
-  var products = [];
+  var productRows = [];
   var weightKg = 0;
+  var hasDeal = false;
   for (var i = 0; i < block.count; i++) {
     var r = block.start + i;
     var q = 0;
@@ -670,15 +1118,28 @@ function buildMpBookingPayload_(sheet, cols, row) {
       if (isFinite(q) && q > 0) pieces += q;
       else q = 0;
     }
+    var detail = "";
     if (productCol) {
-      var p = String(sheet.getRange(r, productCol).getValue() || "").trim();
-      if (p) products.push(p);
+      detail = String(sheet.getRange(r, productCol).getValue() || "").trim();
+      if (detail && isDealProductDetail_(detail)) hasDeal = true;
     }
+    var sizeRaw = "";
     if (sizeCol) {
-      var sizeRaw = String(sheet.getRange(r, sizeCol).getValue() || "").trim();
+      sizeRaw = String(sheet.getRange(r, sizeCol).getValue() || "").trim();
       var unitKg = parseBottleSizeKg_(sizeRaw);
       if (unitKg > 0 && q > 0) weightKg += unitKg * q;
     }
+    if (detail || sizeRaw) {
+      productRows.push({ detail: detail, size: sizeRaw, qty: q });
+    }
+  }
+  // Deal/combo = one parcel on M&P (not one piece per jar row)
+  var productLabels = productRows.map(function (row) {
+    return row.detail;
+  });
+  if (hasDeal || orderBlockLooksLikeDeal_(productLabels)) {
+    pieces = 1;
+    log_("M&P pieces forced to 1 — order has deal/combo");
   }
   if (pieces < 1) pieces = 1;
   if (pieces > 99) pieces = 99;
@@ -720,6 +1181,16 @@ function buildMpBookingPayload_(sheet, cols, row) {
   var returnLoc = ids.returnLocation;
   if (String(returnLoc).match(/^\d+$/)) returnLoc = Number(returnLoc);
 
+  var productDetails = formatMpProductDetails_(productRows);
+  log_(
+    "M&P booking products",
+    JSON.stringify(
+      productRows.map(function (row) {
+        return { detail: row.detail, size: row.size, qty: row.qty };
+      }),
+    ),
+  );
+
   var body = {
     username: creds.username,
     password: creds.password,
@@ -732,7 +1203,7 @@ function buildMpBookingPayload_(sheet, cols, row) {
     weight: weightForApi,
     codAmount: codAmount,
     custRefNo: orderNumber.slice(0, 50),
-    productDetails: asciiProductDetails_(products),
+    productDetails: productDetails,
     fragile: "No",
     service: service,
     remarks: CONFIG.MP_API.REMARKS,
@@ -801,11 +1272,223 @@ function pickMpService_(weightKg) {
   return CONFIG.MP_API.SERVICE_OVERNIGHT;
 }
 
+/**
+ * Sheet combo rows look like "Immunity Duo — Sidr Honey" (em/en dash or hyphen).
+ */
+function splitDealProductDetail_(detail) {
+  var s = String(detail || "").replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  // Allow optional spaces around dash (ASCII hyphen, en, em, minus)
+  var m = s.match(/^(.+?)\s*[\u2014\u2013\u2212\-]\s*(.+)$/);
+  if (!m) return null;
+  var deal = String(m[1] || "").trim();
+  var honey = String(m[2] || "").trim();
+  if (!deal || !honey) return null;
+  // Avoid treating "1 - 2 kg" style as a deal
+  if (/^\d/.test(deal) && /kg|g\b/i.test(honey)) return null;
+  return { deal: deal, honey: honey };
+}
+
+function isDealProductDetail_(detail) {
+  if (splitDealProductDetail_(detail)) return true;
+  var s = String(detail || "").toLowerCase();
+  return (
+    /\bduo\b/.test(s) ||
+    /\bfamily\b/.test(s) ||
+    /\bmix\s*pack\b/.test(s) ||
+    /\bgift\b/.test(s) ||
+    /\btrio\b/.test(s) ||
+    /\bcombo\b/.test(s) ||
+    /\bpack\b/.test(s)
+  );
+}
+
+/** Same deal title repeated on multiple jar rows (legacy sheet without " — honey"). */
+function orderBlockLooksLikeDeal_(products) {
+  var list = (products || []).map(function (p) {
+    return String(p || "").replace(/\s+/g, " ").trim();
+  }).filter(Boolean);
+  if (list.length < 2) return false;
+  var first = list[0].toLowerCase();
+  if (!first) return false;
+  for (var i = 1; i < list.length; i++) {
+    if (list[i].toLowerCase() !== first) return false;
+  }
+  return isDealProductDetail_(list[0]);
+}
+
+function sanitizeMpProductText_(text) {
+  return String(text || "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Bottle Size "1/2 kg" / "1 kg" → "(1/2 kg)" for Product Details (matches combo SS).
+ */
+function formatMpWeightLabel_(sizeRaw) {
+  var s = sanitizeMpProductText_(sizeRaw);
+  if (!s) return "";
+  if (/^\([^)]+\)$/.test(s)) return s;
+
+  if (
+    /\b1\s*\/\s*2\s*(kg|kgs|kilo|kilogram)?\b/i.test(s) ||
+    /\bhalf\s*(kg|kilo)?\b/i.test(s) ||
+    /\b0\.5\s*(kg|kgs)?\b/i.test(s)
+  ) {
+    return "(1/2 kg)";
+  }
+
+  var grams = s.match(/\b(\d+(?:\.\d+)?)\s*(g|gm|grams?)\b/i);
+  if (grams) {
+    var g = Number(grams[1]);
+    if (isFinite(g) && g > 0) {
+      if (g === 500) return "(1/2 kg)";
+      return "(" + g + "g)";
+    }
+  }
+
+  var kg = s.match(/\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilo|kilogram)\b/i);
+  if (kg) {
+    var k = Number(kg[1]);
+    if (isFinite(k) && k > 0) {
+      if (k === 0.5) return "(1/2 kg)";
+      return "(" + k + " kg)";
+    }
+  }
+
+  if (/^\d+(?:\.\d+)?$/.test(s)) {
+    var n = Number(s);
+    if (n === 0.5) return "(1/2 kg)";
+    if (isFinite(n) && n > 0) return "(" + n + " kg)";
+  }
+
+  return "(" + s + ")";
+}
+
+/** "(1/2 kg) بڑی مکھی کا جنگلی شہد" — weight beside the honey name. */
+function formatMpJarLine_(honeyName, sizeRaw) {
+  var name = sanitizeMpProductText_(honeyName);
+  var weight = formatMpWeightLabel_(sizeRaw);
+
+  // Name already includes "(1/2 kg) …"
+  if (/\([^)]*(?:kg|g|Half)[^)]*\)/i.test(name)) {
+    return name;
+  }
+  if (weight && name) return weight + " " + name;
+  if (name) return name;
+  return weight || "";
+}
+
+/**
+ * Build M&P Product Details (jar weight goes WITH the name, not only in Weight field):
+ *   Wellness Duo: (1/2 kg) بڑی مکھی کا جنگلی شہد; (1/2 kg) چھوٹی مکھی کا جنگلی شہد
+ */
+function formatMpProductDetails_(productRows) {
+  var rows = productRows || [];
+  var dealMap = {};
+  var dealOrder = [];
+  var singles = [];
+
+  for (var i = 0; i < rows.length; i++) {
+    var detail = sanitizeMpProductText_(rows[i].detail);
+    var size = sanitizeMpProductText_(rows[i].size);
+    if (!detail && !size) continue;
+
+    var split = detail ? splitDealProductDetail_(detail) : null;
+    if (split) {
+      var key = split.deal.toLowerCase();
+      if (!dealMap[key]) {
+        dealMap[key] = { deal: split.deal, jars: [] };
+        dealOrder.push(key);
+      }
+      var honeyKey = split.honey.toLowerCase();
+      var already = false;
+      for (var h = 0; h < dealMap[key].jars.length; h++) {
+        if (dealMap[key].jars[h].honey.toLowerCase() === honeyKey) {
+          already = true;
+          // Prefer a size if this duplicate row has one and earlier didn't
+          if (!dealMap[key].jars[h].size && size) {
+            dealMap[key].jars[h].size = size;
+          }
+          break;
+        }
+      }
+      if (!already) {
+        dealMap[key].jars.push({ honey: split.honey, size: size });
+      }
+    } else if (detail) {
+      singles.push({ detail: detail, size: size });
+    } else if (size) {
+      singles.push({ detail: "", size: size });
+    }
+  }
+
+  var parts = [];
+  for (var d = 0; d < dealOrder.length; d++) {
+    var entry = dealMap[dealOrder[d]];
+    var jarLines = [];
+    for (var j = 0; j < entry.jars.length; j++) {
+      var line = formatMpJarLine_(entry.jars[j].honey, entry.jars[j].size);
+      if (line) jarLines.push(line);
+    }
+    if (jarLines.length) {
+      parts.push(entry.deal + ": " + jarLines.join("; "));
+    } else {
+      parts.push(entry.deal);
+    }
+  }
+
+  var singleLabels = singles.map(function (row) {
+    return row.detail;
+  });
+
+  // Legacy: same deal title on every jar row — use Bottle Size with blank honey
+  if (!parts.length && singles.length >= 2 && orderBlockLooksLikeDeal_(singleLabels)) {
+    var legacyJars = [];
+    for (var s = 0; s < singles.length; s++) {
+      var legacyLine = formatMpJarLine_(singles[s].detail, singles[s].size);
+      // Avoid repeating bare deal title on every jar; prefer size-only label if same
+      if (
+        singles[s].size &&
+        singles[s].detail.toLowerCase() === singles[0].detail.toLowerCase()
+      ) {
+        legacyLine = formatMpJarLine_("", singles[s].size);
+      }
+      if (legacyLine) legacyJars.push(legacyLine);
+    }
+    if (legacyJars.length) {
+      parts.push(singles[0].detail + ": " + legacyJars.join("; "));
+    } else {
+      parts.push(singles[0].detail);
+    }
+  } else if (!dealOrder.length) {
+    var seenSingle = {};
+    for (var t = 0; t < singles.length; t++) {
+      var sk = (singles[t].detail || singles[t].size).toLowerCase();
+      if (seenSingle[sk]) continue;
+      seenSingle[sk] = true;
+      var singleLine = formatMpJarLine_(singles[t].detail, singles[t].size);
+      if (singleLine) parts.push(singleLine);
+    }
+  }
+
+  var joined = sanitizeMpProductText_(parts.join("; "));
+  if (!joined) joined = "Honey";
+  // M&P field is short; keep readable head of the string
+  if (joined.length > 180) joined = joined.slice(0, 177) + "...";
+  log_("M&P productDetails →", joined);
+  return joined;
+}
+
+/** @deprecated use formatMpProductDetails_ */
 function asciiProductDetails_(products) {
-  var raw = (products || []).join("; ");
-  var ascii = raw.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
-  if (!ascii) ascii = "Honey";
-  return ascii.slice(0, 50);
+  return formatMpProductDetails_(
+    (products || []).map(function (detail) {
+      return { detail: detail, size: "", qty: 0 };
+    }),
+  );
 }
 
 function getMpApiCreds_() {
@@ -1595,29 +2278,82 @@ function installOrderStatusConditionalFormatting_(sheet, statusCol) {
 }
 
 function refreshRowMpTracking_(sheet, cols, row, cn, force) {
-  log_("refreshRow — row:", row, "| CN:", cn, "| force:", force);
+  var block = getOrderBlock_(sheet, cols, row);
+  var headerRow = block.start;
+  if (headerRow !== row) {
+    log_("Resolved order header row", headerRow, "from edited/CN row", row);
+    // Move CN onto header if it was sitting on a jar/continuation row
+    var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
+    if (numberCol && cn) {
+      var headerCn = String(
+        sheet.getRange(headerRow, numberCol).getValue() || "",
+      )
+        .trim()
+        .replace(/\D/g, "");
+      if (!headerCn) {
+        var cnCell = sheet.getRange(headerRow, numberCol);
+        cnCell.setNumberFormat("@");
+        cnCell.setValue(cn);
+        if (row !== headerRow) {
+          sheet.getRange(row, numberCol).clearContent();
+        }
+      }
+    }
+  }
+
+  log_(
+    "refreshRow — header:",
+    headerRow,
+    "| block:",
+    block.count,
+    "| CN:",
+    cn,
+    "| force:",
+    force,
+  );
   var statusCol = cols[CONFIG.HEADERS.ORDER_STATUS];
   var previousStatus = statusCol
-    ? String(sheet.getRange(row, statusCol).getValue() || "").trim()
+    ? String(sheet.getRange(headerRow, statusCol).getValue() || "").trim()
     : "";
+  // If header status blank (broken block), accept any status in the block
+  if (!previousStatus && block.count > 1 && statusCol) {
+    previousStatus = blockFirstValue_(sheet, statusCol, block);
+  }
 
   if (!force && statusCol) {
     if (isDelivered_(previousStatus)) {
-      log_("Row", row, "already Delivered — skip refresh");
+      log_("Row", headerRow, "already Delivered — skip refresh");
       return;
     }
+  }
+
+  var dup = findDuplicateCnOrder_(sheet, cols, cn, headerRow);
+  if (dup) {
+    log_(
+      "WARNING: CN",
+      cn,
+      "also on another order block row",
+      dup.row,
+      "order",
+      dup.orderNumber || "(blank)",
+      "— emails may be wrong; Shopify Delivered sync will be skipped",
+    );
   }
 
   log_("Calling mulphilog for CN", cn, "...");
   var tracked = fetchMpTrackingStatus_(cn);
   if (!tracked.ok) {
-    log_("FETCH FAILED row", row, "→", tracked.error);
-    // Don't overwrite a real courier status with a parse/fetch ERROR
+    log_("FETCH FAILED row", headerRow, "→", tracked.error);
     var prevLower = String(previousStatus || "").toLowerCase();
     if (statusCol && (!previousStatus || prevLower.indexOf("error:") === 0)) {
-      var errCell = sheet.getRange(row, statusCol);
-      errCell.setValue("ERROR: " + tracked.error);
-      applyOrderStatusStyle_(errCell, "ERROR");
+      writeOrderTrackingFields_(
+        sheet,
+        cols,
+        block,
+        "ERROR: " + tracked.error,
+        "",
+        "",
+      );
     } else {
       log_(
         "Keeping existing Order Status (" +
@@ -1639,24 +2375,15 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
   );
 
   var newStatus = String(tracked.status || "").trim();
-
-  if (statusCol) {
-    var statusCell = sheet.getRange(row, statusCol);
-    statusCell.setValue(newStatus);
-    applyOrderStatusStyle_(statusCell, newStatus);
-  }
-  if (cols[CONFIG.HEADERS.TRACKING_LOCATION]) {
-    sheet
-      .getRange(row, cols[CONFIG.HEADERS.TRACKING_LOCATION])
-      .setValue(tracked.location || "");
-  }
-  if (cols[CONFIG.HEADERS.TRACKING_DETAIL]) {
-    sheet
-      .getRange(row, cols[CONFIG.HEADERS.TRACKING_DETAIL])
-      .setValue(tracked.detail || "");
-  }
-
-  log_("Wrote status columns for row", row);
+  writeOrderTrackingFields_(
+    sheet,
+    cols,
+    block,
+    newStatus,
+    tracked.location || "",
+    tracked.detail || "",
+  );
+  log_("Wrote status columns for header row", headerRow);
 
   if (statusChanged_(previousStatus, newStatus)) {
     log_(
@@ -1668,12 +2395,40 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
     );
 
     if (isDelivered_(newStatus)) {
-      // Delivered: Next.js SMTP/Resend (same templates) — avoids MailApp quota/timeouts
-      sendDeliveredEmailsViaNext_(sheet, cols, row, cn, previousStatus, tracked);
-      syncDeliveredToShopify_(sheet, cols, row, cn);
+      sendDeliveredEmailsViaNext_(
+        sheet,
+        cols,
+        headerRow,
+        cn,
+        previousStatus,
+        tracked,
+      );
+      if (dup) {
+        log_(
+          "Shopify sync SKIPPED — duplicate CN on another order (",
+          dup.orderNumber || dup.row,
+          ")",
+        );
+      } else {
+        syncDeliveredToShopify_(sheet, cols, headerRow, cn);
+      }
     } else {
-      sendTrackingStatusEmail_(sheet, cols, row, cn, previousStatus, tracked);
-      sendCustomerTrackingEmail_(sheet, cols, row, cn, previousStatus, tracked);
+      sendTrackingStatusEmail_(
+        sheet,
+        cols,
+        headerRow,
+        cn,
+        previousStatus,
+        tracked,
+      );
+      sendCustomerTrackingEmail_(
+        sheet,
+        cols,
+        headerRow,
+        cn,
+        previousStatus,
+        tracked,
+      );
     }
   } else {
     log_("Status unchanged (" + newStatus + ") — no email");
@@ -1703,46 +2458,18 @@ function sendDeliveredEmailsViaNext_(
     return;
   }
 
-  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
-      ).trim()
-    : "";
-  var customerName = cols[CONFIG.HEADERS.NAME]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "",
-      ).trim()
-    : "";
-  var contactNumber = cols[CONFIG.HEADERS.CONTACT]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.CONTACT]).getValue() || "",
-      ).trim()
-    : "";
-  var customerEmail = cols[CONFIG.HEADERS.EMAIL]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.EMAIL]).getValue() || "")
-        .trim()
-        .toLowerCase()
-    : "";
-  var additionalNote = cols[CONFIG.HEADERS.ADDITIONAL_NOTE]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ADDITIONAL_NOTE]).getValue() ||
-          "",
-      ).trim()
-    : "";
-  var address = cols[CONFIG.HEADERS.ADDRESS]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ADDRESS]).getValue() || "",
-      ).trim()
-    : "";
-  var city = cols[CONFIG.HEADERS.CITY]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.CITY]).getValue() || "")
-        .trim()
-    : "";
-  var totalAmount = cols[CONFIG.HEADERS.TOTAL_AMOUNT]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.TOTAL_AMOUNT]).getValue() || "",
-      ).trim()
-    : "";
+  var block = getOrderBlock_(sheet, cols, row);
+  var identity = resolveOrderIdentity_(sheet, cols, block);
+  var orderNumber = identity.orderNumber;
+  var customerName = identity.customerName;
+  var contactNumber = identity.contactNumber;
+  var customerEmail = String(identity.email || "")
+    .trim()
+    .toLowerCase();
+  var additionalNote = identity.additionalNote;
+  var address = identity.address;
+  var city = identity.city;
+  var totalAmount = identity.totalAmount;
   var checkedAt = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone() || "Asia/Karachi",
@@ -1834,15 +2561,13 @@ function syncDeliveredToShopify_(sheet, cols, row, cn) {
     return;
   }
 
-  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
-      ).trim()
-    : "";
+  var block = getOrderBlock_(sheet, cols, row);
+  var identity = resolveOrderIdentity_(sheet, cols, block);
+  var orderNumber = identity.orderNumber;
   if (!orderNumber) {
     log_(
       "Shopify sync skipped — blank Order Number on row",
-      row,
+      block.start,
       "(legacy / non-Shopify row)",
     );
     return;
@@ -1896,41 +2621,15 @@ function sendTrackingStatusEmail_(
   tracked,
 ) {
   var to = CONFIG.NOTIFY_EMAIL;
-  var customerName = cols[CONFIG.HEADERS.NAME]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "",
-      ).trim()
-    : "";
-  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
-      ).trim()
-    : "";
-  var contactNumber = cols[CONFIG.HEADERS.CONTACT]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.CONTACT]).getValue() || "",
-      ).trim()
-    : "";
-  var additionalNote = cols[CONFIG.HEADERS.ADDITIONAL_NOTE]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ADDITIONAL_NOTE]).getValue() ||
-          "",
-      ).trim()
-    : "";
-  var address = cols[CONFIG.HEADERS.ADDRESS]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ADDRESS]).getValue() || "",
-      ).trim()
-    : "";
-  var city = cols[CONFIG.HEADERS.CITY]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.CITY]).getValue() || "")
-        .trim()
-    : "";
-  var totalAmount = cols[CONFIG.HEADERS.TOTAL_AMOUNT]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.TOTAL_AMOUNT]).getValue() || "",
-      ).trim()
-    : "";
+  var block = getOrderBlock_(sheet, cols, row);
+  var identity = resolveOrderIdentity_(sheet, cols, block);
+  var customerName = identity.customerName;
+  var orderNumber = identity.orderNumber;
+  var contactNumber = identity.contactNumber;
+  var additionalNote = identity.additionalNote;
+  var address = identity.address;
+  var city = identity.city;
+  var totalAmount = identity.totalAmount;
   if (!customerName) customerName = "Customer";
 
   var shipAddress = [address, city].filter(Boolean).join(", ");
@@ -2308,21 +3007,13 @@ function sendCustomerTrackingEmail_(
   tracked,
   contactOverride,
 ) {
-  var orderNumber = cols[CONFIG.HEADERS.ORDER_NUMBER]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.ORDER_NUMBER]).getValue() || "",
-      ).trim()
-    : "";
-  var sheetName = cols[CONFIG.HEADERS.NAME]
-    ? String(
-        sheet.getRange(row, cols[CONFIG.HEADERS.NAME]).getValue() || "",
-      ).trim()
-    : "";
-  var sheetEmail = cols[CONFIG.HEADERS.EMAIL]
-    ? String(sheet.getRange(row, cols[CONFIG.HEADERS.EMAIL]).getValue() || "")
-        .trim()
-        .toLowerCase()
-    : "";
+  var block = getOrderBlock_(sheet, cols, row);
+  var identity = resolveOrderIdentity_(sheet, cols, block);
+  var orderNumber = identity.orderNumber;
+  var sheetName = identity.customerName;
+  var sheetEmail = String(identity.email || "")
+    .trim()
+    .toLowerCase();
 
   var contact = contactOverride || null;
   if (!contact) {
