@@ -20,9 +20,12 @@ const tintaArabic = localFont({
   variable: "--font-tinta-arabic",
 });
 
+const siteUrl = "https://www.albarakahoney.com";
+
 export const metadata: Metadata = {
-  title: "AlBarakah Shop",
-  description: "AlBarakah Shop market place",
+  metadataBase: new URL(siteUrl),
+  title: "Albaraka Honey",
+  description: "Albaraka Honey – Pure Blessings in Every Drop",
   other: {
     "facebook-domain-verification": "lax2o1fgryftao561theo2v2e2zwk4",
     "facebook-domain-verification-second": "1t5hwn4myerzsv17t2ny710umrnuey",
