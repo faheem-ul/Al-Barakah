@@ -22,8 +22,13 @@ var CONFIG = {
   TRACKING_BASE_URL: "https://www.mulphilog.com/tracking/",
   /** Skip refresh when status already equals this (case-insensitive) */
   DELIVERED_STATUS: "Delivered",
-  /** Pause between fetches to be polite to M&P */
-  FETCH_DELAY_MS: 1200,
+  /** Pause between fetches to be polite to M&P (keep low — 6-min Apps Script limit) */
+  FETCH_DELAY_MS: 600,
+  /**
+   * Soft stop before Apps Script's hard ~6 min kill.
+   * Next hourly run resumes from a saved row cursor (no mid-sheet hard timeout).
+   */
+  REFRESH_TIME_BUDGET_MS: 5 * 60 * 1000,
   /** Notify on every M&P tracking status change */
   NOTIFY_EMAIL: "thealbarakahoney@gmail.com",
   /**
@@ -315,12 +320,77 @@ function refreshAllMpTrackingStatuses() {
     "===== refreshAllMpTrackingStatuses START =====",
     new Date().toISOString(),
   );
+  var startedAt = Date.now();
+  var budget = Number(CONFIG.REFRESH_TIME_BUDGET_MS) || 5 * 60 * 1000;
+  var deadline = startedAt + budget;
   ensureCurrentMonthSheet_();
   var sheetsToRefresh = getTrackingRefreshSheets_();
-  for (var s = 0; s < sheetsToRefresh.length; s++) {
-    refreshMpTrackingOnSheet_(sheetsToRefresh[s]);
+
+  // Rotate which sheet goes first so previous-month / Sheet1 are not starved
+  // when the current month always consumes the full budget.
+  var props = PropertiesService.getScriptProperties();
+  var rot = Number(props.getProperty("mpRefreshSheetRot") || "0") || 0;
+  if (sheetsToRefresh.length > 1) {
+    rot = ((rot % sheetsToRefresh.length) + sheetsToRefresh.length) % sheetsToRefresh.length;
+    sheetsToRefresh = sheetsToRefresh
+      .slice(rot)
+      .concat(sheetsToRefresh.slice(0, rot));
+    props.setProperty(
+      "mpRefreshSheetRot",
+      String((rot + 1) % sheetsToRefresh.length),
+    );
   }
-  log_("===== refreshAllMpTrackingStatuses DONE =====");
+
+  log_(
+    "Time budget ms:",
+    budget,
+    "| sheets:",
+    sheetsToRefresh
+      .map(function (sh) {
+        return sh.getName();
+      })
+      .join(", "),
+  );
+
+  for (var s = 0; s < sheetsToRefresh.length; s++) {
+    if (Date.now() >= deadline) {
+      log_(
+        "TIME BUDGET — skipping remaining sheets after",
+        sheetsToRefresh[s].getName(),
+      );
+      break;
+    }
+    refreshMpTrackingOnSheet_(sheetsToRefresh[s], deadline);
+  }
+  log_(
+    "===== refreshAllMpTrackingStatuses DONE ===== elapsed ms:",
+    Date.now() - startedAt,
+  );
+}
+
+function refreshCursorKey_(sheetName) {
+  return "mpRefreshCursorRow:" + String(sheetName || "");
+}
+
+function getRefreshCursorRow_(sheetName) {
+  var raw = PropertiesService.getScriptProperties().getProperty(
+    refreshCursorKey_(sheetName),
+  );
+  var row = Number(raw || "0");
+  return row >= 2 ? row : 2;
+}
+
+function setRefreshCursorRow_(sheetName, row) {
+  PropertiesService.getScriptProperties().setProperty(
+    refreshCursorKey_(sheetName),
+    String(Math.max(2, Number(row) || 2)),
+  );
+}
+
+function clearRefreshCursorRow_(sheetName) {
+  PropertiesService.getScriptProperties().deleteProperty(
+    refreshCursorKey_(sheetName),
+  );
 }
 
 /**
@@ -423,7 +493,12 @@ function pickBestBlockStatus_(sheet, cols, block) {
   return delivered || other || "";
 }
 
-function refreshMpTrackingOnSheet_(sheet) {
+/**
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number=} deadlineMs Date.now() deadline; omit = full pass (manual runs)
+ * @return {boolean} true if this sheet finished a full pass
+ */
+function refreshMpTrackingOnSheet_(sheet, deadlineMs) {
   ensureTrackingHeadersOnSheet_(sheet);
   var cols = getHeaderMapOnSheet_(sheet);
   var numberCol = cols[CONFIG.HEADERS.TRACKING_NUMBER];
@@ -434,14 +509,26 @@ function refreshMpTrackingOnSheet_(sheet) {
       sheet.getName(),
       "— run ensureTrackingHeaders_ / installMpTrackingTriggers",
     );
-    return;
+    return true;
   }
 
   var lastRow = sheet.getLastRow();
-  log_("Sheet:", sheet.getName(), "| lastRow:", lastRow);
+  var sheetName = sheet.getName();
+  var resumeRow = getRefreshCursorRow_(sheetName);
+  log_(
+    "Sheet:",
+    sheetName,
+    "| lastRow:",
+    lastRow,
+    "| resumeRow:",
+    resumeRow,
+    "| deadline:",
+    deadlineMs ? new Date(deadlineMs).toISOString() : "(none)",
+  );
   if (lastRow < 2) {
-    log_("No data rows on", sheet.getName(), "— skip");
-    return;
+    log_("No data rows on", sheetName, "— skip");
+    clearRefreshCursorRow_(sheetName);
+    return true;
   }
 
   var numDataRows = lastRow - 1;
@@ -451,11 +538,25 @@ function refreshMpTrackingOnSheet_(sheet) {
   var refreshed = 0;
   var skippedEmpty = 0;
   var skippedDelivered = 0;
+  var skippedBeforeResume = 0;
   var failed = 0;
+  var timedOut = false;
   var seenHeaders = {};
+  var pauseAtRow = 0;
 
   for (var i = 0; i < numberValues.length; i++) {
     var row = i + 2;
+    if (row < resumeRow) {
+      skippedBeforeResume++;
+      continue;
+    }
+
+    if (deadlineMs && Date.now() >= deadlineMs) {
+      timedOut = true;
+      pauseAtRow = row;
+      break;
+    }
+
     var cn = String(numberValues[i][0] || "")
       .trim()
       .replace(/\D/g, "");
@@ -483,6 +584,13 @@ function refreshMpTrackingOnSheet_(sheet) {
       continue;
     }
 
+    // Re-check budget right before the slow M&P fetch
+    if (deadlineMs && Date.now() >= deadlineMs) {
+      timedOut = true;
+      pauseAtRow = headerRow;
+      break;
+    }
+
     log_(
       "Row",
       headerRow,
@@ -506,23 +614,50 @@ function refreshMpTrackingOnSheet_(sheet) {
       failed++;
       log_("Row", headerRow, "EXCEPTION:", String(err));
     }
-    Utilities.sleep(CONFIG.FETCH_DELAY_MS);
+    Utilities.sleep(CONFIG.FETCH_DELAY_MS || 600);
   }
 
-  log_(
-    "Summary",
-    sheet.getName(),
-    "— refreshed:",
-    refreshed,
-    "| skipped empty:",
-    skippedEmpty,
-    "| skipped Delivered:",
-    skippedDelivered,
-    "| failed:",
-    failed,
-  );
+  if (timedOut) {
+    setRefreshCursorRow_(sheetName, pauseAtRow);
+    log_(
+      "TIME BUDGET — paused",
+      sheetName,
+      "at row",
+      pauseAtRow,
+      "(resume next run). refreshed:",
+      refreshed,
+      "| skipped Delivered:",
+      skippedDelivered,
+      "| failed:",
+      failed,
+    );
+  } else {
+    clearRefreshCursorRow_(sheetName);
+    log_(
+      "Summary",
+      sheetName,
+      "— full pass OK — refreshed:",
+      refreshed,
+      "| skipped empty:",
+      skippedEmpty,
+      "| skipped Delivered:",
+      skippedDelivered,
+      "| skipped before resume:",
+      skippedBeforeResume,
+      "| failed:",
+      failed,
+    );
+  }
 
-  paintAllOrderStatusColors_(sheet, statusCol);
+  try {
+    paintAllOrderStatusColors_(sheet, statusCol);
+  } catch (paintErr) {
+    log_(
+      "paintAllOrderStatusColors_ skipped:",
+      String(paintErr && paintErr.message ? paintErr.message : paintErr),
+    );
+  }
+  return !timedOut;
 }
 
 function normalizeVerifyValue_(value) {
@@ -2395,21 +2530,22 @@ function refreshRowMpTracking_(sheet, cols, row, cn, force) {
     );
 
     if (isDelivered_(newStatus)) {
-      sendDeliveredEmailsViaNext_(
-        sheet,
-        cols,
-        headerRow,
-        cn,
-        previousStatus,
-        tracked,
-      );
+      // Mustafa/Yasir class bug: never email/fulfill when CN is on 2 orders
       if (dup) {
         log_(
-          "Shopify sync SKIPPED — duplicate CN on another order (",
+          "Delivered emails+Shopify SKIPPED — duplicate CN on another order (",
           dup.orderNumber || dup.row,
           ")",
         );
       } else {
+        sendDeliveredEmailsViaNext_(
+          sheet,
+          cols,
+          headerRow,
+          cn,
+          previousStatus,
+          tracked,
+        );
         syncDeliveredToShopify_(sheet, cols, headerRow, cn);
       }
     } else {
