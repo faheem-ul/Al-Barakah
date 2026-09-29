@@ -7,6 +7,8 @@ import {
   calculateOrderPreview,
   calculatePackingCost,
   calculationToPreview,
+  money,
+  normalizeReturnExpenseMode,
   recomputeCalculationFromSnapshot,
   todayIsoDate,
 } from "@/lib/sales/calculations";
@@ -25,6 +27,8 @@ import type {
   CourierZone,
   OrderDraft,
   OrderStatus,
+  PromotionalDelivery,
+  ReturnExpenseMode,
   SalesOrder,
   SalesSettings,
 } from "@/lib/sales/types";
@@ -56,6 +60,10 @@ type OrderFormProps = {
     actualCourier: number;
     courierTouched: boolean;
     boxSizeId: string;
+    promotionalDelivery: PromotionalDelivery;
+    bykeaExpense: number;
+    returnExpenseMode: ReturnExpenseMode;
+    returnOtherExpense: number;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -116,9 +124,18 @@ const OrderForm: React.FC<OrderFormProps> = ({
   const [actualCourier, setActualCourier] = useState(0);
   const [courierTouched, setCourierTouched] = useState(false);
   const [boxSizeId, setBoxSizeId] = useState("");
+  const [promotionalDelivery, setPromotionalDelivery] =
+    useState<PromotionalDelivery>("courier");
+  const [bykeaExpense, setBykeaExpense] = useState(0);
+  const [returnExpenseMode, setReturnExpenseMode] =
+    useState<ReturnExpenseMode>("packing_only");
+  const [returnOtherExpense, setReturnOtherExpense] = useState(0);
   const [initialized, setInitialized] = useState(false);
 
   const boxSizes = settings.boxSizes ?? [];
+  const isPromotionalBykea =
+    status === "promotional" && promotionalDelivery === "bykea";
+  const showCourierFields = status !== "promotional" || !isPromotionalBykea;
 
   useEffect(() => {
     if (editOrder) {
@@ -135,6 +152,19 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setActualCourier(editOrder.calculation.courier ?? 0);
       setCourierTouched(true);
       setBoxSizeId(editOrder.boxSizeId ?? "");
+      setPromotionalDelivery(editOrder.promotionalDelivery ?? "courier");
+      setBykeaExpense(editOrder.bykeaExpense ?? 0);
+      setReturnExpenseMode(
+        normalizeReturnExpenseMode(
+          editOrder.returnExpenseMode ??
+            editOrder.calculation.returnExpenseMode,
+        ),
+      );
+      setReturnOtherExpense(
+        editOrder.returnOtherExpense ??
+          editOrder.calculation.returnOtherExpense ??
+          0,
+      );
       setInitialized(true);
       return;
     }
@@ -203,6 +233,22 @@ const OrderForm: React.FC<OrderFormProps> = ({
     ? actualCourier
     : suggestedDefaults.courier;
 
+  const effectiveCourier = isPromotionalBykea ? 0 : displayCourier;
+
+  useEffect(() => {
+    if (status !== "promotional") {
+      setPromotionalDelivery("courier");
+      setBykeaExpense(0);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "returned") {
+      setReturnExpenseMode("packing_only");
+      setReturnOtherExpense(0);
+    }
+  }, [status]);
+
   useEffect(() => {
     if (!initialized || editOrder) return;
     saveDraft({
@@ -254,13 +300,16 @@ const OrderForm: React.FC<OrderFormProps> = ({
         editOrder.boxRate,
         previewBoxRate,
       );
+      const editCourier = isPromotionalBykea ? 0 : actualCourier;
       const calculation = recomputeCalculationFromSnapshot(
         editOrder.calculation,
         {
           status,
           shipping: customerShipping,
-          courier: actualCourier,
+          courier: editCourier,
           packing: adjustedPacking,
+          returnExpenseMode,
+          returnOtherExpense,
         },
       );
       return calculationToPreview(calculation);
@@ -275,8 +324,12 @@ const OrderForm: React.FC<OrderFormProps> = ({
       zone,
       {
         customerShippingOverride: displayShipping,
-        courierOverride: displayCourier,
+        courierOverride: effectiveCourier,
         boxRate: previewBoxRate,
+        returnExpenseMode:
+          status === "returned" ? returnExpenseMode : undefined,
+        returnOtherExpense:
+          status === "returned" ? returnOtherExpense : undefined,
       },
     );
   }, [
@@ -288,10 +341,13 @@ const OrderForm: React.FC<OrderFormProps> = ({
     zone,
     editOrder,
     displayShipping,
-    displayCourier,
+    effectiveCourier,
+    isPromotionalBykea,
     previewBoxRate,
     customerShipping,
     actualCourier,
+    returnExpenseMode,
+    returnOtherExpense,
   ]);
 
   const boxPacking = previewBoxRate;
@@ -338,6 +394,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setActualCourier(0);
     setCourierTouched(false);
     setBoxSizeId("");
+    setPromotionalDelivery("courier");
+    setBykeaExpense(0);
+    setReturnExpenseMode("packing_only");
+    setReturnOtherExpense(0);
     clearDraft();
   };
 
@@ -365,9 +425,13 @@ const OrderForm: React.FC<OrderFormProps> = ({
       zone,
       lines,
       customerShipping: displayShipping,
-      actualCourier: displayCourier,
+      actualCourier: effectiveCourier,
       courierTouched,
       boxSizeId: boxSizeId.trim(),
+      promotionalDelivery,
+      bykeaExpense,
+      returnExpenseMode,
+      returnOtherExpense,
     });
 
     if (!editOrder) {
@@ -457,10 +521,106 @@ const OrderForm: React.FC<OrderFormProps> = ({
         </label>
       </div>
 
+      {status === "returned" && (
+        <div className="mb-4 rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-4">
+          <label className="block max-w-md">
+            <span className="text-[13px] text-[#6b7280] mb-1 block">
+              Return Expense
+            </span>
+            <select
+              value={returnExpenseMode}
+              onChange={(e) =>
+                setReturnExpenseMode(e.target.value as ReturnExpenseMode)
+              }
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2"
+            >
+              <option value="packing_only">Packaging Only Expense</option>
+              <option value="packing_and_product">
+                Packing &amp; Product Expense
+              </option>
+              <option value="manual">Manual Expense</option>
+            </select>
+          </label>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
+              <p className="text-[12px] text-[#6b7280]">Total Packing</p>
+              <p className="text-[15px] font-semibold text-[#1f2937]">
+                {money(preview?.packing ?? productPacking + boxPacking)}
+              </p>
+            </div>
+            {returnExpenseMode === "packing_and_product" && (
+              <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
+                <p className="text-[12px] text-[#6b7280]">Product Expense</p>
+                <p className="text-[15px] font-semibold text-[#1f2937]">
+                  {money(preview?.honeyCost ?? 0)}
+                </p>
+              </div>
+            )}
+            {returnExpenseMode === "manual" && (
+              <label className="block">
+                <span className="text-[13px] text-[#6b7280] mb-1 block">
+                  Returned other expense (Rs.)
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={returnOtherExpense}
+                  onChange={(e) =>
+                    setReturnOtherExpense(Number(e.target.value) || 0)
+                  }
+                  className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2"
+                />
+              </label>
+            )}
+          </div>
+        </div>
+      )}
+
+      {status === "promotional" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <label className="block">
+            <span className="text-[13px] text-[#6b7280] mb-1 block">
+              PR Delivery
+            </span>
+            <select
+              value={promotionalDelivery}
+              onChange={(e) =>
+                setPromotionalDelivery(e.target.value as PromotionalDelivery)
+              }
+              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+            >
+              <option value="courier">M&P Courier Service</option>
+              <option value="bykea">Bykea</option>
+            </select>
+          </label>
+
+          {isPromotionalBykea && (
+            <label className="block">
+              <span className="text-[13px] text-[#6b7280] mb-1 block">
+                Bykea Expense (Rs.)
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={bykeaExpense}
+                onChange={(e) => setBykeaExpense(Number(e.target.value) || 0)}
+                className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+              />
+              <span className="mt-1 block text-[12px] text-[#6b7280]">
+                Recorded on this order only; not included in expense or profit
+                totals.
+              </span>
+            </label>
+          )}
+        </div>
+      )}
+
+      {showCourierFields && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">
-            Courier Service
+            M&P Courier Service
           </span>
           <select
             value={courierService}
@@ -493,8 +653,13 @@ const OrderForm: React.FC<OrderFormProps> = ({
           </label>
         )}
       </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div
+        className={`grid grid-cols-1 gap-4 mb-4 ${
+          showCourierFields ? "md:grid-cols-3" : "md:grid-cols-2"
+        }`}
+      >
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">
             Customer Shipping (Rs.)
@@ -511,21 +676,23 @@ const OrderForm: React.FC<OrderFormProps> = ({
           />
         </label>
 
-        <label className="block">
-          <span className="text-[13px] text-[#6b7280] mb-1 block">
-            Actual Courier (Rs.)
-          </span>
-          <input
-            type="number"
-            min={0}
-            value={editOrder ? actualCourier : displayCourier}
-            onChange={(e) => {
-              setCourierTouched(true);
-              setActualCourier(Number(e.target.value) || 0);
-            }}
-            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
-          />
-        </label>
+        {showCourierFields && (
+          <label className="block">
+            <span className="text-[13px] text-[#6b7280] mb-1 block">
+              Actual Courier (Rs.)
+            </span>
+            <input
+              type="number"
+              min={0}
+              value={editOrder ? actualCourier : displayCourier}
+              onChange={(e) => {
+                setCourierTouched(true);
+                setActualCourier(Number(e.target.value) || 0);
+              }}
+              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+            />
+          </label>
+        )}
 
         <label className="block">
           <span className="text-[13px] text-[#6b7280] mb-1 block">Box Size</span>
@@ -549,10 +716,13 @@ const OrderForm: React.FC<OrderFormProps> = ({
           )}
         </label>
       </div>
+
       <p className="text-[12px] text-[#6b7280] mb-4">
-        {editOrder
-          ? "Customer shipping and actual courier can be adjusted for this order. Other costs use the saved snapshot from when the order was created."
-          : "Customer shipping and actual courier default from Settings based on order weight and courier zone. Edit to override for this order."}
+        {isPromotionalBykea
+          ? "Courier charges are not calculated for Bykea PR orders. Enter the bike expense next to PR Delivery for your records."
+          : editOrder
+            ? "Customer shipping and actual courier can be adjusted for this order. Other costs use the saved snapshot from when the order was created."
+            : "Customer shipping and actual courier default from Settings based on order weight and courier zone. Edit to override for this order."}
       </p>
 
       <div className="space-y-3 mb-4">
@@ -690,6 +860,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
         status={status}
         productPacking={productPacking}
         boxPacking={boxPacking}
+        promotionalDelivery={promotionalDelivery}
+        bykeaExpense={bykeaExpense}
       />
 
       <div className="mt-4 flex flex-wrap gap-3">

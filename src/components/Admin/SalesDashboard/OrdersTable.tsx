@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Mail } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, Motorbike } from "lucide-react";
 
 import { money } from "@/lib/sales/calculations";
 import { formatProductLineLabel } from "@/lib/sales/products";
@@ -16,6 +16,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 type OrdersTableProps = {
   orders: SalesOrder[];
+  emptyMessage?: string;
   onEdit: (order: SalesOrder) => void;
   onDelete: (id: string) => void;
   onSendMpComplaint: (order: SalesOrder) => Promise<void>;
@@ -33,6 +34,7 @@ function canSendMpComplaint(order: SalesOrder): boolean {
 
 const OrdersTable: React.FC<OrdersTableProps> = ({
   orders,
+  emptyMessage,
   onEdit,
   onDelete,
   onSendMpComplaint,
@@ -64,7 +66,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
   if (!orders.length) {
     return (
       <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280]">
-        No orders added yet.
+        {emptyMessage ?? "No orders added yet."}
       </div>
     );
   }
@@ -124,11 +126,26 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     {money(c.netProfit)}
                   </td>
                   <td className="py-3 pr-3">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${orderStatusBadgeClass(order.status)}`}
-                    >
-                      {formatOrderStatus(order.status)}
-                    </span>
+                    <div className="inline-flex items-center gap-1.5">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold ${orderStatusBadgeClass(order.status)}`}
+                      >
+                        {formatOrderStatus(order.status)}
+                      </span>
+                      {order.status === "promotional" &&
+                        order.promotionalDelivery === "bykea" && (
+                          <span
+                            className="inline-flex items-center justify-center rounded-full bg-[#f5f3ff] p-1.5 text-[#6d28d9]"
+                            title="Bykea delivery"
+                          >
+                            <Motorbike
+                              className="h-3.5 w-3.5 shrink-0"
+                              strokeWidth={2}
+                              aria-hidden
+                            />
+                          </span>
+                        )}
+                    </div>
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-2">

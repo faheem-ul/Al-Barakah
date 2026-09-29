@@ -9,6 +9,7 @@ import {
 } from "@/lib/sales/box-sizes";
 import {
   calculateSavedProducts,
+  currentMonthValue,
   recomputeCalculationFromSnapshot,
 } from "@/lib/sales/calculations";
 import {
@@ -21,6 +22,8 @@ import type {
   CourierService,
   CourierZone,
   OrderStatus,
+  PromotionalDelivery,
+  ReturnExpenseMode,
   SalesOrder,
   SalesOrderPayload,
   SalesSettings,
@@ -48,7 +51,63 @@ type OrderDraftInput = {
   actualCourier: number;
   courierTouched: boolean;
   boxSizeId: string;
+  promotionalDelivery: PromotionalDelivery;
+  bykeaExpense: number;
+  returnExpenseMode: ReturnExpenseMode;
+  returnOtherExpense: number;
 };
+
+function isPromotionalBykea(
+  status: OrderStatus,
+  delivery: PromotionalDelivery,
+): boolean {
+  return status === "promotional" && delivery === "bykea";
+}
+
+function resolveCourierAmount(draft: OrderDraftInput): number {
+  if (isPromotionalBykea(draft.status, draft.promotionalDelivery)) {
+    return 0;
+  }
+  return draft.actualCourier;
+}
+
+function applyPromotionalFields(
+  payload: SalesOrderPayload,
+  draft: OrderDraftInput,
+): void {
+  if (draft.status !== "promotional") return;
+
+  payload.promotionalDelivery = draft.promotionalDelivery;
+  if (draft.promotionalDelivery === "bykea") {
+    payload.bykeaExpense = Math.max(0, draft.bykeaExpense);
+  }
+}
+
+function applyReturnFields(
+  payload: SalesOrderPayload,
+  draft: OrderDraftInput,
+): void {
+  if (draft.status !== "returned") return;
+
+  payload.returnExpenseMode = draft.returnExpenseMode;
+  payload.calculation.returnExpenseMode = draft.returnExpenseMode;
+  if (draft.returnExpenseMode === "manual") {
+    const amount = Math.max(0, draft.returnOtherExpense);
+    payload.returnOtherExpense = amount;
+    payload.calculation.returnOtherExpense = amount;
+  } else {
+    delete payload.returnOtherExpense;
+    delete payload.calculation.returnOtherExpense;
+  }
+}
+
+function formatMonthLabel(month: string): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  return new Date(year, monthIndex - 1, 1).toLocaleDateString("en-PK", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
 const OrdersTab: React.FC<OrdersTabProps> = ({
   settings,
@@ -63,6 +122,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     null,
   );
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
+  const [orderMonth, setOrderMonth] = useState(currentMonthValue());
 
   const sortedOrders = useMemo(
     () =>
@@ -70,6 +130,14 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       ),
     [orders],
+  );
+
+  const filteredOrders = useMemo(
+    () =>
+      sortedOrders.filter((order) =>
+        String(order.date || "").startsWith(orderMonth),
+      ),
+    [sortedOrders, orderMonth],
   );
 
   const buildCreatePayload = useCallback(
@@ -99,8 +167,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         draft.zone,
         {
           customerShippingOverride: draft.customerShipping,
-          courierOverride: draft.actualCourier,
+          courierOverride: resolveCourierAmount(draft),
           boxRate,
+          returnExpenseMode:
+            draft.status === "returned" ? draft.returnExpenseMode : undefined,
+          returnOtherExpense:
+            draft.status === "returned" ? draft.returnOtherExpense : undefined,
         },
       );
 
@@ -122,6 +194,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         payload.boxRate = boxRate;
       }
 
+      applyPromotionalFields(payload, draft);
+      applyReturnFields(payload, draft);
+
       return payload;
     },
     [settings],
@@ -142,8 +217,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         {
           status: draft.status,
           shipping: draft.customerShipping,
-          courier: draft.actualCourier,
+          courier: resolveCourierAmount(draft),
           packing: adjustedPacking,
+          returnExpenseMode:
+            draft.status === "returned" ? draft.returnExpenseMode : undefined,
+          returnOtherExpense:
+            draft.status === "returned" ? draft.returnOtherExpense : undefined,
         },
       );
 
@@ -165,6 +244,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         payload.boxRate = boxRate;
       }
 
+      applyPromotionalFields(payload, draft);
+      applyReturnFields(payload, draft);
+
       return payload;
     },
     [settings],
@@ -178,8 +260,23 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           const payload = buildEditPayload(draft, editingOrder);
           const clearBoxFields =
             !draft.boxSizeId.trim() && Boolean(editingOrder.boxSizeId);
+          const clearPromotionalFields = draft.status !== "promotional";
+          const clearBykeaExpense =
+            draft.status === "promotional" &&
+            draft.promotionalDelivery === "courier" &&
+            editingOrder.bykeaExpense !== undefined;
+          const clearReturnFields = draft.status !== "returned";
+          const clearReturnOtherExpense =
+            draft.status === "returned" &&
+            draft.returnExpenseMode !== "manual" &&
+            (editingOrder.returnOtherExpense !== undefined ||
+              editingOrder.calculation.returnOtherExpense !== undefined);
           await updateSalesOrder(editingOrder.id, payload, {
             clearBoxFields,
+            clearPromotionalFields,
+            clearBykeaExpense,
+            clearReturnFields,
+            clearReturnOtherExpense,
           });
           const updatedOrder: SalesOrder = {
             id: editingOrder.id,
@@ -189,12 +286,25 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             delete updatedOrder.boxSizeId;
             delete updatedOrder.boxRate;
           }
+          if (clearPromotionalFields) {
+            delete updatedOrder.promotionalDelivery;
+            delete updatedOrder.bykeaExpense;
+          } else if (clearBykeaExpense) {
+            delete updatedOrder.bykeaExpense;
+          }
+          if (clearReturnFields) {
+            delete updatedOrder.returnExpenseMode;
+            delete updatedOrder.returnOtherExpense;
+            delete updatedOrder.calculation.returnExpenseMode;
+            delete updatedOrder.calculation.returnOtherExpense;
+          }
           onOrdersChange(
             orders.map((order) =>
               order.id === editingOrder.id ? updatedOrder : order,
             ),
           );
           setEditingOrder(null);
+          setOrderMonth(String(draft.date || "").slice(0, 7));
           window.alert("Order updated successfully.");
           return;
         }
@@ -202,6 +312,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         const payload = buildCreatePayload(draft, Date.now());
         const id = await createSalesOrder(payload);
         onOrdersChange([{ id, ...payload }, ...orders]);
+        setOrderMonth(String(draft.date || "").slice(0, 7));
         window.alert("Order saved successfully.");
       } catch (error) {
         console.error("Failed to save order", error);
@@ -300,9 +411,27 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
-        <h2 className="text-[19px] font-semibold mb-4">All Orders</h2>
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+          <h2 className="text-[19px] font-semibold">All Orders</h2>
+          <label className="block max-w-xs">
+            <span className="text-[13px] text-[#6b7280] mb-1 block">
+              Filter by Month
+            </span>
+            <input
+              type="month"
+              value={orderMonth}
+              onChange={(e) => setOrderMonth(e.target.value)}
+              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-[14px]"
+            />
+          </label>
+        </div>
         <OrdersTable
-          orders={sortedOrders}
+          orders={filteredOrders}
+          emptyMessage={
+            sortedOrders.length > 0
+              ? `No orders in ${formatMonthLabel(orderMonth)}.`
+              : undefined
+          }
           onEdit={handleEdit}
           onDelete={handleDelete}
           onSendMpComplaint={handleSendMpComplaint}
