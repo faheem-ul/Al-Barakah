@@ -9,6 +9,7 @@ import {
 } from "@/lib/sales/box-sizes";
 import {
   calculateSavedProducts,
+  currentMonthValue,
   recomputeCalculationFromSnapshot,
 } from "@/lib/sales/calculations";
 import {
@@ -79,6 +80,14 @@ function applyPromotionalFields(
   }
 }
 
+function formatMonthLabel(month: string): string {
+  const [year, monthIndex] = month.split("-").map(Number);
+  return new Date(year, monthIndex - 1, 1).toLocaleDateString("en-PK", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 const OrdersTab: React.FC<OrdersTabProps> = ({
   settings,
   orders,
@@ -92,6 +101,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     null,
   );
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
+  const [orderMonth, setOrderMonth] = useState(currentMonthValue());
 
   const sortedOrders = useMemo(
     () =>
@@ -99,6 +109,14 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       ),
     [orders],
+  );
+
+  const filteredOrders = useMemo(
+    () =>
+      sortedOrders.filter((order) =>
+        String(order.date || "").startsWith(orderMonth),
+      ),
+    [sortedOrders, orderMonth],
   );
 
   const buildCreatePayload = useCallback(
@@ -241,6 +259,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             ),
           );
           setEditingOrder(null);
+          setOrderMonth(String(draft.date || "").slice(0, 7));
           window.alert("Order updated successfully.");
           return;
         }
@@ -248,6 +267,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         const payload = buildCreatePayload(draft, Date.now());
         const id = await createSalesOrder(payload);
         onOrdersChange([{ id, ...payload }, ...orders]);
+        setOrderMonth(String(draft.date || "").slice(0, 7));
         window.alert("Order saved successfully.");
       } catch (error) {
         console.error("Failed to save order", error);
@@ -346,9 +366,27 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       </div>
 
       <div className="rounded-[14px] border border-[#e5e7eb] bg-white p-5">
-        <h2 className="text-[19px] font-semibold mb-4">All Orders</h2>
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+          <h2 className="text-[19px] font-semibold">All Orders</h2>
+          <label className="block max-w-xs">
+            <span className="text-[13px] text-[#6b7280] mb-1 block">
+              Filter by Month
+            </span>
+            <input
+              type="month"
+              value={orderMonth}
+              onChange={(e) => setOrderMonth(e.target.value)}
+              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-[14px]"
+            />
+          </label>
+        </div>
         <OrdersTable
-          orders={sortedOrders}
+          orders={filteredOrders}
+          emptyMessage={
+            sortedOrders.length > 0
+              ? `No orders in ${formatMonthLabel(orderMonth)}.`
+              : undefined
+          }
           onEdit={handleEdit}
           onDelete={handleDelete}
           onSendMpComplaint={handleSendMpComplaint}

@@ -16,6 +16,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 type OrdersTableProps = {
   orders: SalesOrder[];
+  emptyMessage?: string;
   onEdit: (order: SalesOrder) => void;
   onDelete: (id: string) => void;
   onSendMpComplaint: (order: SalesOrder) => Promise<void>;
@@ -33,6 +34,7 @@ function canSendMpComplaint(order: SalesOrder): boolean {
 
 const OrdersTable: React.FC<OrdersTableProps> = ({
   orders,
+  emptyMessage,
   onEdit,
   onDelete,
   onSendMpComplaint,
@@ -64,7 +66,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
   if (!orders.length) {
     return (
       <div className="rounded-lg border border-dashed border-[#d1d5db] p-8 text-center text-[#6b7280]">
-        No orders added yet.
+        {emptyMessage ?? "No orders added yet."}
       </div>
     );
   }
