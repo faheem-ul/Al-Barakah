@@ -23,6 +23,7 @@ import type {
   CourierZone,
   OrderStatus,
   PromotionalDelivery,
+  ReturnExpenseMode,
   SalesOrder,
   SalesOrderPayload,
   SalesSettings,
@@ -52,6 +53,8 @@ type OrderDraftInput = {
   boxSizeId: string;
   promotionalDelivery: PromotionalDelivery;
   bykeaExpense: number;
+  returnExpenseMode: ReturnExpenseMode;
+  returnOtherExpense: number;
 };
 
 function isPromotionalBykea(
@@ -77,6 +80,24 @@ function applyPromotionalFields(
   payload.promotionalDelivery = draft.promotionalDelivery;
   if (draft.promotionalDelivery === "bykea") {
     payload.bykeaExpense = Math.max(0, draft.bykeaExpense);
+  }
+}
+
+function applyReturnFields(
+  payload: SalesOrderPayload,
+  draft: OrderDraftInput,
+): void {
+  if (draft.status !== "returned") return;
+
+  payload.returnExpenseMode = draft.returnExpenseMode;
+  payload.calculation.returnExpenseMode = draft.returnExpenseMode;
+  if (draft.returnExpenseMode === "manual") {
+    const amount = Math.max(0, draft.returnOtherExpense);
+    payload.returnOtherExpense = amount;
+    payload.calculation.returnOtherExpense = amount;
+  } else {
+    delete payload.returnOtherExpense;
+    delete payload.calculation.returnOtherExpense;
   }
 }
 
@@ -148,6 +169,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           customerShippingOverride: draft.customerShipping,
           courierOverride: resolveCourierAmount(draft),
           boxRate,
+          returnExpenseMode:
+            draft.status === "returned" ? draft.returnExpenseMode : undefined,
+          returnOtherExpense:
+            draft.status === "returned" ? draft.returnOtherExpense : undefined,
         },
       );
 
@@ -170,6 +195,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       }
 
       applyPromotionalFields(payload, draft);
+      applyReturnFields(payload, draft);
 
       return payload;
     },
@@ -193,6 +219,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           shipping: draft.customerShipping,
           courier: resolveCourierAmount(draft),
           packing: adjustedPacking,
+          returnExpenseMode:
+            draft.status === "returned" ? draft.returnExpenseMode : undefined,
+          returnOtherExpense:
+            draft.status === "returned" ? draft.returnOtherExpense : undefined,
         },
       );
 
@@ -215,6 +245,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
       }
 
       applyPromotionalFields(payload, draft);
+      applyReturnFields(payload, draft);
 
       return payload;
     },
@@ -234,10 +265,18 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             draft.status === "promotional" &&
             draft.promotionalDelivery === "courier" &&
             editingOrder.bykeaExpense !== undefined;
+          const clearReturnFields = draft.status !== "returned";
+          const clearReturnOtherExpense =
+            draft.status === "returned" &&
+            draft.returnExpenseMode !== "manual" &&
+            (editingOrder.returnOtherExpense !== undefined ||
+              editingOrder.calculation.returnOtherExpense !== undefined);
           await updateSalesOrder(editingOrder.id, payload, {
             clearBoxFields,
             clearPromotionalFields,
             clearBykeaExpense,
+            clearReturnFields,
+            clearReturnOtherExpense,
           });
           const updatedOrder: SalesOrder = {
             id: editingOrder.id,
@@ -252,6 +291,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             delete updatedOrder.bykeaExpense;
           } else if (clearBykeaExpense) {
             delete updatedOrder.bykeaExpense;
+          }
+          if (clearReturnFields) {
+            delete updatedOrder.returnExpenseMode;
+            delete updatedOrder.returnOtherExpense;
+            delete updatedOrder.calculation.returnExpenseMode;
+            delete updatedOrder.calculation.returnOtherExpense;
           }
           onOrdersChange(
             orders.map((order) =>

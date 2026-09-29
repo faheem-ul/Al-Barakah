@@ -16,9 +16,32 @@ import type {
   SalesSettings,
   NumericSettingsKey,
   OrderPreviewOptions,
+  ReturnExpenseMode,
   StockPurchase,
   StockExpense,
 } from "./types";
+
+export function normalizeReturnExpenseMode(
+  mode?: string | null,
+): ReturnExpenseMode {
+  if (mode === "packing_and_product" || mode === "manual") return mode;
+  if (mode === "packaging_only") return "packing_only";
+  return "packing_only";
+}
+
+export function resolveReturnExpenseParts(
+  mode: ReturnExpenseMode | undefined,
+  honeyCost: number,
+  returnOtherExpense: number,
+): { returnProductCost: number; returnManualExpense: number } {
+  const normalized = normalizeReturnExpenseMode(mode);
+  return {
+    returnProductCost:
+      normalized === "packing_and_product" ? Math.max(0, honeyCost) : 0,
+    returnManualExpense:
+      normalized === "manual" ? Math.max(0, returnOtherExpense) : 0,
+  };
+}
 
 export function money(value: number | undefined | null): string {
   return `Rs. ${Math.round(value || 0).toLocaleString("en-PK")}`;
@@ -306,8 +329,27 @@ export function calculateOrderPreview(
     netProfit = revenue - expenses;
   }
 
+  const returnExpenseMode =
+    status === "returned"
+      ? normalizeReturnExpenseMode(options?.returnExpenseMode)
+      : undefined;
+  const returnOtherExpense =
+    status === "returned"
+      ? Math.max(0, Number(options?.returnOtherExpense) || 0)
+      : 0;
+  const { returnProductCost, returnManualExpense } = resolveReturnExpenseParts(
+    returnExpenseMode,
+    honeyCost,
+    returnOtherExpense,
+  );
+
   if (status === "returned") {
-    expenses = packing + courier + customExpensesTotal;
+    expenses =
+      packing +
+      courier +
+      customExpensesTotal +
+      returnProductCost +
+      returnManualExpense;
     netProfit = -expenses;
   }
 
@@ -330,6 +372,11 @@ export function calculateOrderPreview(
     netProfit,
     customExpenses,
     customExpensesTotal,
+    returnExpenseMode,
+    returnOtherExpense:
+      returnExpenseMode === "manual" ? returnOtherExpense : undefined,
+    returnProductCost,
+    returnManualExpense,
   };
 
   if (status === "delivered") {
@@ -370,7 +417,7 @@ export function calculateSavedProducts(
 }
 
 function previewToCalculation(preview: OrderPreviewResult): SalesOrderCalculation {
-  return {
+  const calculation: SalesOrderCalculation = {
     productRevenue: preview.productRevenue,
     shipping: preview.customerShipping,
     weight: preview.weight,
@@ -383,6 +430,18 @@ function previewToCalculation(preview: OrderPreviewResult): SalesOrderCalculatio
     netProfit: preview.netProfit,
     customExpenses: preview.customExpenses,
   };
+
+  if (preview.returnExpenseMode) {
+    calculation.returnExpenseMode = preview.returnExpenseMode;
+    if (
+      preview.returnExpenseMode === "manual" &&
+      preview.returnOtherExpense !== undefined
+    ) {
+      calculation.returnOtherExpense = preview.returnOtherExpense;
+    }
+  }
+
+  return calculation;
 }
 
 export function recomputeCalculationFromSnapshot(
@@ -392,6 +451,8 @@ export function recomputeCalculationFromSnapshot(
     shipping: number;
     courier: number;
     packing?: number;
+    returnExpenseMode?: ReturnExpenseMode;
+    returnOtherExpense?: number;
   },
 ): SalesOrderCalculation {
   const {
@@ -412,6 +473,27 @@ export function recomputeCalculationFromSnapshot(
   const customExpensesTotal = sumCustomExpenses(customExpenses);
   const status = params.status;
 
+  const returnExpenseMode =
+    status === "returned"
+      ? normalizeReturnExpenseMode(
+          params.returnExpenseMode ?? base.returnExpenseMode,
+        )
+      : undefined;
+  const returnOtherExpense =
+    status === "returned"
+      ? Math.max(
+          0,
+          params.returnOtherExpense ??
+            base.returnOtherExpense ??
+            0,
+        )
+      : 0;
+  const { returnProductCost, returnManualExpense } = resolveReturnExpenseParts(
+    returnExpenseMode,
+    honeyCost,
+    returnOtherExpense,
+  );
+
   let revenue = 0;
   let expenses = 0;
   let netProfit = 0;
@@ -421,7 +503,12 @@ export function recomputeCalculationFromSnapshot(
     expenses = honeyCost + packing + courier + customExpensesTotal;
     netProfit = revenue - expenses;
   } else if (status === "returned") {
-    expenses = packing + courier + customExpensesTotal;
+    expenses =
+      packing +
+      courier +
+      customExpensesTotal +
+      returnProductCost +
+      returnManualExpense;
     netProfit = -expenses;
   } else if (status === "promotional") {
     revenue = 0;
@@ -429,7 +516,7 @@ export function recomputeCalculationFromSnapshot(
     netProfit = -expenses;
   }
 
-  return {
+  const calculation: SalesOrderCalculation = {
     productRevenue,
     shipping,
     weight,
@@ -442,12 +529,29 @@ export function recomputeCalculationFromSnapshot(
     netProfit,
     customExpenses,
   };
+
+  if (returnExpenseMode) {
+    calculation.returnExpenseMode = returnExpenseMode;
+    if (returnExpenseMode === "manual") {
+      calculation.returnOtherExpense = returnOtherExpense;
+    }
+  }
+
+  return calculation;
 }
 
 export function calculationToPreview(
   calculation: SalesOrderCalculation,
 ): OrderPreviewResult {
   const customExpenses = calculation.customExpenses ?? [];
+
+  const returnExpenseMode = calculation.returnExpenseMode;
+  const returnOtherExpense = calculation.returnOtherExpense ?? 0;
+  const { returnProductCost, returnManualExpense } = resolveReturnExpenseParts(
+    returnExpenseMode,
+    calculation.honeyCost,
+    returnOtherExpense,
+  );
 
   return {
     productRevenue: calculation.productRevenue,
@@ -462,6 +566,11 @@ export function calculationToPreview(
     netProfit: calculation.netProfit,
     customExpenses,
     customExpensesTotal: sumCustomExpenses(customExpenses),
+    returnExpenseMode,
+    returnOtherExpense:
+      returnExpenseMode === "manual" ? returnOtherExpense : undefined,
+    returnProductCost,
+    returnManualExpense,
   };
 }
 

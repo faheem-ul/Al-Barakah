@@ -11,6 +11,10 @@ export type PaymentSubTab = "payments-mp" | "payments-wholesaler";
 
 export type OrderStatus = "delivered" | "returned" | "pending" | "promotional";
 export type PromotionalDelivery = "courier" | "bykea";
+export type ReturnExpenseMode =
+  | "packing_only"
+  | "packing_and_product"
+  | "manual";
 export type CourierService = "overnight" | "secondDay";
 export type CourierZone = "withinCity" | "sameZone" | "diffZone";
 
@@ -120,6 +124,8 @@ export type SalesOrderCalculation = {
   expenses: number;
   netProfit: number;
   customExpenses?: AppliedCustomExpense[];
+  returnExpenseMode?: ReturnExpenseMode;
+  returnOtherExpense?: number;
 };
 
 export type SalesOrder = {
@@ -138,6 +144,8 @@ export type SalesOrder = {
   boxRate?: number;
   promotionalDelivery?: PromotionalDelivery;
   bykeaExpense?: number;
+  returnExpenseMode?: ReturnExpenseMode;
+  returnOtherExpense?: number;
   createdAt: number;
 };
 
@@ -169,6 +177,8 @@ export type OrderPreviewOptions = {
   courierOverride?: number;
   preservedCustomExpenses?: AppliedCustomExpense[];
   boxRate?: number;
+  returnExpenseMode?: ReturnExpenseMode;
+  returnOtherExpense?: number;
 };
 
 export type ProductLineInput = {
@@ -189,6 +199,10 @@ export type OrderPreviewResult = {
   netProfit: number;
   customExpenses: AppliedCustomExpense[];
   customExpensesTotal: number;
+  returnExpenseMode?: ReturnExpenseMode;
+  returnOtherExpense?: number;
+  returnProductCost: number;
+  returnManualExpense: number;
 };
 
 export type ProductReportRow = {

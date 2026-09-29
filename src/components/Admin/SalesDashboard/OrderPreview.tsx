@@ -62,7 +62,7 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({
       label: "Product Total",
       value: money(result.productRevenue),
     },
-    ...(status === "promotional"
+    ...(status === "promotional" || status === "returned"
       ? [
           {
             key: "product-cost",

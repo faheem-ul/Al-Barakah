@@ -11,8 +11,10 @@ import {
   deleteField,
 } from "@/lib/firebase";
 
+import { normalizeReturnExpenseMode } from "./calculations";
 import type {
   OrderStatus,
+  ReturnExpenseMode,
   SalesOrder,
   SalesOrderCalculation,
   SalesOrderPayload,
@@ -46,7 +48,20 @@ function mapCalculation(
     expenses: base.expenses ?? 0,
     netProfit: base.netProfit ?? base.netOutcome ?? 0,
     customExpenses: base.customExpenses ?? [],
+    returnExpenseMode: base.returnExpenseMode,
+    returnOtherExpense:
+      base.returnOtherExpense !== undefined && base.returnOtherExpense !== null
+        ? Math.max(0, Number(base.returnOtherExpense) || 0)
+        : undefined,
   };
+}
+
+function mapReturnExpenseMode(
+  status: OrderStatus,
+  mode?: string,
+): ReturnExpenseMode | undefined {
+  if (status !== "returned") return undefined;
+  return normalizeReturnExpenseMode(mode);
 }
 
 export function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrder {
@@ -80,6 +95,26 @@ export function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrd
       data.bykeaExpense !== undefined && data.bykeaExpense !== null
         ? Math.max(0, Number(data.bykeaExpense) || 0)
         : undefined,
+    returnExpenseMode: mapReturnExpenseMode(
+      normalizeStatus(data.status),
+      data.returnExpenseMode ??
+        (data.calculation as SalesOrderCalculation | undefined)
+          ?.returnExpenseMode,
+    ),
+    returnOtherExpense:
+      normalizeStatus(data.status) === "returned" &&
+      (data.returnExpenseMode ??
+        (data.calculation as SalesOrderCalculation | undefined)
+          ?.returnExpenseMode) === "manual"
+        ? Math.max(
+            0,
+            Number(
+              data.returnOtherExpense ??
+                (data.calculation as SalesOrderCalculation | undefined)
+                  ?.returnOtherExpense,
+            ) || 0,
+          )
+        : undefined,
     createdAt: data.createdAt ?? Date.now(),
   };
 }
@@ -111,6 +146,8 @@ export async function updateSalesOrder(
     clearBoxFields?: boolean;
     clearPromotionalFields?: boolean;
     clearBykeaExpense?: boolean;
+    clearReturnFields?: boolean;
+    clearReturnOtherExpense?: boolean;
   },
 ): Promise<void> {
   const update: Record<string, unknown> = { ...payload };
@@ -123,6 +160,12 @@ export async function updateSalesOrder(
     update.bykeaExpense = deleteField();
   } else if (options?.clearBykeaExpense) {
     update.bykeaExpense = deleteField();
+  }
+  if (options?.clearReturnFields) {
+    update.returnExpenseMode = deleteField();
+    update.returnOtherExpense = deleteField();
+  } else if (options?.clearReturnOtherExpense) {
+    update.returnOtherExpense = deleteField();
   }
   await updateDoc(doc(db, "sales-orders", id), update);
 }

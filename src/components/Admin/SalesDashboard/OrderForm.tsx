@@ -7,6 +7,8 @@ import {
   calculateOrderPreview,
   calculatePackingCost,
   calculationToPreview,
+  money,
+  normalizeReturnExpenseMode,
   recomputeCalculationFromSnapshot,
   todayIsoDate,
 } from "@/lib/sales/calculations";
@@ -26,6 +28,7 @@ import type {
   OrderDraft,
   OrderStatus,
   PromotionalDelivery,
+  ReturnExpenseMode,
   SalesOrder,
   SalesSettings,
 } from "@/lib/sales/types";
@@ -59,6 +62,8 @@ type OrderFormProps = {
     boxSizeId: string;
     promotionalDelivery: PromotionalDelivery;
     bykeaExpense: number;
+    returnExpenseMode: ReturnExpenseMode;
+    returnOtherExpense: number;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -122,6 +127,9 @@ const OrderForm: React.FC<OrderFormProps> = ({
   const [promotionalDelivery, setPromotionalDelivery] =
     useState<PromotionalDelivery>("courier");
   const [bykeaExpense, setBykeaExpense] = useState(0);
+  const [returnExpenseMode, setReturnExpenseMode] =
+    useState<ReturnExpenseMode>("packing_only");
+  const [returnOtherExpense, setReturnOtherExpense] = useState(0);
   const [initialized, setInitialized] = useState(false);
 
   const boxSizes = settings.boxSizes ?? [];
@@ -146,6 +154,17 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setBoxSizeId(editOrder.boxSizeId ?? "");
       setPromotionalDelivery(editOrder.promotionalDelivery ?? "courier");
       setBykeaExpense(editOrder.bykeaExpense ?? 0);
+      setReturnExpenseMode(
+        normalizeReturnExpenseMode(
+          editOrder.returnExpenseMode ??
+            editOrder.calculation.returnExpenseMode,
+        ),
+      );
+      setReturnOtherExpense(
+        editOrder.returnOtherExpense ??
+          editOrder.calculation.returnOtherExpense ??
+          0,
+      );
       setInitialized(true);
       return;
     }
@@ -224,6 +243,13 @@ const OrderForm: React.FC<OrderFormProps> = ({
   }, [status]);
 
   useEffect(() => {
+    if (status !== "returned") {
+      setReturnExpenseMode("packing_only");
+      setReturnOtherExpense(0);
+    }
+  }, [status]);
+
+  useEffect(() => {
     if (!initialized || editOrder) return;
     saveDraft({
       orderNumber,
@@ -282,6 +308,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
           shipping: customerShipping,
           courier: editCourier,
           packing: adjustedPacking,
+          returnExpenseMode,
+          returnOtherExpense,
         },
       );
       return calculationToPreview(calculation);
@@ -298,6 +326,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
         customerShippingOverride: displayShipping,
         courierOverride: effectiveCourier,
         boxRate: previewBoxRate,
+        returnExpenseMode:
+          status === "returned" ? returnExpenseMode : undefined,
+        returnOtherExpense:
+          status === "returned" ? returnOtherExpense : undefined,
       },
     );
   }, [
@@ -314,6 +346,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
     previewBoxRate,
     customerShipping,
     actualCourier,
+    returnExpenseMode,
+    returnOtherExpense,
   ]);
 
   const boxPacking = previewBoxRate;
@@ -362,6 +396,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setBoxSizeId("");
     setPromotionalDelivery("courier");
     setBykeaExpense(0);
+    setReturnExpenseMode("packing_only");
+    setReturnOtherExpense(0);
     clearDraft();
   };
 
@@ -394,6 +430,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
       boxSizeId: boxSizeId.trim(),
       promotionalDelivery,
       bykeaExpense,
+      returnExpenseMode,
+      returnOtherExpense,
     });
 
     if (!editOrder) {
@@ -482,6 +520,62 @@ const OrderForm: React.FC<OrderFormProps> = ({
           </select>
         </label>
       </div>
+
+      {status === "returned" && (
+        <div className="mb-4 rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-4">
+          <label className="block max-w-md">
+            <span className="text-[13px] text-[#6b7280] mb-1 block">
+              Return Expense
+            </span>
+            <select
+              value={returnExpenseMode}
+              onChange={(e) =>
+                setReturnExpenseMode(e.target.value as ReturnExpenseMode)
+              }
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2"
+            >
+              <option value="packing_only">Packaging Only Expense</option>
+              <option value="packing_and_product">
+                Packing &amp; Product Expense
+              </option>
+              <option value="manual">Manual Expense</option>
+            </select>
+          </label>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
+              <p className="text-[12px] text-[#6b7280]">Total Packing</p>
+              <p className="text-[15px] font-semibold text-[#1f2937]">
+                {money(preview?.packing ?? productPacking + boxPacking)}
+              </p>
+            </div>
+            {returnExpenseMode === "packing_and_product" && (
+              <div className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2">
+                <p className="text-[12px] text-[#6b7280]">Product Expense</p>
+                <p className="text-[15px] font-semibold text-[#1f2937]">
+                  {money(preview?.honeyCost ?? 0)}
+                </p>
+              </div>
+            )}
+            {returnExpenseMode === "manual" && (
+              <label className="block">
+                <span className="text-[13px] text-[#6b7280] mb-1 block">
+                  Returned other expense (Rs.)
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={returnOtherExpense}
+                  onChange={(e) =>
+                    setReturnOtherExpense(Number(e.target.value) || 0)
+                  }
+                  className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2"
+                />
+              </label>
+            )}
+          </div>
+        </div>
+      )}
 
       {status === "promotional" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
