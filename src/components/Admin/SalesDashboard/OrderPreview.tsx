@@ -3,13 +3,19 @@
 import React from "react";
 
 import { money } from "@/lib/sales/calculations";
-import type { OrderPreviewResult, OrderStatus } from "@/lib/sales/types";
+import type {
+  OrderPreviewResult,
+  OrderStatus,
+  PromotionalDelivery,
+} from "@/lib/sales/types";
 
 type OrderPreviewProps = {
   result: OrderPreviewResult | null;
   status: OrderStatus;
   productPacking?: number;
   boxPacking?: number;
+  promotionalDelivery?: PromotionalDelivery;
+  bykeaExpense?: number;
 };
 
 function PreviewCard({
@@ -32,8 +38,13 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({
   status,
   productPacking,
   boxPacking,
+  promotionalDelivery = "courier",
+  bykeaExpense = 0,
 }) => {
   if (!result || result.units <= 0) return null;
+
+  const showBykeaRecord =
+    status === "promotional" && promotionalDelivery === "bykea";
 
   const profitLabel =
     status === "returned"
@@ -146,6 +157,20 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({
           ))}
         </div>
       </div>
+
+      {showBykeaRecord && (
+        <div className="rounded-lg border border-dashed border-[#d1d5db] bg-[#fafafa] px-4 py-3">
+          <p className="text-[12px] text-[#6b7280]">
+            Bykea expense (record only)
+          </p>
+          <p className="text-[15px] font-semibold text-[#1f2937]">
+            {money(bykeaExpense)}
+          </p>
+          <p className="mt-1 text-[11px] text-[#9ca3af]">
+            Not included in Expenses or profit totals above.
+          </p>
+        </div>
+      )}
 
       <div
         className={`flex items-center justify-between rounded-xl px-4 py-3 font-semibold ${

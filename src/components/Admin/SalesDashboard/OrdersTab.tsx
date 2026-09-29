@@ -21,6 +21,7 @@ import type {
   CourierService,
   CourierZone,
   OrderStatus,
+  PromotionalDelivery,
   SalesOrder,
   SalesOrderPayload,
   SalesSettings,
@@ -48,7 +49,35 @@ type OrderDraftInput = {
   actualCourier: number;
   courierTouched: boolean;
   boxSizeId: string;
+  promotionalDelivery: PromotionalDelivery;
+  bykeaExpense: number;
 };
+
+function isPromotionalBykea(
+  status: OrderStatus,
+  delivery: PromotionalDelivery,
+): boolean {
+  return status === "promotional" && delivery === "bykea";
+}
+
+function resolveCourierAmount(draft: OrderDraftInput): number {
+  if (isPromotionalBykea(draft.status, draft.promotionalDelivery)) {
+    return 0;
+  }
+  return draft.actualCourier;
+}
+
+function applyPromotionalFields(
+  payload: SalesOrderPayload,
+  draft: OrderDraftInput,
+): void {
+  if (draft.status !== "promotional") return;
+
+  payload.promotionalDelivery = draft.promotionalDelivery;
+  if (draft.promotionalDelivery === "bykea") {
+    payload.bykeaExpense = Math.max(0, draft.bykeaExpense);
+  }
+}
 
 const OrdersTab: React.FC<OrdersTabProps> = ({
   settings,
@@ -99,7 +128,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         draft.zone,
         {
           customerShippingOverride: draft.customerShipping,
-          courierOverride: draft.actualCourier,
+          courierOverride: resolveCourierAmount(draft),
           boxRate,
         },
       );
@@ -122,6 +151,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         payload.boxRate = boxRate;
       }
 
+      applyPromotionalFields(payload, draft);
+
       return payload;
     },
     [settings],
@@ -142,7 +173,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         {
           status: draft.status,
           shipping: draft.customerShipping,
-          courier: draft.actualCourier,
+          courier: resolveCourierAmount(draft),
           packing: adjustedPacking,
         },
       );
@@ -165,6 +196,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         payload.boxRate = boxRate;
       }
 
+      applyPromotionalFields(payload, draft);
+
       return payload;
     },
     [settings],
@@ -178,8 +211,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           const payload = buildEditPayload(draft, editingOrder);
           const clearBoxFields =
             !draft.boxSizeId.trim() && Boolean(editingOrder.boxSizeId);
+          const clearPromotionalFields = draft.status !== "promotional";
+          const clearBykeaExpense =
+            draft.status === "promotional" &&
+            draft.promotionalDelivery === "courier" &&
+            editingOrder.bykeaExpense !== undefined;
           await updateSalesOrder(editingOrder.id, payload, {
             clearBoxFields,
+            clearPromotionalFields,
+            clearBykeaExpense,
           });
           const updatedOrder: SalesOrder = {
             id: editingOrder.id,
@@ -188,6 +228,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
           if (clearBoxFields) {
             delete updatedOrder.boxSizeId;
             delete updatedOrder.boxRate;
+          }
+          if (clearPromotionalFields) {
+            delete updatedOrder.promotionalDelivery;
+            delete updatedOrder.bykeaExpense;
+          } else if (clearBykeaExpense) {
+            delete updatedOrder.bykeaExpense;
           }
           onOrdersChange(
             orders.map((order) =>

@@ -10,6 +10,7 @@ export type SalesTab =
 export type PaymentSubTab = "payments-mp" | "payments-wholesaler";
 
 export type OrderStatus = "delivered" | "returned" | "pending" | "promotional";
+export type PromotionalDelivery = "courier" | "bykea";
 export type CourierService = "overnight" | "secondDay";
 export type CourierZone = "withinCity" | "sameZone" | "diffZone";
 
@@ -135,6 +136,8 @@ export type SalesOrder = {
   freeDelivery?: boolean;
   boxSizeId?: string;
   boxRate?: number;
+  promotionalDelivery?: PromotionalDelivery;
+  bykeaExpense?: number;
   createdAt: number;
 };
 

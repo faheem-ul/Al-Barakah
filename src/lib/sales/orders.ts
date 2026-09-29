@@ -70,6 +70,16 @@ export function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrd
       data.boxRate !== undefined && data.boxRate !== null
         ? Math.max(0, Number(data.boxRate) || 0)
         : undefined,
+    promotionalDelivery:
+      data.promotionalDelivery === "bykea"
+        ? "bykea"
+        : data.promotionalDelivery === "courier"
+          ? "courier"
+          : undefined,
+    bykeaExpense:
+      data.bykeaExpense !== undefined && data.bykeaExpense !== null
+        ? Math.max(0, Number(data.bykeaExpense) || 0)
+        : undefined,
     createdAt: data.createdAt ?? Date.now(),
   };
 }
@@ -97,12 +107,22 @@ export async function deleteSalesOrder(id: string): Promise<void> {
 export async function updateSalesOrder(
   id: string,
   payload: SalesOrderPayload,
-  options?: { clearBoxFields?: boolean },
+  options?: {
+    clearBoxFields?: boolean;
+    clearPromotionalFields?: boolean;
+    clearBykeaExpense?: boolean;
+  },
 ): Promise<void> {
   const update: Record<string, unknown> = { ...payload };
   if (options?.clearBoxFields) {
     update.boxSizeId = deleteField();
     update.boxRate = deleteField();
+  }
+  if (options?.clearPromotionalFields) {
+    update.promotionalDelivery = deleteField();
+    update.bykeaExpense = deleteField();
+  } else if (options?.clearBykeaExpense) {
+    update.bykeaExpense = deleteField();
   }
   await updateDoc(doc(db, "sales-orders", id), update);
 }
