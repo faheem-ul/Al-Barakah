@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { SITEMAP_BASE_URL } from "@/lib/seo/sitemap-urls";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -14,7 +16,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
+        disallow: ["/cart", "/admin"],
       },
     ],
+    sitemap: `${SITEMAP_BASE_URL}/sitemap.xml`,
   };
 }

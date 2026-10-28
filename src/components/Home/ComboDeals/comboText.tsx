@@ -4,6 +4,7 @@ import { splitTitleSegments } from "@/hooks/useProductData";
 import { cn } from "@/lib/utils";
 
 export {
+  buildComboProductImageAlt,
   formatComboText,
   getComboContents,
   normalizeContents,
@@ -28,6 +29,7 @@ export const MixedScriptText = ({
   latinClassName,
   align = "center",
   stackWeightOnMobile = false,
+  wrapperAs = "div",
 }: {
   text: string;
   className?: string;
@@ -37,7 +39,11 @@ export const MixedScriptText = ({
   align?: "center" | "start";
   /** Mobile: name on one line, (weight) on the next. Desktop unchanged. */
   stackWeightOnMobile?: boolean;
+  /** Card titles: h3 with same classes; line wrappers become span inside h3. */
+  wrapperAs?: "div" | "h3";
 }) => {
+  const Wrapper = wrapperAs;
+  const LineTag = wrapperAs === "h3" ? "span" : "p";
   const lines = text.split(/\n/).filter((line) => line.trim().length > 0);
 
   const lineClasses = (line: string, lineIndex: number, extra?: string) =>
@@ -93,7 +99,7 @@ export const MixedScriptText = ({
   };
 
   return (
-    <div className={cn("min-w-0 max-w-full", className)}>
+    <Wrapper className={cn("min-w-0 max-w-full", className)}>
       {lines.map((line, lineIndex) => {
         const stacked =
           stackWeightOnMobile && WEIGHT_AT_START.test(line)
@@ -104,10 +110,10 @@ export const MixedScriptText = ({
           return (
             <div key={`line-${lineIndex}`}>
               <div className="md:hidden">
-                <p className={lineClasses(stacked.name, lineIndex)}>
+                <LineTag className={lineClasses(stacked.name, lineIndex)}>
                   {renderLineContent(stacked.name, lineIndex, `m-name-${lineIndex}`)}
-                </p>
-                <p
+                </LineTag>
+                <LineTag
                   className={lineClasses(
                     stacked.weight,
                     lineIndex,
@@ -119,26 +125,32 @@ export const MixedScriptText = ({
                     lineIndex,
                     `m-weight-${lineIndex}`,
                   )}
-                </p>
+                </LineTag>
               </div>
-              <p
+              <LineTag
                 className={cn(
                   lineClasses(line, lineIndex),
                   "hidden md:block",
                 )}
               >
                 {renderLineContent(line, lineIndex, `d-${lineIndex}`)}
-              </p>
+              </LineTag>
             </div>
           );
         }
 
         return (
-          <p key={`line-${lineIndex}`} className={lineClasses(line, lineIndex)}>
+          <LineTag
+            key={`line-${lineIndex}`}
+            className={cn(
+              lineClasses(line, lineIndex),
+              wrapperAs === "h3" && "block",
+            )}
+          >
             {renderLineContent(line, lineIndex, `line-${lineIndex}`)}
-          </p>
+          </LineTag>
         );
       })}
-    </div>
+    </Wrapper>
   );
 };

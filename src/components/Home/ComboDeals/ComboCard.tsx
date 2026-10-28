@@ -19,6 +19,7 @@ import {
   isFeaturedCombo,
 } from "./comboConfig";
 import {
+  buildComboProductImageAlt,
   formatComboText,
   getComboContents,
   MixedScriptText,
@@ -47,6 +48,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
   const featured = isFeaturedCombo(categoryId, product.handle);
   const contents = getComboContents(product);
   const normalizedTitle = formatComboText(product.title || "");
+  const imageAlt = buildComboProductImageAlt(product);
 
   const compareAmount = variant?.compareAtPrice?.amount || comparePrice;
   const priceAmount = variant?.price?.amount || currentPrice;
@@ -126,7 +128,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
         <div className="relative mb-3 overflow-hidden rounded-[12px] bg-[#f5f5f5] md:mb-4">
           <Image
             src={image}
-            alt={product.title}
+            alt={imageAlt}
             width={800}
             height={1000}
             className="h-auto w-full object-contain"
@@ -144,6 +146,7 @@ const ComboCard = ({ product, categoryId }: ComboCardProps) => {
 
         <MixedScriptText
           text={normalizedTitle}
+          wrapperAs="h3"
           className="min-w-0 max-w-full break-words px-0.5 text-[13px] font-bold text-black md:overflow-visible md:text-[17px]"
           urduClassName="px-0.5"
           latinClassName=""

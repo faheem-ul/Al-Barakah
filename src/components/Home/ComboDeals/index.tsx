@@ -49,14 +49,18 @@ const ComboDeals = ({ categories }: ComboDealsProps) => {
       <div className="text-center">
         <Text as="h1" className="text-center text-[32px] md:text-[40px]">
           Combo Deals & Bundles
+          <span className="mt-1 block ">
+            Al-Barakah Pure Wild Honey in Pakistan
+          </span>
         </Text>
         <Text className="font-arabic text-primary-foreground mt-2 text-[18px] font-bold md:text-[24px]">
           زیادہ بچت — ملا کر خریدیں
         </Text>
-        <Text className="mx-auto mt-3 max-w-xl text-[14px] text-black/60 md:text-[15px]">
-          <span className="font-bold text-black">
-            Every combo ships with Free Delivery
-          </span>
+        <Text className="mx-auto mt-3 max-w-3xl text-[14px] leading-relaxed text-black/70 md:text-[15px]">
+          Al-Barakah brings you 100% pure wild honey sourced from Pakistan&apos;s
+          forests – Sidr (Beri) honey, Bari Makhi (Apis mellifera) and Chhoti
+          Makhi (Apis florea) شہد. Choose single jars or combo packs, with free
+          delivery across Pakistan.
         </Text>
       </div>
 

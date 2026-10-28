@@ -22,7 +22,10 @@ const ComboCategory = ({ config, products }: ComboCategoryProps) => {
 
   return (
     <div>
-      <Text className=" text-[18px] font-bold text-black md:text-[20px]">
+      <Text
+        as="h2"
+        className="text-[18px] font-bold leading-normal text-black md:text-[20px]"
+      >
         {config.title}
       </Text>
       <Text className="mt-1 mb-5 text-[14px] text-black/60">

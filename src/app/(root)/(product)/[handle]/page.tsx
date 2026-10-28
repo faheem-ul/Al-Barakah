@@ -1,6 +1,8 @@
 import { getProductByHandle } from "@/lib/shopify/actions/product";
+import { RESERVED_ROOT_PATH_SEGMENTS } from "@/lib/seo/sitemap-urls";
 import { toEnglishSlugFromTitle } from "@/lib/utils";
 import { Metadata } from "next";
+import { notFound } from "next/navigation";
 import React from "react";
 
 import { Product } from "@/lib/shopify/types";
@@ -22,6 +24,11 @@ interface Props {
 
 const MealDetailPage = async ({ params }: Props) => {
   const { handle } = await params;
+
+  if (RESERVED_ROOT_PATH_SEGMENTS.has(handle)) {
+    notFound();
+  }
+
   // Try fetching by Shopify handle first
   let product = await getProductByHandle(handle);
 

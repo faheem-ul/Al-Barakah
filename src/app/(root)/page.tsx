@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 // import { cookies } from "next/headers";
 // import { redirect } from "next/navigation";
 
@@ -10,6 +12,27 @@ import {
   getProducts,
 } from "@/lib/shopify/actions/product";
 import { Product } from "@/lib/shopify/types";
+
+const homeTitle =
+  "Pure Wild Honey in Pakistan | Sidr, Bari & Chhoti Makhi – Al-Barakah";
+const homeDescription =
+  "Buy 100% pure wild honey online in Pakistan – Sidr (Beri), Bari Makhi & Chhoti Makhi شہد. Combo deals, free delivery nationwide. Order now from Al-Barakah.";
+
+export const metadata: Metadata = {
+  title: homeTitle,
+  description: homeDescription,
+  openGraph: {
+    title: homeTitle,
+    description: homeDescription,
+    url: "/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: homeTitle,
+    description: homeDescription,
+  },
+};
 
 const HomePage = async () => {
   // const cookieStore = await cookies();

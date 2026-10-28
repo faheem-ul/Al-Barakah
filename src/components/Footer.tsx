@@ -91,7 +91,11 @@ const Footer = () => {
           {/* Center */}
           <div className="col-span-4 flex w-[65%] flex-col items-center justify-center md:w-[40%] md:pl-[0px]">
             <Link href="/">
-              <Image src={logo} alt="logo" className="w-[186px]" />
+              <Image
+                src={logo}
+                alt="Al-Barakah Pure Wild Honey logo"
+                className="w-[186px]"
+              />
             </Link>
 
             <Text className="mx-auto mt-[16px] max-w-[280px] text-center text-[13px] leading-5 font-normal text-[#979797]  md:text-[16px]">
@@ -200,7 +204,7 @@ const Footer = () => {
               <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                 <Image
                   src={dot}
-                  alt="dot"
+                  alt=""
                   className="h-auto w-[6px] md:w-[8px]"
                 />
               </span>
@@ -217,7 +221,7 @@ const Footer = () => {
               <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                 <Image
                   src={dot}
-                  alt="dot"
+                  alt=""
                   className="h-auto w-[6px] md:w-[8px]"
                 />
               </span>
@@ -235,7 +239,7 @@ const Footer = () => {
               <span className="text-[14px] leading-6 font-medium text-black md:text-[16px]">
                 <Image
                   src={dot}
-                  alt="dot"
+                  alt=""
                   className="h-auto w-[6px] md:w-[8px]"
                 />
               </span>
