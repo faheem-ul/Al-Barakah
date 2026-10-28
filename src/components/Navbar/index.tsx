@@ -46,7 +46,11 @@ const Navbar = () => {
     >
       <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5 md:py-0 py-5 sm:h-[78px] sm:px-8">
         <Link href="/">
-          <Image src={logo} alt="logo" className="w-[105px]" />
+          <Image
+            src={logo}
+            alt="Al-Barakah Pure Wild Honey logo"
+            className="w-[105px]"
+          />
         </Link>
 
         <div className=" nav-items flex items-center gap-9 md:pr-5">

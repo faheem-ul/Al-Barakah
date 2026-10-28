@@ -90,6 +90,27 @@ export const getComboContents = (product: Product) => {
   return formatComboText(raw);
 };
 
+const flattenComboLines = (text: string) =>
+  text
+    .split(/\n/)
+    .map((line) => normalizeContents(line))
+    .filter(Boolean)
+    .join(", ");
+
+/** Combo card / product image alt — title plus jar contents when available. */
+export function buildComboProductImageAlt(product: Product): string {
+  const title = flattenComboLines(formatComboText(product.title || "")).trim();
+  const contents = flattenComboLines(getComboContents(product)).trim();
+  const base = title || normalizeContents(product.title || "") || "Combo deal";
+
+  let description = base;
+  if (contents && contents !== base && !base.includes(contents)) {
+    description = `${base} – ${contents}`;
+  }
+
+  return `${description}`;
+}
+
 /** Split formatted combo text into checkout-friendly lines. */
 export const getComboDescriptionLines = (description: string) =>
   formatComboText(description)

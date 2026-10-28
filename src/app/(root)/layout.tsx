@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import SalesPopup from "@/components/SalesPopup";
 import TopBar from "@/components/TopBar";
 import WhatsAppFloat from "@/components/WhatsAppFloat";
+import { organizationSchemaJsonHtml } from "@/lib/seo/organization-schema";
 
 const siteTitle = "Albaraka Honey";
 const siteDescription = "Albaraka Honey – Pure Blessings in Every Drop";
@@ -44,6 +45,10 @@ export default function RootLayout({
 }>) {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: organizationSchemaJsonHtml() }}
+      />
       <TopBar />
       <Navbar />
       {/* <AzadiSalePromo /> */}
