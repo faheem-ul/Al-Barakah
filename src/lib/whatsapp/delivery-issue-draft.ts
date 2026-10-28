@@ -1,10 +1,15 @@
 import {
+  formatLoyaltyAmount,
+  getLoyaltyCouponConfig,
+} from "@/lib/loyalty/segments";
+import {
   buildTrackingStatusWhatsAppDraft,
   formatCodAmount,
 } from "@/lib/whatsapp/tracking-status-drafts";
 
 export type WhatsAppDraftType =
   | "delivery_issue"
+  | "loyalty_coupon"
   | "order_placed"
   | "status_update"
   | "tracking";
@@ -56,6 +61,26 @@ export function buildOrderPlacedWhatsAppDraft(params: {
   );
 }
 
+/** Pre-filled WhatsApp body for loyalty coupon (separate from order_placed). */
+export function buildLoyaltyCouponWhatsAppDraft(params: {
+  name?: string;
+}): string {
+  const name = cleanLine(params.name) || "Customer";
+  const { code, amount } = getLoyaltyCouponConfig();
+  const amountLabel = formatLoyaltyAmount(amount);
+
+  return (
+    `Assalamualaikum ${name},\n\n` +
+    `Thank you for your order at Al Barakah Honey.\n\n` +
+    `Save ${amountLabel} on your next purchase with coupon code:\n` +
+    `${code}\n\n` +
+    `Enter the code at checkout on your next order. One use per customer. ` +
+    `This offer is for customers who have ordered with us before.\n\n` +
+    `Shop again: ${siteBaseUrl()}\n\n` +
+    `Thank you for choosing Al Barakah Honey`
+  );
+}
+
 /**
  * @deprecated Prefer type=tracking — kept for old email links.
  */
@@ -95,6 +120,9 @@ export function buildWhatsAppDraft(
 ): string {
   if (type === "order_placed") {
     return buildOrderPlacedWhatsAppDraft(params);
+  }
+  if (type === "loyalty_coupon") {
+    return buildLoyaltyCouponWhatsAppDraft(params);
   }
   // tracking | status_update | delivery_issue → per-status drafts
   return buildTrackingStatusWhatsAppDraft(params);

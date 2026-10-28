@@ -7,7 +7,7 @@ import {
 } from "@/lib/whatsapp/delivery-issue-draft";
 
 /**
- * GET /wa?type=tracking|order_placed|delivery_issue|status_update&phone=&name=&order=&status=&cn=&address=&detail=&total=&portal=
+ * GET /wa?type=tracking|order_placed|loyalty_coupon|delivery_issue|status_update&phone=&name=&order=&...
  *
  * Builds the emoji message on the server (UTF-8), then opens WhatsApp.
  * Email buttons must link here with ASCII-only query params — never put
@@ -30,6 +30,7 @@ export function GET(request: NextRequest) {
   const typeParam = (sp.get("type") || "tracking").trim().toLowerCase();
   let type: WhatsAppDraftType = "tracking";
   if (typeParam === "order_placed") type = "order_placed";
+  else if (typeParam === "loyalty_coupon") type = "loyalty_coupon";
   else if (typeParam === "delivery_issue") type = "delivery_issue";
   else if (typeParam === "status_update") type = "status_update";
   else type = "tracking";
