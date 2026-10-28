@@ -193,7 +193,7 @@ export async function notifyAdminNewOrder(
     .join(", ");
   const totalLabel = formatMoney(order.total_price, order.currency);
 
-  const waLink = waPhone
+  const waOrderLink = waPhone
     ? buildWhatsAppSiteLink({
         type: "order_placed",
         phone: waPhone,
@@ -205,14 +205,34 @@ export async function notifyAdminNewOrder(
       })
     : null;
 
-  const ctaHtml = waLink
-    ? brandedCtaButtonHtml({
-        href: waLink,
-        label: "Send WhatsApp — order placed",
-        background: EMAIL_BRAND.whatsapp,
-      }) +
-      `<p style="margin:0;color:${EMAIL_BRAND.muted};font-size:12px;">Opens WhatsApp with order receipt (name, detail, address). Ask customer to confirm or correct. Tap <strong>Send</strong>.</p>`
-    : `<p style="margin:0;color:#b42318;font-size:13px;">No valid customer phone — WhatsApp button skipped.</p>`;
+  const waLoyaltyLink = waPhone
+    ? buildWhatsAppSiteLink({
+        type: "loyalty_coupon",
+        phone: waPhone,
+        name,
+      })
+    : null;
+
+  const ctaHtml = waPhone
+    ? [
+        waOrderLink
+          ? brandedCtaButtonHtml({
+              href: waOrderLink,
+              label: "Send WhatsApp — order placed",
+              background: EMAIL_BRAND.whatsapp,
+            }) +
+            `<p style="margin:0 0 16px;color:${EMAIL_BRAND.muted};font-size:12px;">Order confirmation (name, detail, address). Tap <strong>Send</strong>.</p>`
+          : "",
+        waLoyaltyLink
+          ? brandedCtaButtonHtml({
+              href: waLoyaltyLink,
+              label: "Send WhatsApp — loyalty coupon",
+              background: EMAIL_BRAND.whatsapp,
+            }) +
+            `<p style="margin:0;color:${EMAIL_BRAND.muted};font-size:12px;">Separate message with <strong>ABHLOYAL200</strong> / next-order discount. Tap <strong>Send</strong>.</p>`
+          : "",
+      ].join("")
+    : `<p style="margin:0;color:#b42318;font-size:13px;">No valid customer phone — WhatsApp buttons skipped.</p>`;
 
   const subject = `New order ${displayOrder} — ${name}`;
 
@@ -283,7 +303,8 @@ export async function notifyAdminNewOrder(
     `Total: ${totalLabel}\n` +
     `Note: ${note || "—"}\n\n` +
     `Items:\n${linesPlain || "—"}\n` +
-    (waLink ? `\nSend WhatsApp — order placed:\n${waLink}\n` : "");
+    (waOrderLink ? `\nSend WhatsApp — order placed:\n${waOrderLink}\n` : "") +
+    (waLoyaltyLink ? `\nSend WhatsApp — loyalty coupon:\n${waLoyaltyLink}\n` : "");
 
   await sendAdminEmail({ to, subject, html, text });
 }

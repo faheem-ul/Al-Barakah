@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notifyAdminNewOrder } from "@/lib/email/new-order-admin";
+import { notifyCustomerLoyaltyCoupon } from "@/lib/email/loyalty-coupon-customer";
 import { notifyCustomerNewOrder } from "@/lib/email/new-order-customer";
 import { appendOrderRows, updateOrderStatuses } from "@/lib/google/sheets";
 import { resolveOrderProductDetails } from "@/lib/shopify/line-item-detail";
@@ -29,6 +30,7 @@ const LOG = "[Shopify Webhook]";
 /** One admin/customer new-order email per order number per process (webhook retries / races). */
 const adminEmailedOrderKeys = new Set<string>();
 const customerEmailedOrderKeys = new Set<string>();
+const loyaltyEmailedOrderKeys = new Set<string>();
 
 function claimNewOrderAdminEmail_(orderNumber: string): boolean {
   const key = String(orderNumber).trim();
@@ -43,6 +45,14 @@ function claimNewOrderCustomerEmail_(orderNumber: string): boolean {
   if (!key) return false;
   if (customerEmailedOrderKeys.has(key)) return false;
   customerEmailedOrderKeys.add(key);
+  return true;
+}
+
+function claimNewOrderLoyaltyEmail_(orderNumber: string): boolean {
+  const key = String(orderNumber).trim();
+  if (!key) return false;
+  if (loyaltyEmailedOrderKeys.has(key)) return false;
+  loyaltyEmailedOrderKeys.add(key);
   return true;
 }
 
@@ -107,6 +117,24 @@ async function sendNewOrderEmailsSafe(
   } else {
     console.log(
       `${LOG} Customer email skipped — already sent for order ${orderNumber} (${reason})`,
+    );
+  }
+
+  if (claimNewOrderLoyaltyEmail_(orderNumber)) {
+    try {
+      const result = await notifyCustomerLoyaltyCoupon(order);
+      if (result.skipped) {
+        console.log(
+          `${LOG} Loyalty coupon email skipped for order ${orderNumber} (${reason})`,
+        );
+      }
+    } catch (err) {
+      loyaltyEmailedOrderKeys.delete(String(orderNumber).trim());
+      console.error(`${LOG} Loyalty coupon email failed:`, err);
+    }
+  } else {
+    console.log(
+      `${LOG} Loyalty coupon email skipped — already sent for order ${orderNumber} (${reason})`,
     );
   }
 }
