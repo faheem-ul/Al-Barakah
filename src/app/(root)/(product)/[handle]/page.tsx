@@ -1,4 +1,6 @@
 import ProductDetails from "@/components/Product";
+import ProductHeroImage from "@/components/Product/ProductHeroImage";
+import { isAzadiSaleProduct } from "@/components/Product/productAzadiSale";
 import ProductReviews from "@/components/Product/ProductReviews";
 import ProductTabs from "@/components/Product/ProductTabs";
 import ProductSchema from "@/components/seo/ProductSchema";
@@ -57,13 +59,25 @@ const MealDetailPage = async ({ params }: Props) => {
   }
 
   const slug = siteSlugFromProduct(product);
+  const heroImage = product.images[0];
 
   return (
     <>
       <ProductSchema product={product} slug={slug} />
       <div className="">
         <div className="min-h-[80vh] ">
-          <ProductDetails product={product as Product} />
+          <ProductDetails
+            product={product as Product}
+            lcpHero={
+              heroImage?.url ? (
+                <ProductHeroImage
+                  url={heroImage.url}
+                  alt={heroImage.altText || product.title}
+                  objectFill={isAzadiSaleProduct(product)}
+                />
+              ) : null
+            }
+          />
           <ProductTabs product={product as Product} />
           <ProductReviews productId={product?.id} />
         </div>

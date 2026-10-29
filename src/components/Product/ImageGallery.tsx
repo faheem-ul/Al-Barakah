@@ -2,20 +2,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 
-// import "react-inner-image-zoom/lib/styles.min.css";
-// import InnerImageZoom from "react-inner-image-zoom";
-
 import { Product } from "@/lib/shopify/types";
 import { useProductData } from "@/hooks/useProductData";
+import { HERO_SIZES } from "@/components/Product/ProductHeroImage";
+import { isAzadiSaleProduct } from "@/components/Product/productAzadiSale";
 import ThumbsCarousel from "./ThumbsCarousel";
 
 interface PropTypes {
   product: Product;
   selectedVariantId?: string | null;
+  /** Server-rendered LCP image (priority); shown until user changes image. */
+  lcpHero?: React.ReactNode;
 }
 
 const ImageGallery = (props: PropTypes) => {
-  const { product, selectedVariantId } = props;
+  const { product, selectedVariantId, lcpHero } = props;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [fallbackVariantImage, setFallbackVariantImage] = useState<{
     url: string;
@@ -25,6 +26,7 @@ const ImageGallery = (props: PropTypes) => {
   const productData = useProductData(product);
 
   const filteredImages = product?.images;
+  const initialImageUrl = product.images[0]?.url;
 
   const selectedVariant = useMemo(() => {
     if (!selectedVariantId) return null;
@@ -39,7 +41,7 @@ const ImageGallery = (props: PropTypes) => {
     }
 
     const matchIndex = product.images.findIndex(
-      (img) => img.url === variantImage.url
+      (img) => img.url === variantImage.url,
     );
 
     if (matchIndex >= 0) {
@@ -58,8 +60,8 @@ const ImageGallery = (props: PropTypes) => {
     v.selectedOptions.some(
       (o) =>
         o.name.toLowerCase() === weightOptionName &&
-        /(^|\s)(1\s*\/\s*2|0\.5)\s*kg?$/i.test(o.value.replace(/\s+/g, " "))
-    )
+        /(^|\s)(1\s*\/\s*2|0\.5)\s*kg?$/i.test(o.value.replace(/\s+/g, " ")),
+    ),
   );
   const currentAmount =
     selectedVariant?.price?.amount ||
@@ -71,7 +73,7 @@ const ImageGallery = (props: PropTypes) => {
     productData.comparePrice;
   const calculateDiscountPercentage = (
     currentPrice: string,
-    comparePrice: string
+    comparePrice: string,
   ) => {
     const current = parseFloat(currentPrice);
     const compare = parseFloat(comparePrice);
@@ -82,7 +84,7 @@ const ImageGallery = (props: PropTypes) => {
   };
   const displayDiscountPercentage = calculateDiscountPercentage(
     currentAmount,
-    compareAmount
+    compareAmount,
   );
 
   const previewImage = fallbackVariantImage || {
@@ -90,55 +92,42 @@ const ImageGallery = (props: PropTypes) => {
     altText: product?.images[currentImageIndex]?.altText,
   };
 
-  const isAzadiSaleProduct = product.collections?.some(
-    (collection) => collection.handle === "azadi-sale"
-  );
-  const objectFitClass = isAzadiSaleProduct ? "object-fill" : "object-cover";
+  const objectFitClass = isAzadiSaleProduct(product)
+    ? "object-fill"
+    : "object-cover";
 
-  // Keep a small fade when the active image changes
+  const needsClientHero =
+    Boolean(fallbackVariantImage) ||
+    currentImageIndex !== 0 ||
+    Boolean(
+      previewImage.url &&
+        initialImageUrl &&
+        previewImage.url !== initialImageUrl,
+    );
 
   return (
     <div className="w-full md:w-fit">
-      <div className="relative w-full overflow-hidden rounded-[16px] md:h-[550px] md:w-[520px]">
-        {/* Current Image */}
-        <Image
-          src={previewImage.url}
-          alt={previewImage.altText}
-          fill
-          className={`${objectFitClass} md:block hidden`}
-          priority
-          // width={520}
-          // height={520}
-        />
-
-        <Image
-          src={previewImage.url}
-          alt={previewImage.altText}
-          // fill
-          className={`${objectFitClass} block md:hidden`}
-          // priority
-          width={520}
-          height={520}
-        />
+      <div className="relative aspect-square w-full max-w-[520px] overflow-hidden rounded-[16px] md:aspect-auto md:h-[550px] md:w-[520px]">
+        {lcpHero}
+        {needsClientHero && previewImage.url && (
+          <Image
+            src={previewImage.url}
+            alt={previewImage.altText || product.title}
+            fill
+            sizes={HERO_SIZES}
+            className={`${objectFitClass} absolute inset-0 z-[1]`}
+          />
+        )}
 
         {displayDiscountPercentage > 0 && (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <div className="bg-white text-black px-3 py-2 rounded-[20px] text-sm font-semibold text-center whitespace-nowrap">
+          <div className="absolute bottom-4 left-1/2 z-[2] -translate-x-1/2 transform">
+            <div className="rounded-[20px] bg-white px-3 py-2 text-center text-sm font-semibold whitespace-nowrap text-black">
               Discount {displayDiscountPercentage}% Off
             </div>
           </div>
         )}
-
-        {/* <InnerImageZoom
-          className="object-cover object-top"
-          src={product?.images[currentImageIndex]?.url}
-          zoomSrc={product?.images[currentImageIndex]?.url}
-          zoomPreload={true}
-          zoomType="hover"
-        /> */}
       </div>
 
-      {/* Thumbnails Carousel */}
       <ThumbsCarousel
         images={filteredImages || []}
         activeIndex={currentImageIndex}

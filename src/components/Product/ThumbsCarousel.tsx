@@ -128,8 +128,7 @@ const ThumbsCarousel = ({
                 alt={image.altText || "product image"}
                 fill
                 className="object-cover object-top hover:cursor-pointer"
-                sizes="50vw"
-                priority={index === 0}
+                sizes="(max-width: 768px) 78px, 120px"
               />
             </div>
           </SwiperSlide>

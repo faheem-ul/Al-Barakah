@@ -42,8 +42,10 @@ const MobileNav = (props: PropTypes) => {
             <Link href={"/"}>
               <Image
                 src={logo}
-                alt="Al-Barakah Pure Wild Honey logo"
-                className="w-[105px]"
+                alt="Al-Barakah logo"
+                width={160}
+                height={60}
+                className="h-auto w-[105px]"
               />
             </Link>
           </SheetTitle>
