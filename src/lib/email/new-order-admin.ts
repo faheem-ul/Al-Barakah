@@ -205,33 +205,15 @@ export async function notifyAdminNewOrder(
       })
     : null;
 
-  const waLoyaltyLink = waPhone
-    ? buildWhatsAppSiteLink({
-        type: "loyalty_coupon",
-        phone: waPhone,
-        name,
-      })
-    : null;
-
   const ctaHtml = waPhone
-    ? [
-        waOrderLink
-          ? brandedCtaButtonHtml({
-              href: waOrderLink,
-              label: "Send WhatsApp — order placed",
-              background: EMAIL_BRAND.whatsapp,
-            }) +
-            `<p style="margin:0 0 16px;color:${EMAIL_BRAND.muted};font-size:12px;">Order confirmation (name, detail, address). Tap <strong>Send</strong>.</p>`
-          : "",
-        waLoyaltyLink
-          ? brandedCtaButtonHtml({
-              href: waLoyaltyLink,
-              label: "Send WhatsApp — loyalty coupon",
-              background: EMAIL_BRAND.whatsapp,
-            }) +
-            `<p style="margin:0;color:${EMAIL_BRAND.muted};font-size:12px;">Separate message with <strong>ABHLOYAL200</strong> / next-order discount. Tap <strong>Send</strong>.</p>`
-          : "",
-      ].join("")
+    ? waOrderLink
+      ? brandedCtaButtonHtml({
+          href: waOrderLink,
+          label: "Send WhatsApp — order placed",
+          background: EMAIL_BRAND.whatsapp,
+        }) +
+        `<p style="margin:0;color:${EMAIL_BRAND.muted};font-size:12px;">Order confirmation (name, detail, address). Tap <strong>Send</strong>. Loyalty coupon is sent after payment is marked paid.</p>`
+      : `<p style="margin:0;color:#b42318;font-size:13px;">No valid customer phone — WhatsApp skipped.</p>`
     : `<p style="margin:0;color:#b42318;font-size:13px;">No valid customer phone — WhatsApp buttons skipped.</p>`;
 
   const subject = `New order ${displayOrder} — ${name}`;
@@ -303,8 +285,7 @@ export async function notifyAdminNewOrder(
     `Total: ${totalLabel}\n` +
     `Note: ${note || "—"}\n\n` +
     `Items:\n${linesPlain || "—"}\n` +
-    (waOrderLink ? `\nSend WhatsApp — order placed:\n${waOrderLink}\n` : "") +
-    (waLoyaltyLink ? `\nSend WhatsApp — loyalty coupon:\n${waLoyaltyLink}\n` : "");
+    (waOrderLink ? `\nSend WhatsApp — order placed:\n${waOrderLink}\n` : "");
 
   await sendAdminEmail({ to, subject, html, text });
 }

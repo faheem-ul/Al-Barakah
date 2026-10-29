@@ -1,4 +1,5 @@
 import { sendLoyaltyCouponEmail } from "@/lib/email/loyalty-coupon-email";
+import type { OrderLoyaltyContext } from "@/lib/loyalty/order-loyalty-context";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
 
 function str(value: string | number | null | undefined): string {
@@ -27,11 +28,9 @@ function customerName(order: ShopifyWebhookOrder): string {
   );
 }
 
-/**
- * Standalone loyalty coupon email (same branded layout as order confirmation).
- */
 export async function notifyCustomerLoyaltyCoupon(
   order: ShopifyWebhookOrder,
+  ctx: OrderLoyaltyContext,
 ): Promise<{ sent: boolean; skipped?: boolean }> {
   const to = str(order.email || order.customer?.email).toLowerCase();
   if (!to) {
@@ -40,5 +39,9 @@ export async function notifyCustomerLoyaltyCoupon(
   }
 
   const name = customerName(order);
-  return sendLoyaltyCouponEmail({ to, greetingName: name });
+  return sendLoyaltyCouponEmail({
+    to,
+    greetingName: name,
+    tier: ctx.tier,
+  });
 }

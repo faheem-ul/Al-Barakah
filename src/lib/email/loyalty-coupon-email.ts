@@ -7,17 +7,24 @@ import {
 import { sendAdminEmail } from "@/lib/email/send";
 import {
   formatLoyaltyAmount,
-  getLoyaltyCouponConfig,
+  type LoyaltyTier,
 } from "@/lib/loyalty/segments";
 import { siteBaseUrl } from "@/lib/whatsapp/delivery-issue-draft";
 
-const LOYALTY_VOUCHER_FILENAME = "loyalty-voucher.webp";
+const TIER_VOUCHER_PATH: Record<number, string> = {
+  150: "loyalty-voucher/150.webp",
+  300: "loyalty-voucher/300.webp",
+  500: "loyalty-voucher/500.webp",
+};
 
-export function loyaltyVoucherImageUrl(): string {
+/** Public URL for the tier voucher image in customer loyalty emails. */
+export function loyaltyVoucherImageUrl(tier: LoyaltyTier): string {
   const override = process.env.LOYALTY_VOUCHER_IMAGE_URL?.trim();
   if (override) return override.replace(/\/+$/, "");
+  const path =
+    TIER_VOUCHER_PATH[tier.amount] ?? TIER_VOUCHER_PATH[150];
   const base = siteBaseUrl().replace(/\/+$/, "");
-  return `${base}/images/${LOYALTY_VOUCHER_FILENAME}`;
+  return `${base}/images/${path}`;
 }
 
 function loyaltyVoucherImageHtml(
@@ -41,16 +48,17 @@ export type LoyaltyCouponEmailContent = {
 };
 
 /**
- * Shared loyalty coupon email (webhook per-order + future bulk campaign).
+ * Shared loyalty coupon email (paid-order webhook + future bulk campaign).
  */
 export function buildLoyaltyCouponEmailContent(params: {
   greetingName: string;
+  tier: LoyaltyTier;
 }): LoyaltyCouponEmailContent {
   const name = params.greetingName.trim() || "Customer";
-  const { code, amount } = getLoyaltyCouponConfig();
+  const { code, amount } = params.tier;
   const amountLabel = formatLoyaltyAmount(amount);
   const shopUrl = siteBaseUrl();
-  const imageUrl = loyaltyVoucherImageUrl();
+  const imageUrl = loyaltyVoucherImageUrl(params.tier);
 
   const subject = `${amountLabel} off your next order — code ${code}`;
 
@@ -91,9 +99,11 @@ export function buildLoyaltyCouponEmailContent(params: {
 export async function sendLoyaltyCouponEmail(params: {
   to: string;
   greetingName: string;
+  tier: LoyaltyTier;
 }): Promise<{ sent: boolean; skipped?: boolean }> {
   const { subject, html, text } = buildLoyaltyCouponEmailContent({
     greetingName: params.greetingName,
+    tier: params.tier,
   });
   return sendAdminEmail({ to: params.to, subject, html, text });
 }

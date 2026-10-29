@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { notifyAdminLoyaltyCoupon } from "@/lib/email/loyalty-coupon-admin";
 import { notifyAdminNewOrder } from "@/lib/email/new-order-admin";
 import { notifyCustomerLoyaltyCoupon } from "@/lib/email/loyalty-coupon-customer";
 import { notifyCustomerNewOrder } from "@/lib/email/new-order-customer";
 import { appendOrderRows, updateOrderStatuses } from "@/lib/google/sheets";
+import {
+  resolveOrderLoyaltyContext,
+  shouldTriggerPaidLoyaltyWebhook,
+} from "@/lib/loyalty/order-loyalty-context";
 import { resolveOrderProductDetails } from "@/lib/shopify/line-item-detail";
 import {
   buildOrderSheetRows,
@@ -119,23 +124,56 @@ async function sendNewOrderEmailsSafe(
       `${LOG} Customer email skipped — already sent for order ${orderNumber} (${reason})`,
     );
   }
+}
 
-  if (claimNewOrderLoyaltyEmail_(orderNumber)) {
-    try {
-      const result = await notifyCustomerLoyaltyCoupon(order);
-      if (result.skipped) {
-        console.log(
-          `${LOG} Loyalty coupon email skipped for order ${orderNumber} (${reason})`,
-        );
-      }
-    } catch (err) {
-      loyaltyEmailedOrderKeys.delete(String(orderNumber).trim());
-      console.error(`${LOG} Loyalty coupon email failed:`, err);
-    }
-  } else {
+async function sendPaidLoyaltyEmailsSafe(
+  order: ShopifyWebhookOrder,
+  orderNumber: string,
+  topic: string,
+) {
+  if (!shouldTriggerPaidLoyaltyWebhook(topic, order)) {
+    return;
+  }
+
+  const ctx = await resolveOrderLoyaltyContext(order);
+  if (!ctx) {
     console.log(
-      `${LOG} Loyalty coupon email skipped — already sent for order ${orderNumber} (${reason})`,
+      `${LOG} Loyalty skipped for order ${orderNumber} — not eligible or missing customer metrics`,
     );
+    return;
+  }
+
+  if (!claimNewOrderLoyaltyEmail_(orderNumber)) {
+    console.log(
+      `${LOG} Loyalty emails skipped — already sent for order ${orderNumber} (${topic})`,
+    );
+    return;
+  }
+
+  try {
+    const customerResult = await notifyCustomerLoyaltyCoupon(order, ctx);
+    if (customerResult.skipped) {
+      console.log(
+        `${LOG} Customer loyalty email skipped for order ${orderNumber}`,
+      );
+    } else {
+      console.log(
+        `${LOG} Customer loyalty email sent for order ${orderNumber} — ${ctx.tier.code}`,
+      );
+    }
+  } catch (err) {
+    loyaltyEmailedOrderKeys.delete(String(orderNumber).trim());
+    console.error(`${LOG} Customer loyalty email failed:`, err);
+    return;
+  }
+
+  try {
+    await notifyAdminLoyaltyCoupon(order, ctx);
+    console.log(
+      `${LOG} Admin loyalty email sent for order ${orderNumber} — ${ctx.tier.code}`,
+    );
+  } catch (err) {
+    console.error(`${LOG} Admin loyalty email failed:`, err);
   }
 }
 
@@ -170,7 +208,6 @@ export async function POST(request: NextRequest) {
     console.error(
       `${LOG} Fix: stop server → run "pnpm run dev:webhook" (no turbopack) → open /api/webhooks/shopify/orders in browser once to warm route → place order again.`,
     );
-    // Non-2xx so Shopify retries with the body
     return NextResponse.json({ error: "Empty webhook body" }, { status: 503 });
   }
 
@@ -225,8 +262,6 @@ export async function POST(request: NextRequest) {
       );
       const result = await appendOrderRows(rows, orderNumber);
       console.log(`${LOG} CREATE result:`, result);
-      // Only email on the first successful sheet insert. Retries / parallel
-      // create+update webhooks that skip as already_exists must not re-email.
       if (result.written) {
         await sendNewOrderEmailsSafe(
           order,
@@ -243,7 +278,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, action: "create", ...result });
     }
 
-    // Update path: sync Order Status; if order not in sheet yet, insert it
     const orderStatus = initialOrderStatus(order);
     console.log(
       `${LOG} UPDATE — syncing Order Status for order ${orderNumber}:`,
@@ -251,17 +285,16 @@ export async function POST(request: NextRequest) {
     );
     const updated = await updateOrderStatuses(orderNumber, orderStatus);
 
+    let responseBody: Record<string, unknown>;
+
     if (updated.updated) {
       console.log(`${LOG} UPDATE SUCCESS:`, updated);
-      return NextResponse.json({ ok: true, action: "update", ...updated });
-    }
-
-    if (updated.reason === "not_found") {
+      responseBody = { ok: true, action: "update", ...updated };
+    } else if (updated.reason === "not_found") {
       console.log(`${LOG} Order not in sheet yet — inserting on update webhook`);
       const productDetails = await resolveOrderProductDetails(order.line_items);
       const rows = buildOrderSheetRows(order, productDetails);
       const created = await appendOrderRows(rows, orderNumber);
-      // Only if this path actually inserted (create webhook may have emailed already)
       if (created.written) {
         await sendNewOrderEmailsSafe(
           order,
@@ -275,15 +308,15 @@ export async function POST(request: NextRequest) {
           created.reason || created,
         );
       }
-      return NextResponse.json({
-        ok: true,
-        action: "create_on_update",
-        ...created,
-      });
+      responseBody = { ok: true, action: "create_on_update", ...created };
+    } else {
+      console.log(`${LOG} UPDATE skipped:`, updated);
+      responseBody = { ok: true, action: "update", ...updated };
     }
 
-    console.log(`${LOG} UPDATE skipped:`, updated);
-    return NextResponse.json({ ok: true, action: "update", ...updated });
+    await sendPaidLoyaltyEmailsSafe(order, orderNumber, topic);
+
+    return NextResponse.json(responseBody);
   } catch (error) {
     console.error(`${LOG} FAILED sheet sync:`, error);
     return NextResponse.json(

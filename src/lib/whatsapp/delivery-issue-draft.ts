@@ -1,6 +1,7 @@
 import {
   formatLoyaltyAmount,
-  getLoyaltyCouponConfig,
+  LOYALTY_TIERS,
+  type LoyaltyTier,
 } from "@/lib/loyalty/segments";
 import {
   buildTrackingStatusWhatsAppDraft,
@@ -62,11 +63,36 @@ export function buildOrderPlacedWhatsAppDraft(params: {
 }
 
 /** Pre-filled WhatsApp body for loyalty coupon (separate from order_placed). */
+function resolveLoyaltyTierFromParams(params: {
+  code?: string;
+  amount?: number;
+}): LoyaltyTier {
+  const code = params.code?.trim();
+  if (code) {
+    const match = Object.values(LOYALTY_TIERS).find((t) => t.code === code);
+    if (match) return { ...match };
+    if (typeof params.amount === "number" && params.amount > 0) {
+      return { code, amount: params.amount };
+    }
+  }
+  if (typeof params.amount === "number" && params.amount > 0) {
+    const byAmount = Object.values(LOYALTY_TIERS).find(
+      (t) => t.amount === params.amount,
+    );
+    if (byAmount) return { ...byAmount };
+    return { code: LOYALTY_TIERS.t1.code, amount: params.amount };
+  }
+  return { ...LOYALTY_TIERS.t1 };
+}
+
 export function buildLoyaltyCouponWhatsAppDraft(params: {
   name?: string;
+  code?: string;
+  amount?: number;
 }): string {
   const name = cleanLine(params.name) || "Customer";
-  const { code, amount } = getLoyaltyCouponConfig();
+  const tier = resolveLoyaltyTierFromParams(params);
+  const { code, amount } = tier;
   const amountLabel = formatLoyaltyAmount(amount);
 
   return (
@@ -116,6 +142,8 @@ export function buildWhatsAppDraft(
     detail?: string;
     total?: string;
     portal?: string;
+    code?: string;
+    amount?: number;
   },
 ): string {
   if (type === "order_placed") {
@@ -139,8 +167,13 @@ export function normalizeWhatsAppPhone(raw: string): string {
   return "";
 }
 
+function isLocalhostUrl(url: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url);
+}
+
 export function siteBaseUrl(): string {
   const candidates = [
+    process.env.EMAIL_PUBLIC_SITE_URL,
     process.env.SITE_URL,
     process.env.NEXT_PUBLIC_SITE_URL,
     process.env.NEXT_PUBLIC_BASE_URL,
@@ -153,11 +186,19 @@ export function siteBaseUrl(): string {
       .replace(/^["']|["']$/g, "")
       .replace(/\/+$/, "");
     if (!cleaned) continue;
-    // Never put localhost into customer/admin WhatsApp links (common Vercel misconfig)
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(cleaned)) {
+    // Production emails: never use localhost from mis-set Vercel env
+    if (
+      process.env.NODE_ENV !== "development" &&
+      isLocalhostUrl(cleaned)
+    ) {
       continue;
     }
     return cleaned;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    const port = process.env.PORT?.trim() || "3000";
+    return `http://127.0.0.1:${port}`;
   }
 
   return "https://www.albarakahoney.com";
@@ -175,6 +216,8 @@ export function buildWhatsAppSiteLink(params: {
   detail?: string;
   total?: string;
   portal?: string;
+  code?: string;
+  couponAmount?: string;
 }): string | null {
   const phone = normalizeWhatsAppPhone(params.phone);
   if (!phone) return null;
@@ -190,6 +233,8 @@ export function buildWhatsAppSiteLink(params: {
   if (params.detail) qs.set("detail", params.detail);
   if (params.total) qs.set("total", params.total);
   if (params.portal) qs.set("portal", params.portal);
+  if (params.code) qs.set("code", params.code);
+  if (params.couponAmount) qs.set("coupon_amount", params.couponAmount);
 
   return `${siteBaseUrl()}/wa?${qs.toString()}`;
 }
