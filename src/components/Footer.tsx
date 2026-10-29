@@ -110,11 +110,15 @@ const Footer = () => {
               <div className="flex items-center gap-[15px] md:gap-[11px]">
                 <a
                   href="https://www.instagram.com/thealbarakahoney"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Al-Barakah Honey on Instagram"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
                     src={instagram}
-                    alt="instagram"
+                    alt=""
+                    aria-hidden
                     className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
@@ -127,11 +131,15 @@ const Footer = () => {
                 </span>
                 <a
                   href="https://www.facebook.com/thealbarakahoney/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Al-Barakah Honey on Facebook"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
                     src={facebook}
-                    alt="facebook"
+                    alt=""
+                    aria-hidden
                     className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
@@ -144,11 +152,15 @@ const Footer = () => {
                 </span>
                 <a
                   href="https://www.tiktok.com/@thealbarakahoney"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Al-Barakah Honey on TikTok"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
                 >
                   <Image
                     src={tiktok}
-                    alt="tiktok"
+                    alt=""
+                    aria-hidden
                     className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                   />
                 </a>
@@ -162,9 +174,15 @@ const Footer = () => {
                 </span>
                 <a
                   href="https://www.youtube.com/@thealbarakahoney"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Al-Barakah Honey on YouTube"
                   className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
                 >
-                  <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
+                  <div
+                    className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]"
+                    aria-hidden
+                  >
                     <AiOutlineYoutube className="text-white text-[20px]" />
                   </div>
                 </a>
@@ -193,11 +211,15 @@ const Footer = () => {
             <div className="flex items-center gap-[15px] md:gap-[11px]">
               <a
                 href="https://www.instagram.com/thealbarakahoney"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Al-Barakah Honey on Instagram"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={instagram}
-                  alt="instagram"
+                  alt=""
+                  aria-hidden
                   className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
@@ -210,11 +232,15 @@ const Footer = () => {
               </span>
               <a
                 href="https://www.facebook.com/thealbarakahoney/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Al-Barakah Honey on Facebook"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={facebook}
-                  alt="facebook"
+                  alt=""
+                  aria-hidden
                   className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
@@ -227,11 +253,15 @@ const Footer = () => {
               </span>
               <a
                 href="https://www.tiktok.com/@thealbarakahoney"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Al-Barakah Honey on TikTok"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px]"
               >
                 <Image
                   src={tiktok}
-                  alt="tiktok"
+                  alt=""
+                  aria-hidden
                   className="h-[25px] w-[25px] md:h-[30px] md:w-[35px]"
                 />
               </a>
@@ -245,9 +275,15 @@ const Footer = () => {
               </span>
               <a
                 href="https://www.youtube.com/@thealbarakahoney"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Al-Barakah Honey on YouTube"
                 className="text-[14px] leading-6 font-medium text-black md:text-[16px] "
               >
-                <div className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]">
+                <div
+                  className="bg-[#000]/90 w-[29px] h-[29px] flex justify-center items-center rounded-[6px]"
+                  aria-hidden
+                >
                   <AiOutlineYoutube className="text-white text-[20px]" />
                 </div>
               </a>

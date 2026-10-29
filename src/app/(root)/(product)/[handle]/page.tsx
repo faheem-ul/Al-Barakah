@@ -4,10 +4,9 @@ import { isAzadiSaleProduct } from "@/components/Product/productAzadiSale";
 import ProductReviews from "@/components/Product/ProductReviews";
 import ProductTabs from "@/components/Product/ProductTabs";
 import ProductSchema from "@/components/seo/ProductSchema";
-import { pageCanonicalAlternates } from "@/lib/seo/metadata-canonical";
+import { buildProductPageMetadata } from "@/lib/seo/product-metadata";
 import { siteSlugFromProduct } from "@/lib/seo/product-schema";
 import { resolveProductByPathSegment } from "@/lib/seo/resolve-product-by-path";
-import { productPublicPath } from "@/lib/seo/sitemap-urls";
 import type { Product } from "@/lib/shopify/types";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -26,28 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     notFound();
   }
 
-  const canonicalPath = productPublicPath(product);
-  const title = `${product.title} | Al-Barakah Honey`;
-  const description =
-    product.description?.replace(/<[^>]+>/g, " ").slice(0, 160).trim() ||
-    "Pure wild honey from Al-Barakah Honey, Pakistan.";
-
-  return {
-    title,
-    description,
-    alternates: pageCanonicalAlternates(canonicalPath),
-    openGraph: {
-      title,
-      description,
-      url: canonicalPath,
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
-  };
+  return buildProductPageMetadata(product);
 }
 
 const MealDetailPage = async ({ params }: Props) => {
