@@ -20,7 +20,7 @@ const Shop = (props: PropTypes) => {
 
   return (
     <div>
-      <Text as="h1" className="text-center text-[28px] leading-tight md:text-[40px]">
+      <Text as="h2" className="text-center text-[28px] leading-tight md:text-[40px]">
         From the Hive — Shop Full Jar Now
         <span className="font-arabic mt-1 block text-[20px] font-bold md:text-[28px]">
           چھتے سے — مکمل بوتل ابھی خریدیں

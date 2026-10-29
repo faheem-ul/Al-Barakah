@@ -1,12 +1,14 @@
 import ProductDetails from "@/components/Product";
 import ProductReviews from "@/components/Product/ProductReviews";
 import ProductTabs from "@/components/Product/ProductTabs";
-import Text from "@/ui/Text";
+import ProductSchema from "@/components/seo/ProductSchema";
 import { pageCanonicalAlternates } from "@/lib/seo/metadata-canonical";
+import { siteSlugFromProduct } from "@/lib/seo/product-schema";
 import { resolveProductByPathSegment } from "@/lib/seo/resolve-product-by-path";
 import { productPublicPath } from "@/lib/seo/sitemap-urls";
 import type { Product } from "@/lib/shopify/types";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import React from "react";
 
 interface Props {
@@ -19,9 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params;
   const product = await resolveProductByPathSegment(handle);
   if (!product) {
-    return {
-      title: "Product Not Found | Al-Barakah Honey",
-    };
+    notFound();
   }
 
   const canonicalPath = productPublicPath(product);
@@ -53,23 +53,22 @@ const MealDetailPage = async ({ params }: Props) => {
   const product = await resolveProductByPathSegment(handle);
 
   if (!product) {
-    return (
-      <div className="flex h-[80vh] w-full items-center justify-center">
-        <Text as="h2">Product Not Found</Text>
-      </div>
-    );
+    notFound();
   }
 
-  return (
-    <div className="">
-      <div className="min-h-[80vh] ">
-        <ProductDetails product={product as Product} />
+  const slug = siteSlugFromProduct(product);
 
-        {/* Product description and reviews tabs */}
-        <ProductTabs product={product as Product} />
-        <ProductReviews productId={product?.id} />
+  return (
+    <>
+      <ProductSchema product={product} slug={slug} />
+      <div className="">
+        <div className="min-h-[80vh] ">
+          <ProductDetails product={product as Product} />
+          <ProductTabs product={product as Product} />
+          <ProductReviews productId={product?.id} />
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

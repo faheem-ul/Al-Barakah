@@ -11,7 +11,7 @@ import {
 const Services = () => {
   return (
     <div className="max-mob:max-w-full max-mob:py-10 max-mob:px-5 mx-auto max-w-7xl py-[80px]">
-      <Text as="h1" className="max-mob:text-center">
+      <Text as="h2" className="max-mob:text-center">
         Lorem ipsum
       </Text>
 

@@ -47,11 +47,11 @@ const ComboDeals = ({ categories }: ComboDealsProps) => {
   return (
     <section className="mb-10 px-5 pb-4 md:mb-16 md:px-0 md:pb-6">
       <div className="text-center">
-        <Text as="h1" className="text-center text-[32px] md:text-[40px]">
-          Combo Deals & Bundles
-          <span className="mt-1 block ">
-            Al-Barakah Pure Wild Honey in Pakistan
-          </span>
+        <Text as="h2" className="text-center text-[32px] md:text-[40px]">
+          Combo Deals &amp; Bundles
+        </Text>
+        <Text as="h1" className="mt-1 text-center text-[32px] md:text-[40px]">
+          Al-Barakah Pure Wild Honey in Pakistan
         </Text>
         <Text className="font-arabic text-primary-foreground mt-2 text-[18px] font-bold md:text-[24px]">
           زیادہ بچت — ملا کر خریدیں
