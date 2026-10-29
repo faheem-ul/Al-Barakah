@@ -111,6 +111,7 @@ const ReviewCard = ({ review }: ReviewCardProps) => {
             target="_blank"
             rel="noopener noreferrer"
             className={`mt-1 inline-block text-[12px] font-medium text-[#4285F4] hover:underline ${reviewLinkClass}`}
+            aria-label={`Read ${review.authorName}'s full review on Google`}
           >
             Read more
           </a>
