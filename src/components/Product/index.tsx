@@ -9,12 +9,13 @@ import ImageGallery from "./ImageGallery";
 
 interface PropTypes {
   product: Product;
+  lcpHero?: React.ReactNode;
 }
 
 const ProductView = (props: PropTypes) => {
-  const { product } = props;
+  const { product, lcpHero } = props;
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    null
+    null,
   );
 
   return (
@@ -22,6 +23,7 @@ const ProductView = (props: PropTypes) => {
       <ImageGallery
         product={product}
         selectedVariantId={selectedVariantId}
+        lcpHero={lcpHero}
       />
       <div className="w-full max-w-[521px]">
         <ProductDetails

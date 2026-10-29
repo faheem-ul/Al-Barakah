@@ -123,6 +123,7 @@ const AzadiSaleProductCard = ({
             src={image}
             alt={name}
             fill
+            sizes="(max-width: 640px) 50vw, 25vw"
             className={`object-fill transition-opacity duration-700 ease-in-out ${
               isHovered ? "opacity-0" : "opacity-100"
             }`}
@@ -131,6 +132,7 @@ const AzadiSaleProductCard = ({
             src={hoverImage}
             alt={name}
             fill
+            sizes="(max-width: 640px) 50vw, 25vw"
             className={`object-fill transition-opacity duration-700 ease-in-out ${
               isHovered ? "opacity-100" : "opacity-0"
             }`}

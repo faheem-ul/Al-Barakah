@@ -1,20 +1,17 @@
-import { getProductByHandle } from "@/lib/shopify/actions/product";
-import { RESERVED_ROOT_PATH_SEGMENTS } from "@/lib/seo/sitemap-urls";
-import { toEnglishSlugFromTitle } from "@/lib/utils";
-import { Metadata } from "next";
+import ProductDetails from "@/components/Product";
+import ProductHeroImage from "@/components/Product/ProductHeroImage";
+import { isAzadiSaleProduct } from "@/components/Product/productAzadiSale";
+import ProductReviews from "@/components/Product/ProductReviews";
+import ProductTabs from "@/components/Product/ProductTabs";
+import ProductSchema from "@/components/seo/ProductSchema";
+import { pageCanonicalAlternates } from "@/lib/seo/metadata-canonical";
+import { siteSlugFromProduct } from "@/lib/seo/product-schema";
+import { resolveProductByPathSegment } from "@/lib/seo/resolve-product-by-path";
+import { productPublicPath } from "@/lib/seo/sitemap-urls";
+import type { Product } from "@/lib/shopify/types";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import React from "react";
-
-import { Product } from "@/lib/shopify/types";
-import ProductDetails from "@/components/Product";
-import ProductTabs from "@/components/Product/ProductTabs";
-import ProductReviews from "@/components/Product/ProductReviews";
-import Text from "@/ui/Text";
-
-export const metadata: Metadata = {
-  title: "AlBarakah Shop",
-  description: "AlBarakah Shop market place",
-};
 
 interface Props {
   params: Promise<{
@@ -22,51 +19,70 @@ interface Props {
   }>;
 }
 
-const MealDetailPage = async ({ params }: Props) => {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params;
-
-  if (RESERVED_ROOT_PATH_SEGMENTS.has(handle)) {
+  const product = await resolveProductByPathSegment(handle);
+  if (!product) {
     notFound();
   }
 
-  // Try fetching by Shopify handle first
-  let product = await getProductByHandle(handle);
+  const canonicalPath = productPublicPath(product);
+  const title = `${product.title} | Al-Barakah Honey`;
+  const description =
+    product.description?.replace(/<[^>]+>/g, " ").slice(0, 160).trim() ||
+    "Pure wild honey from Al-Barakah Honey, Pakistan.";
 
-  // Fallback: if not found, treat handle as English slug derived from title; try to find a product whose slug matches
-  if (!product.success) {
-    // This fallback requires fetching a list to map titles → slugs; keep it small (e.g., first 200)
-    // Reuse getProducts to avoid extra endpoint creation
-    const { getProducts } = await import("@/lib/shopify/actions/product");
-    const all = await getProducts({ first: 200 });
-    if (all.success && Array.isArray(all.data)) {
-      const products = all.data as Product[];
-      const match = products.find(
-        (p: Product) => toEnglishSlugFromTitle(p.title) === handle
-      );
-      if (match) {
-        product = { success: true, data: match, error: null } as const;
-      }
-    }
+  return {
+    title,
+    description,
+    alternates: pageCanonicalAlternates(canonicalPath),
+    openGraph: {
+      title,
+      description,
+      url: canonicalPath,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+}
+
+const MealDetailPage = async ({ params }: Props) => {
+  const { handle } = await params;
+  const product = await resolveProductByPathSegment(handle);
+
+  if (!product) {
+    notFound();
   }
 
-  if (!product.success) {
-    return (
-      <div className="flex h-[80vh] w-full items-center justify-center">
-        <Text as="h2">Product Not Found</Text>
-      </div>
-    );
-  }
+  const slug = siteSlugFromProduct(product);
+  const heroImage = product.images[0];
 
   return (
-    <div className="">
-      <div className="min-h-[80vh] ">
-        <ProductDetails product={product.data as Product} />
-
-        {/* Product description and reviews tabs */}
-        <ProductTabs product={product.data as Product} />
-        <ProductReviews productId={product.data?.id} />
+    <>
+      <ProductSchema product={product} slug={slug} />
+      <div className="">
+        <div className="min-h-[80vh] ">
+          <ProductDetails
+            product={product as Product}
+            lcpHero={
+              heroImage?.url ? (
+                <ProductHeroImage
+                  url={heroImage.url}
+                  alt={heroImage.altText || product.title}
+                  objectFill={isAzadiSaleProduct(product)}
+                />
+              ) : null
+            }
+          />
+          <ProductTabs product={product as Product} />
+          <ProductReviews productId={product?.id} />
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

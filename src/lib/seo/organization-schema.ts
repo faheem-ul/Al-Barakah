@@ -12,6 +12,7 @@ export const organizationSchema = {
     "https://www.instagram.com/thealbarakahoney",
     "https://www.facebook.com/thealbarakahoney/",
     "https://www.tiktok.com/@thealbarakahoney",
+    "https://www.youtube.com/@thealbarakahoney",
   ],
 } as const;
 

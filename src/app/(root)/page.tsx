@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import ComboDeals from "@/components/Home/ComboDeals";
 import GoogleReviews from "@/components/GoogleReviews";
 import Shop from "@/components/Home/Shop";
+import { pageCanonicalAlternates } from "@/lib/seo/metadata-canonical";
 import {
   getCollectionProducts,
   getProducts,
@@ -21,6 +22,7 @@ const homeDescription =
 export const metadata: Metadata = {
   title: homeTitle,
   description: homeDescription,
+  alternates: pageCanonicalAlternates("/"),
   openGraph: {
     title: homeTitle,
     description: homeDescription,
