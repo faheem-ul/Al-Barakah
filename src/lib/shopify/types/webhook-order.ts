@@ -87,6 +87,8 @@ export type ShopifyWebhookOrder = {
     last_name?: string | null;
     email?: string | null;
     phone?: string | null;
+    orders_count?: number;
+    total_spent?: string | null;
   } | null;
   billing_address?: ShopifyWebhookAddress | null;
   shipping_address?: ShopifyWebhookAddress | null;

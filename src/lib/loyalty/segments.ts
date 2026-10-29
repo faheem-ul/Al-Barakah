@@ -1,30 +1,44 @@
-export const DEFAULT_LOYALTY_COUPON_CODE = "ABHLOYAL200";
-export const DEFAULT_LOYALTY_COUPON_AMOUNT = 200;
-
-/** Matches Shopify Admin segment used for discount eligibility. */
-export const LOYALTY_SHOPIFY_SEGMENT_NAME =
-  "Customers who have purchased at least once";
+export const LOYALTY_SPEND_MID_PKR = 2500;
+export const LOYALTY_SPEND_HIGH_PKR = 5000;
 
 export const LOYALTY_MIN_ORDERS = 1;
 
-/** Fallback customer search when segment GID lookup is unavailable (Phase 2). */
+/** Fallback customer search when segment GID lookup is unavailable (Phase 2 bulk). */
 export const LOYALTY_CUSTOMERS_SEARCH_QUERY = "orders_count:>=1";
 
-export type LoyaltyCouponConfig = {
+export type LoyaltyTier = {
   code: string;
   amount: number;
 };
 
-export function getLoyaltyCouponConfig(): LoyaltyCouponConfig {
-  const code =
-    process.env.LOYALTY_COUPON_CODE?.trim() || DEFAULT_LOYALTY_COUPON_CODE;
-  const amountRaw = process.env.LOYALTY_COUPON_AMOUNT?.trim();
-  const parsed = amountRaw ? Number(amountRaw) : NaN;
-  const amount = Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_LOYALTY_COUPON_AMOUNT;
+export const LOYALTY_TIERS = {
+  t1: { code: "ABHLOYAL150", amount: 150 },
+  t2: { code: "ABHLOYAL300", amount: 300 },
+  t3: { code: "ABHLOYAL500", amount: 500 },
+} as const;
 
-  return { code, amount };
+export function parseCustomerSpent(
+  raw: string | number | null | undefined,
+): number {
+  if (raw === null || raw === undefined) return 0;
+  const n =
+    typeof raw === "number"
+      ? raw
+      : parseFloat(String(raw).replace(/,/g, "").trim());
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/** Matches Shopify customer segments (lifetime amount spent, PKR). */
+export function resolveLoyaltyTierFromLifetimeSpent(
+  spentPkr: number,
+): LoyaltyTier {
+  if (spentPkr >= LOYALTY_SPEND_HIGH_PKR) {
+    return { ...LOYALTY_TIERS.t3 };
+  }
+  if (spentPkr >= LOYALTY_SPEND_MID_PKR) {
+    return { ...LOYALTY_TIERS.t2 };
+  }
+  return { ...LOYALTY_TIERS.t1 };
 }
 
 export function isLoyaltyEligible(numberOfOrders: number): boolean {

@@ -35,6 +35,11 @@ export function GET(request: NextRequest) {
   else if (typeParam === "status_update") type = "status_update";
   else type = "tracking";
 
+  const couponAmountRaw = sp.get("coupon_amount");
+  const couponAmountParsed = couponAmountRaw
+    ? parseInt(couponAmountRaw, 10)
+    : NaN;
+
   const text = buildWhatsAppDraft(type, {
     name: sp.get("name") || undefined,
     order: sp.get("order") || undefined,
@@ -44,6 +49,8 @@ export function GET(request: NextRequest) {
     detail: sp.get("detail") || undefined,
     total: sp.get("total") || undefined,
     portal: sp.get("portal") || undefined,
+    code: sp.get("code") || undefined,
+    amount: Number.isFinite(couponAmountParsed) ? couponAmountParsed : undefined,
   });
 
   const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
