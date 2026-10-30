@@ -6,21 +6,14 @@ import { DeliveryTruckIcon } from "@/components/ui/Icons";
 
 import Text from "../ui/Text";
 import { cn } from "@/lib/utils";
+import { shouldShowFreeDeliveryBar } from "@/lib/show-free-delivery-bar";
 
 const TopBar = () => {
   const pathname = usePathname();
-
-  const isProductRoute =
-    pathname !== "/about-us" &&
-    pathname !== "/contact-us" &&
-    pathname !== "/cart" &&
-    pathname !== "/privacy-policy" &&
-    pathname !== "/terms-and-conditions" &&
-    pathname !== "/refund-policy" &&
-    pathname !== "/ownership-statement";
+  const show = shouldShowFreeDeliveryBar(pathname);
 
   return (
-    <div className={cn("w-full hidden", isProductRoute && "block")}>
+    <div className={cn("w-full", show ? "block" : "hidden")}>
       <div className="bg-black px-1 py-2 flex justify-center items-center gap-1.5">
         <Text className="text-white text-center text-[11px] md:text-[13px] uppercase font-normal">
           Free Delivery All Over Pakistan
