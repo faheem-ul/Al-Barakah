@@ -18,12 +18,21 @@ type OrderPreviewProps = {
   bykeaExpense?: number;
 };
 
+function discountOffDisplay(amount: number): React.ReactNode {
+  return (
+    <>
+      {money(amount)}{" "}
+      <span className="text-[12px] font-medium text-[#6b7280]">off</span>
+    </>
+  );
+}
+
 function PreviewCard({
   label,
   value,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3">
@@ -56,12 +65,44 @@ const OrderPreview: React.FC<OrderPreviewProps> = ({
   const showPackingBreakdown =
     productPacking !== undefined && boxPacking !== undefined;
 
-  const topItems: { key: string; label: string; value: string }[] = [
-    {
-      key: "product-total",
-      label: "Product Total",
-      value: money(result.productRevenue),
-    },
+  const discountAmount = result.customerDiscount ?? 0;
+  const showDiscountBreakdown =
+    discountAmount > 0 &&
+    result.grossProductRevenue !== undefined &&
+    result.grossProductRevenue > 0;
+
+  const productTotalItems: {
+    key: string;
+    label: string;
+    value: React.ReactNode;
+  }[] = showDiscountBreakdown
+      ? [
+          {
+            key: "subtotal",
+            label: "Subtotal",
+            value: money(result.grossProductRevenue),
+          },
+          {
+            key: "customer-discount",
+            label: "Customer discount",
+            value: discountOffDisplay(discountAmount),
+          },
+          {
+            key: "product-total",
+            label: "Product total = subtotal − discount",
+            value: money(result.productRevenue),
+          },
+        ]
+      : [
+          {
+            key: "product-total",
+            label: "Product Total",
+            value: money(result.productRevenue),
+          },
+        ];
+
+  const topItems: { key: string; label: string; value: React.ReactNode }[] = [
+    ...productTotalItems,
     ...(status === "promotional" || status === "returned"
       ? [
           {

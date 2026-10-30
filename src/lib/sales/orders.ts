@@ -11,14 +11,26 @@ import {
   deleteField,
 } from "@/lib/firebase";
 
-import { normalizeReturnExpenseMode } from "./calculations";
+import {
+  normalizeReturnExpenseMode,
+  toStoredCustomerDiscount,
+} from "./calculations";
 import type {
+  CustomerDiscountAmount,
   OrderStatus,
   ReturnExpenseMode,
   SalesOrder,
   SalesOrderCalculation,
   SalesOrderPayload,
 } from "./types";
+
+function mapCustomerDiscount(
+  value: unknown,
+): CustomerDiscountAmount | undefined {
+  return toStoredCustomerDiscount(
+    typeof value === "number" ? value : Number(value),
+  );
+}
 
 function normalizeStatus(status?: string): OrderStatus {
   if (
@@ -115,6 +127,7 @@ export function mapOrder(id: string, data: Partial<SalesOrderPayload>): SalesOrd
             ) || 0,
           )
         : undefined,
+    customerDiscount: mapCustomerDiscount(data.customerDiscount),
     createdAt: data.createdAt ?? Date.now(),
   };
 }
@@ -148,6 +161,7 @@ export async function updateSalesOrder(
     clearBykeaExpense?: boolean;
     clearReturnFields?: boolean;
     clearReturnOtherExpense?: boolean;
+    clearCustomerDiscount?: boolean;
   },
 ): Promise<void> {
   const update: Record<string, unknown> = { ...payload };
@@ -166,6 +180,9 @@ export async function updateSalesOrder(
     update.returnOtherExpense = deleteField();
   } else if (options?.clearReturnOtherExpense) {
     update.returnOtherExpense = deleteField();
+  }
+  if (options?.clearCustomerDiscount) {
+    update.customerDiscount = deleteField();
   }
   await updateDoc(doc(db, "sales-orders", id), update);
 }

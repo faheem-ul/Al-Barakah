@@ -3,14 +3,12 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/Admin/AdminAuthProvider";
-import {
-  adjustPackingForBoxChange,
-  resolveBoxRate,
-} from "@/lib/sales/box-sizes";
+import { resolveBoxRate } from "@/lib/sales/box-sizes";
 import {
   calculateSavedProducts,
   currentMonthValue,
-  recomputeCalculationFromSnapshot,
+  normalizeCustomerDiscount,
+  toStoredCustomerDiscount,
 } from "@/lib/sales/calculations";
 import {
   createSalesOrder,
@@ -55,6 +53,7 @@ type OrderDraftInput = {
   bykeaExpense: number;
   returnExpenseMode: ReturnExpenseMode;
   returnOtherExpense: number;
+  customerDiscount: number;
 };
 
 function isPromotionalBykea(
@@ -173,6 +172,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             draft.status === "returned" ? draft.returnExpenseMode : undefined,
           returnOtherExpense:
             draft.status === "returned" ? draft.returnOtherExpense : undefined,
+          customerDiscount: draft.customerDiscount,
         },
       );
 
@@ -188,6 +188,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         calculation,
         createdAt,
       };
+
+      const storedDiscount = toStoredCustomerDiscount(draft.customerDiscount);
+      if (storedDiscount) {
+        payload.customerDiscount = storedDiscount;
+      }
 
       if (boxId) {
         payload.boxSizeId = boxId;
@@ -206,23 +211,23 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
     (draft: OrderDraftInput, existing: SalesOrder) => {
       const boxId = draft.boxSizeId.trim();
       const boxRate = boxId ? resolveBoxRate(settings, boxId) : 0;
-      const adjustedPacking = adjustPackingForBoxChange(
-        existing.calculation.packing,
-        existing.boxRate,
-        boxRate,
-      );
 
-      const calculation = recomputeCalculationFromSnapshot(
-        existing.calculation,
+      const calculation = calculateSavedProducts(
+        settings,
+        settings.catalogProducts,
+        existing.products,
+        draft.status,
+        existing.courierService,
+        existing.zone,
         {
-          status: draft.status,
-          shipping: draft.customerShipping,
-          courier: resolveCourierAmount(draft),
-          packing: adjustedPacking,
+          customerShippingOverride: draft.customerShipping,
+          courierOverride: resolveCourierAmount(draft),
+          boxRate,
           returnExpenseMode:
             draft.status === "returned" ? draft.returnExpenseMode : undefined,
           returnOtherExpense:
             draft.status === "returned" ? draft.returnOtherExpense : undefined,
+          customerDiscount: draft.customerDiscount,
         },
       );
 
@@ -238,6 +243,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
         calculation,
         createdAt: existing.createdAt,
       };
+
+      const storedDiscount = toStoredCustomerDiscount(draft.customerDiscount);
+      if (storedDiscount) {
+        payload.customerDiscount = storedDiscount;
+      }
 
       if (boxId) {
         payload.boxSizeId = boxId;
@@ -271,12 +281,16 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             draft.returnExpenseMode !== "manual" &&
             (editingOrder.returnOtherExpense !== undefined ||
               editingOrder.calculation.returnOtherExpense !== undefined);
+          const clearCustomerDiscount =
+            normalizeCustomerDiscount(draft.customerDiscount) === 0 &&
+            editingOrder.customerDiscount !== undefined;
           await updateSalesOrder(editingOrder.id, payload, {
             clearBoxFields,
             clearPromotionalFields,
             clearBykeaExpense,
             clearReturnFields,
             clearReturnOtherExpense,
+            clearCustomerDiscount,
           });
           const updatedOrder: SalesOrder = {
             id: editingOrder.id,
@@ -297,6 +311,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({
             delete updatedOrder.returnOtherExpense;
             delete updatedOrder.calculation.returnExpenseMode;
             delete updatedOrder.calculation.returnOtherExpense;
+          }
+          if (clearCustomerDiscount) {
+            delete updatedOrder.customerDiscount;
           }
           onOrdersChange(
             orders.map((order) =>

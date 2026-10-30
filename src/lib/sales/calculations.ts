@@ -3,6 +3,7 @@ import type {
   AppliedCustomExpense,
   CourierService,
   CourierZone,
+  CustomerDiscountAmount,
   OrderPreviewResult,
   OrderStatus,
   ProductLineInput,
@@ -20,6 +21,38 @@ import type {
   StockPurchase,
   StockExpense,
 } from "./types";
+
+const VALID_CUSTOMER_DISCOUNTS: CustomerDiscountAmount[] = [150, 300, 500];
+
+export function normalizeCustomerDiscount(value?: number | null): number {
+  const n = Number(value);
+  if (VALID_CUSTOMER_DISCOUNTS.includes(n as CustomerDiscountAmount)) {
+    return n;
+  }
+  return 0;
+}
+
+export function toStoredCustomerDiscount(
+  value?: number | null,
+): CustomerDiscountAmount | undefined {
+  const amount = normalizeCustomerDiscount(value);
+  return amount === 0 ? undefined : (amount as CustomerDiscountAmount);
+}
+
+export function computeGrossProductRevenue(
+  catalog: SalesCatalogProduct[],
+  lines: ProductLineInput[],
+): number {
+  let gross = 0;
+
+  for (const line of lines) {
+    const product = getProductById(catalog, line.key);
+    if (!product || line.qty <= 0) continue;
+    gross += line.qty * product.sellingPrice;
+  }
+
+  return gross;
+}
 
 export function normalizeReturnExpenseMode(
   mode?: string | null,
@@ -272,7 +305,7 @@ export function calculateOrderPreview(
   zone: CourierZone = "withinCity",
   options?: OrderPreviewOptions,
 ): OrderPreviewResult {
-  let productRevenue = 0;
+  let grossProductRevenue = 0;
   let honeyCost = 0;
   let weight = 0;
   let units = 0;
@@ -283,11 +316,14 @@ export function calculateOrderPreview(
 
     if (!product || qty <= 0) continue;
 
-    productRevenue += qty * product.sellingPrice;
+    grossProductRevenue += qty * product.sellingPrice;
     honeyCost += qty * product.purchasePrice;
     weight += qty * product.weight;
     units += qty;
   }
+
+  const customerDiscount = normalizeCustomerDiscount(options?.customerDiscount);
+  const productRevenue = Math.max(0, grossProductRevenue - customerDiscount);
 
   const customerShipping = resolveCustomerShipping(
     settings,
@@ -360,6 +396,8 @@ export function calculateOrderPreview(
   }
 
   let preview: OrderPreviewResult = {
+    grossProductRevenue,
+    customerDiscount: customerDiscount > 0 ? customerDiscount : undefined,
     productRevenue,
     honeyCost,
     weight,
@@ -542,6 +580,7 @@ export function recomputeCalculationFromSnapshot(
 
 export function calculationToPreview(
   calculation: SalesOrderCalculation,
+  customerDiscount = 0,
 ): OrderPreviewResult {
   const customExpenses = calculation.customExpenses ?? [];
 
@@ -553,8 +592,14 @@ export function calculationToPreview(
     returnOtherExpense,
   );
 
+  const discount = normalizeCustomerDiscount(customerDiscount);
+  const netProductRevenue = Number(calculation.productRevenue) || 0;
+
   return {
-    productRevenue: calculation.productRevenue,
+    grossProductRevenue:
+      discount > 0 ? netProductRevenue + discount : undefined,
+    customerDiscount: discount > 0 ? discount : undefined,
+    productRevenue: netProductRevenue,
     honeyCost: calculation.honeyCost,
     weight: calculation.weight,
     units: calculation.units,

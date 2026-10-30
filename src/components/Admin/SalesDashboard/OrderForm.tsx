@@ -7,7 +7,9 @@ import {
   calculateOrderPreview,
   calculatePackingCost,
   calculationToPreview,
+  computeGrossProductRevenue,
   money,
+  normalizeCustomerDiscount,
   normalizeReturnExpenseMode,
   recomputeCalculationFromSnapshot,
   todayIsoDate,
@@ -34,7 +36,12 @@ import type {
 } from "@/lib/sales/types";
 import { Button } from "@/components/ui/button";
 
-import { BUYER_NAME_MAX_LENGTH, ORDER_DRAFT_KEY } from "./constants";
+import {
+  BUYER_NAME_MAX_LENGTH,
+  CUSTOMER_DISCOUNT_OPTIONS,
+  formatCustomerDiscountLabel,
+  ORDER_DRAFT_KEY,
+} from "./constants";
 import OrderPreview from "./OrderPreview";
 
 type ProductRow = {
@@ -64,6 +71,7 @@ type OrderFormProps = {
     bykeaExpense: number;
     returnExpenseMode: ReturnExpenseMode;
     returnOtherExpense: number;
+    customerDiscount: number;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -130,6 +138,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
   const [returnExpenseMode, setReturnExpenseMode] =
     useState<ReturnExpenseMode>("packing_only");
   const [returnOtherExpense, setReturnOtherExpense] = useState(0);
+  const [customerDiscount, setCustomerDiscount] = useState(0);
   const [initialized, setInitialized] = useState(false);
 
   const boxSizes = settings.boxSizes ?? [];
@@ -165,6 +174,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
           editOrder.calculation.returnOtherExpense ??
           0,
       );
+      setCustomerDiscount(editOrder.customerDiscount ?? 0);
       setInitialized(true);
       return;
     }
@@ -182,6 +192,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       setShippingTouched(Boolean(draft.shippingTouched));
       setActualCourier(draft.actualCourier ?? 0);
       setCourierTouched(Boolean(draft.courierTouched));
+      setCustomerDiscount(draft.customerDiscount ?? 0);
 
       if (draft.products?.length) {
         setRows(
@@ -268,6 +279,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       actualCourier: displayCourier,
       shippingTouched,
       courierTouched,
+      customerDiscount,
     });
   }, [
     orderNumber,
@@ -282,6 +294,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     displayCourier,
     shippingTouched,
     courierTouched,
+    customerDiscount,
     initialized,
     editOrder,
   ]);
@@ -295,6 +308,13 @@ const OrderForm: React.FC<OrderFormProps> = ({
     if (!lines.length) return null;
 
     if (editOrder) {
+      const productLines = editOrder.products.map((item) => ({
+        key: item.key,
+        qty: item.qty,
+      }));
+      const gross = computeGrossProductRevenue(catalog, productLines);
+      const discount = normalizeCustomerDiscount(customerDiscount);
+      const netProductRevenue = Math.max(0, gross - discount);
       const adjustedPacking = adjustPackingForBoxChange(
         editOrder.calculation.packing,
         editOrder.boxRate,
@@ -302,7 +322,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
       );
       const editCourier = isPromotionalBykea ? 0 : actualCourier;
       const calculation = recomputeCalculationFromSnapshot(
-        editOrder.calculation,
+        {
+          ...editOrder.calculation,
+          productRevenue: netProductRevenue,
+        },
         {
           status,
           shipping: customerShipping,
@@ -312,7 +335,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
           returnOtherExpense,
         },
       );
-      return calculationToPreview(calculation);
+      return calculationToPreview(calculation, discount);
     }
 
     return calculateOrderPreview(
@@ -330,6 +353,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
           status === "returned" ? returnExpenseMode : undefined,
         returnOtherExpense:
           status === "returned" ? returnOtherExpense : undefined,
+        customerDiscount,
       },
     );
   }, [
@@ -348,6 +372,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     actualCourier,
     returnExpenseMode,
     returnOtherExpense,
+    customerDiscount,
   ]);
 
   const boxPacking = previewBoxRate;
@@ -398,6 +423,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     setBykeaExpense(0);
     setReturnExpenseMode("packing_only");
     setReturnOtherExpense(0);
+    setCustomerDiscount(0);
     clearDraft();
   };
 
@@ -432,6 +458,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
       bykeaExpense,
       returnExpenseMode,
       returnOtherExpense,
+      customerDiscount,
     });
 
     if (!editOrder) {
@@ -518,6 +545,28 @@ const OrderForm: React.FC<OrderFormProps> = ({
             <option value="returned">Returned</option>
             <option value="promotional">Promotional Giveaway</option>
           </select>
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <label className="block max-w-md">
+          <span className="text-[13px] text-[#6b7280] mb-1 block">
+            Customer discount
+          </span>
+          <select
+            value={customerDiscount}
+            onChange={(e) => setCustomerDiscount(Number(e.target.value))}
+            className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2"
+          >
+            {CUSTOMER_DISCOUNT_OPTIONS.map((amount) => (
+              <option key={amount} value={amount}>
+                {formatCustomerDiscountLabel(amount)}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-[#9ca3af]">
+            Cart-level discount on product total. Shipping rules are unchanged.
+          </p>
         </label>
       </div>
 
