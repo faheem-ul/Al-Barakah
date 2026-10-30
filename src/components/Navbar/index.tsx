@@ -9,6 +9,7 @@ import useDisclosure from "@/hooks/useDisclosure";
 import { NAV_ITEMS } from "@/lib/constants";
 import useShoppingCart from "@/hooks/useShoppingCart";
 import { cn } from "@/lib/utils";
+import { shouldUseCompactNavbarTop } from "@/lib/show-free-delivery-bar";
 import CartDrawer from "@/ui/CartDrawer";
 
 import Cart from "@/components/Cart";
@@ -25,23 +26,13 @@ const Navbar = () => {
     useShoppingCart();
 
   const pathname = usePathname();
-
-  const isProductRoute =
-    pathname !== "/" &&
-    pathname !== "/about-us" &&
-    pathname !== "/contact-us" &&
-    pathname !== "/cart" &&
-    // pathname !== "/azadi-sale" &&
-    pathname !== "/privacy-policy" &&
-    pathname !== "/terms-and-conditions" &&
-    pathname !== "/refund-policy" &&
-    pathname !== "/ownership-statement";
+  const compactNavTop = shouldUseCompactNavbarTop(pathname);
 
   return (
     <nav
       className={cn(
         "relative z-10 mx-auto max-w-[1117px] py-[22px] sm:pt-10 sm:pb-[53px] px-4",
-        isProductRoute && "sm:pt-3 pt-3",
+        compactNavTop && "sm:pt-3 pt-3",
       )}
     >
       <div className=" bg-[#F2EEE6] flex w-full items-center justify-between rounded-[40px] px-5 md:py-0 py-5 sm:h-[78px] sm:px-8">
