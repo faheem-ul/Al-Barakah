@@ -6,6 +6,13 @@ export const ORDER_DRAFT_KEY = "honeyOrderDraft";
 
 export const BUYER_NAME_MAX_LENGTH = 40;
 
+export const CUSTOMER_DISCOUNT_OPTIONS = [0, 150, 300, 500] as const;
+
+export function formatCustomerDiscountLabel(amount: number): string {
+  if (amount <= 0) return "No discount";
+  return `Rs. ${amount.toLocaleString("en-PK")} off`;
+}
+
 export const SALES_TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "orders", label: "Orders" },

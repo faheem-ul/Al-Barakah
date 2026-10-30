@@ -84,6 +84,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
               </th>
               <th className="py-3 pr-3 font-medium">Products</th>
               <th className="py-3 pr-3 font-medium">Weight</th>
+              <th className="py-3 pr-3 font-medium">Discount</th>
               <th className="py-3 pr-3 font-medium">COD</th>
               <th className="py-3 pr-3 font-medium">Profit</th>
               <th className="py-3 pr-3 font-medium">Status</th>
@@ -115,6 +116,18 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     ))}
                   </td>
                   <td className="py-3 pr-3">{c.weight.toFixed(2)} kg</td>
+                  <td className="py-3 pr-3 text-[#6b7280]">
+                    {order.customerDiscount ? (
+                      <>
+                        {money(order.customerDiscount)}{" "}
+                        <span className="text-[12px] font-normal text-[#9ca3af]">
+                          off
+                        </span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="py-3 pr-3">
                     {order.status === "delivered" ? money(c.revenue) : "Rs. 0"}
                   </td>

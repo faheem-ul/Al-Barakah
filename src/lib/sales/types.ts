@@ -105,6 +105,8 @@ export type NumericSettingsKey = Exclude<
   | "wholesalerLegacyMigrated"
 >;
 
+export type CustomerDiscountAmount = 150 | 300 | 500;
+
 export type SalesOrderProduct = {
   product: string;
   variant: string;
@@ -146,6 +148,7 @@ export type SalesOrder = {
   bykeaExpense?: number;
   returnExpenseMode?: ReturnExpenseMode;
   returnOtherExpense?: number;
+  customerDiscount?: CustomerDiscountAmount;
   createdAt: number;
 };
 
@@ -170,6 +173,7 @@ export type OrderDraft = {
   actualCourier?: number;
   shippingTouched?: boolean;
   courierTouched?: boolean;
+  customerDiscount?: number;
 };
 
 export type OrderPreviewOptions = {
@@ -179,6 +183,7 @@ export type OrderPreviewOptions = {
   boxRate?: number;
   returnExpenseMode?: ReturnExpenseMode;
   returnOtherExpense?: number;
+  customerDiscount?: number;
 };
 
 export type ProductLineInput = {
@@ -187,6 +192,8 @@ export type ProductLineInput = {
 };
 
 export type OrderPreviewResult = {
+  grossProductRevenue?: number;
+  customerDiscount?: number;
   productRevenue: number;
   honeyCost: number;
   weight: number;
