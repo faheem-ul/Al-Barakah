@@ -49,6 +49,7 @@ export type LoyaltyCouponEmailContent = {
 
 /**
  * Shared loyalty coupon email (paid-order webhook + future bulk campaign).
+ * Tier from current order total (see segments.ts); one send per order in Firestore.
  */
 export function buildLoyaltyCouponEmailContent(params: {
   greetingName: string;

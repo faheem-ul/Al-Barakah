@@ -58,7 +58,7 @@ export async function notifyAdminLoyaltyCoupon(
   const email = str(order.email || order.customer?.email).toLowerCase();
   const { code, amount } = ctx.tier;
   const amountLabel = formatLoyaltyAmount(amount);
-  const spentLabel = formatLoyaltyAmount(ctx.lifetimeSpentPkr);
+  const orderTotalLabel = formatLoyaltyAmount(ctx.orderTotalPkr);
 
   const waPhone = normalizeWhatsAppPhone(phone);
   const waLoyaltyLink = waPhone
@@ -99,7 +99,7 @@ export async function notifyAdminLoyaltyCoupon(
           ? `<a href="mailto:${escapeEmailHtml(email)}" style="color:${EMAIL_BRAND.brown};">${escapeEmailHtml(email)}</a>`
           : "—",
       },
-      { label: "Lifetime spent", valueHtml: escapeEmailHtml(spentLabel) },
+      { label: "Order total", valueHtml: escapeEmailHtml(orderTotalLabel) },
       { label: "Orders", valueHtml: escapeEmailHtml(String(ctx.ordersCount)) },
       {
         label: "Coupon",
@@ -116,7 +116,7 @@ export async function notifyAdminLoyaltyCoupon(
     `Customer: ${name}\n` +
     `Phone: ${phone || "—"}\n` +
     `Email: ${email || "—"}\n` +
-    `Lifetime spent: ${spentLabel}\n` +
+    `Order total: ${orderTotalLabel}\n` +
     `Orders: ${ctx.ordersCount}\n` +
     `Coupon: ${code} (${amountLabel} off)\n\n` +
     (waLoyaltyLink ? `WhatsApp:\n${waLoyaltyLink}\n` : "");

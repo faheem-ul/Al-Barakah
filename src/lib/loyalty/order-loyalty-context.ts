@@ -1,7 +1,7 @@
 import {
   isLoyaltyEligible,
   parseCustomerSpent,
-  resolveLoyaltyTierFromLifetimeSpent,
+  resolveLoyaltyTierFromOrderTotalPkr,
   type LoyaltyTier,
 } from "@/lib/loyalty/segments";
 import { fetchCustomerLoyaltyMetrics } from "@/lib/shopify/admin/lookup-customer-loyalty";
@@ -10,7 +10,7 @@ import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
 export type OrderLoyaltyContext = {
   tier: LoyaltyTier;
   ordersCount: number;
-  lifetimeSpentPkr: number;
+  orderTotalPkr: number;
 };
 
 export function isOrderFinanciallyPaid(order: ShopifyWebhookOrder): boolean {
@@ -31,23 +31,19 @@ export function shouldTriggerPaidLoyaltyWebhook(
 }
 
 /**
- * Lifetime spend + orders count from webhook customer, with Admin API fallback.
+ * Current order total + orders count from webhook, with Admin fallback for count only.
  */
 export async function resolveOrderLoyaltyContext(
   order: ShopifyWebhookOrder,
 ): Promise<OrderLoyaltyContext | null> {
   let ordersCount = order.customer?.orders_count;
-  let lifetimeSpentPkr = parseCustomerSpent(order.customer?.total_spent);
+  const orderTotalPkr = parseCustomerSpent(order.total_price);
 
   const customerId = order.customer?.id;
-  if (
-    (ordersCount === undefined || order.customer?.total_spent === undefined) &&
-    customerId
-  ) {
+  if (ordersCount === undefined && customerId) {
     const fromAdmin = await fetchCustomerLoyaltyMetrics(customerId);
     if (fromAdmin) {
       ordersCount = fromAdmin.ordersCount;
-      lifetimeSpentPkr = fromAdmin.totalSpent;
     }
   }
 
@@ -56,9 +52,14 @@ export async function resolveOrderLoyaltyContext(
     return null;
   }
 
+  const tier = resolveLoyaltyTierFromOrderTotalPkr(orderTotalPkr);
+  if (!tier) {
+    return null;
+  }
+
   return {
-    tier: resolveLoyaltyTierFromLifetimeSpent(lifetimeSpentPkr),
+    tier,
     ordersCount: count,
-    lifetimeSpentPkr,
+    orderTotalPkr,
   };
 }
