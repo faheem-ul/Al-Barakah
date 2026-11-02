@@ -15,6 +15,7 @@ export type LoyaltyDiscountCreateInput = {
   shopifyCustomerId: number;
   amount: LoyaltyTierAmount;
   orderLabel: string;
+  customerFirstName: string;
   code?: string;
 };
 
@@ -56,12 +57,25 @@ function sanitizeOrderRef(orderLabel: string): string {
   return cleaned || "ORDER";
 }
 
-/** Unique checkout code, e.g. ABH150-1042-K7M3NP */
+function sanitizeCustomerFirstNameForCode(raw: string): string {
+  const letters = String(raw || "")
+    .trim()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z]/g, "");
+  if (!letters) return "Customer";
+  const capped = letters.charAt(0).toUpperCase() + letters.slice(1, 20).toLowerCase();
+  return capped.slice(0, 20);
+}
+
+/** Unique checkout code: Firstname-ordernumber-RANDOM, e.g. Ali-990004-K7M3NP */
 export function generateLoyaltyDiscountCode(
-  amount: LoyaltyTierAmount,
+  customerFirstName: string,
   orderLabel: string,
 ): string {
-  return `ABH${amount}-${sanitizeOrderRef(orderLabel)}-${randomCodeSuffix()}`;
+  const name = sanitizeCustomerFirstNameForCode(customerFirstName);
+  const order = sanitizeOrderRef(orderLabel);
+  return `${name}-${order}-${randomCodeSuffix()}`;
 }
 
 function moneyAmountString(pkr: number): string {
@@ -73,8 +87,11 @@ export function buildLoyaltyBasicCodeDiscountInput(
 ): Record<string, unknown> {
   const minimumPurchasePkr = minimumPurchasePkrForTier(params.amount);
   const code =
-    params.code?.trim().toUpperCase() ||
-    generateLoyaltyDiscountCode(params.amount, params.orderLabel);
+    params.code?.trim() ||
+    generateLoyaltyDiscountCode(
+      params.customerFirstName,
+      params.orderLabel,
+    );
   const customerGid = shopifyCustomerGid(params.shopifyCustomerId);
   const title = `Loyalty Rs ${params.amount} — order ${params.orderLabel}`;
 
@@ -137,8 +154,11 @@ export async function createLoyaltyDiscountCodeForCustomer(
   params: LoyaltyDiscountCreateInput,
 ): Promise<LoyaltyDiscountCreateResult> {
   let code =
-    params.code?.trim().toUpperCase() ||
-    generateLoyaltyDiscountCode(params.amount, params.orderLabel);
+    params.code?.trim() ||
+    generateLoyaltyDiscountCode(
+      params.customerFirstName,
+      params.orderLabel,
+    );
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const basicCodeDiscount = buildLoyaltyBasicCodeDiscountInput({
@@ -155,7 +175,10 @@ export async function createLoyaltyDiscountCodeForCustomer(
     if (errors.length) {
       const msg = errors.map((e) => e.message).join("; ");
       if (attempt === 0 && errors.some((e) => isCodeTakenError(e.message))) {
-        code = generateLoyaltyDiscountCode(params.amount, params.orderLabel);
+        code = generateLoyaltyDiscountCode(
+          params.customerFirstName,
+          params.orderLabel,
+        );
         continue;
       }
       console.error(`${LOG} userErrors:`, errors);
