@@ -138,7 +138,7 @@ async function sendPaidLoyaltyEmailsSafe(
   const ctx = await resolveOrderLoyaltyContext(order);
   if (!ctx) {
     console.log(
-      `${LOG} Loyalty skipped for order ${orderNumber} — not eligible or missing customer metrics`,
+      `${LOG} Loyalty skipped for order ${orderNumber} — not eligible, order total below tier minimum, or missing customer metrics`,
     );
     return;
   }
@@ -150,11 +150,15 @@ async function sendPaidLoyaltyEmailsSafe(
     return;
   }
 
+  let customerResult;
   try {
-    const customerResult = await notifyCustomerLoyaltyCoupon(order, ctx);
+    customerResult = await notifyCustomerLoyaltyCoupon(order, ctx);
     if (customerResult.skipped) {
       console.log(
-        `${LOG} Customer loyalty email skipped for order ${orderNumber}`,
+        `${LOG} Customer loyalty email skipped for order ${orderNumber}` +
+          (customerResult.skipReason
+            ? ` (${customerResult.skipReason})`
+            : ""),
       );
     } else {
       console.log(
@@ -164,6 +168,13 @@ async function sendPaidLoyaltyEmailsSafe(
   } catch (err) {
     loyaltyEmailedOrderKeys.delete(String(orderNumber).trim());
     console.error(`${LOG} Customer loyalty email failed:`, err);
+    return;
+  }
+
+  if (customerResult.skipReason === "already_sent") {
+    console.log(
+      `${LOG} Admin loyalty email skipped for order ${orderNumber} — voucher already sent for this order`,
+    );
     return;
   }
 

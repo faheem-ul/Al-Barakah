@@ -1,5 +1,6 @@
-export const LOYALTY_SPEND_MID_PKR = 2500;
-export const LOYALTY_SPEND_HIGH_PKR = 5000;
+export const LOYALTY_ORDER_TIER_LOW_PKR = 2000;
+export const LOYALTY_ORDER_TIER_MID_PKR = 3500;
+export const LOYALTY_ORDER_TIER_HIGH_PKR = 5000;
 
 export const LOYALTY_MIN_ORDERS = 1;
 
@@ -28,14 +29,17 @@ export function parseCustomerSpent(
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-/** Matches Shopify customer segments (lifetime amount spent, PKR). */
-export function resolveLoyaltyTierFromLifetimeSpent(
-  spentPkr: number,
-): LoyaltyTier {
-  if (spentPkr >= LOYALTY_SPEND_HIGH_PKR) {
+/** Paid-order voucher tier from current order total (PKR). */
+export function resolveLoyaltyTierFromOrderTotalPkr(
+  orderTotalPkr: number,
+): LoyaltyTier | null {
+  if (orderTotalPkr < LOYALTY_ORDER_TIER_LOW_PKR) {
+    return null;
+  }
+  if (orderTotalPkr >= LOYALTY_ORDER_TIER_HIGH_PKR) {
     return { ...LOYALTY_TIERS.t3 };
   }
-  if (spentPkr >= LOYALTY_SPEND_MID_PKR) {
+  if (orderTotalPkr >= LOYALTY_ORDER_TIER_MID_PKR) {
     return { ...LOYALTY_TIERS.t2 };
   }
   return { ...LOYALTY_TIERS.t1 };
