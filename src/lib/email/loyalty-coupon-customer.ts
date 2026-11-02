@@ -60,6 +60,17 @@ function orderNumberForRegistry(order: ShopifyWebhookOrder): string {
   return str(order.order_number ?? order.name ?? order.id);
 }
 
+function customerFirstNameForDiscountCode(order: ShopifyWebhookOrder): string {
+  const fromCustomer = str(order.customer?.first_name);
+  if (fromCustomer) return fromCustomer;
+  const shipping = order.shipping_address;
+  if (shipping?.first_name) return str(shipping.first_name);
+  if (shipping?.name) return str(shipping.name).split(/\s+/)[0] || "";
+  const billing = order.billing_address;
+  if (billing?.first_name) return str(billing.first_name);
+  return customerName(order).split(/\s+/)[0] || "Customer";
+}
+
 async function ensureUniqueDiscountCode(
   order: ShopifyWebhookOrder,
   ctx: OrderLoyaltyContext,
@@ -79,6 +90,7 @@ async function ensureUniqueDiscountCode(
     shopifyCustomerId,
     amount: ctx.tier.amount,
     orderLabel: orderNumber,
+    customerFirstName: customerFirstNameForDiscountCode(order),
   });
 
   await persistLoyaltyVoucherDiscountCode(orderNumber, {
