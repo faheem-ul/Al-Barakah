@@ -9,6 +9,17 @@ export const LOYALTY_VOUCHER_SENDS_COLLECTION = "loyalty-voucher-sends";
 
 export type LoyaltyVoucherSendStatus = "pending" | "sent";
 
+export type LoyaltyVoucherSendRecord = {
+  status: LoyaltyVoucherSendStatus;
+  email: string;
+  orderNumber: string;
+  tierCode: string;
+  tierAmount: number;
+  orderTotalPkr: number;
+  discountCode?: string;
+  shopifyDiscountId?: string;
+};
+
 export function normalizeLoyaltyCustomerEmail(
   email: string,
 ): string | null {
@@ -51,6 +62,52 @@ function displayOrderNumber(orderNumber: string | number): string {
 /**
  * Reserve a send slot for this order (one voucher email per order number).
  */
+export async function getLoyaltyVoucherSend(
+  orderNumber: string | number,
+): Promise<LoyaltyVoucherSendRecord | null> {
+  const key = normalizeLoyaltyOrderKey(orderNumber);
+  if (!key) return null;
+
+  const snap = await docRefForOrder(orderNumber).get();
+  if (!snap.exists) return null;
+
+  const data = snap.data();
+  if (!data) return null;
+
+  return {
+    status: (data.status as LoyaltyVoucherSendStatus) ?? "pending",
+    email: String(data.email ?? ""),
+    orderNumber: String(data.orderNumber ?? ""),
+    tierCode: String(data.tierCode ?? ""),
+    tierAmount: Number(data.tierAmount ?? 0),
+    orderTotalPkr: Number(data.orderTotalPkr ?? 0),
+    discountCode: data.discountCode
+      ? String(data.discountCode)
+      : undefined,
+    shopifyDiscountId: data.shopifyDiscountId
+      ? String(data.shopifyDiscountId)
+      : undefined,
+  };
+}
+
+export async function persistLoyaltyVoucherDiscountCode(
+  orderNumber: string | number,
+  params: {
+    discountCode: string;
+    shopifyDiscountId?: string;
+    tierCode?: string;
+  },
+): Promise<void> {
+  const ref = docRefForOrder(orderNumber);
+  await ref.update({
+    discountCode: params.discountCode,
+    ...(params.shopifyDiscountId
+      ? { shopifyDiscountId: params.shopifyDiscountId }
+      : {}),
+    ...(params.tierCode ? { tierCode: params.tierCode } : {}),
+  });
+}
+
 export async function claimLoyaltyVoucherSendSlot(params: {
   orderNumber: string | number;
   email: string;
@@ -109,6 +166,14 @@ export async function releaseLoyaltyVoucherSendSlot(
   if (status === "sent") {
     console.warn(
       `${LOG} release skipped — already sent for order ${normalizeLoyaltyOrderKey(orderNumber)}`,
+    );
+    return;
+  }
+
+  const discountCode = snap.get("discountCode") as string | undefined;
+  if (discountCode?.trim()) {
+    console.warn(
+      `${LOG} release skipped — discount already created for order ${normalizeLoyaltyOrderKey(orderNumber)} (retry can resume email)`,
     );
     return;
   }

@@ -161,8 +161,10 @@ async function sendPaidLoyaltyEmailsSafe(
             : ""),
       );
     } else {
+      const code =
+        customerResult.tier?.code ?? ctx.tier.code;
       console.log(
-        `${LOG} Customer loyalty email sent for order ${orderNumber} — ${ctx.tier.code}`,
+        `${LOG} Customer loyalty email sent for order ${orderNumber} — ${code}`,
       );
     }
   } catch (err) {
@@ -171,17 +173,29 @@ async function sendPaidLoyaltyEmailsSafe(
     return;
   }
 
-  if (customerResult.skipReason === "already_sent") {
-    console.log(
-      `${LOG} Admin loyalty email skipped for order ${orderNumber} — voucher already sent for this order`,
-    );
+  if (
+    customerResult.skipReason === "already_sent" ||
+    customerResult.skipReason === "shopify_auto_create_disabled" ||
+    customerResult.skipReason === "no_shopify_customer" ||
+    customerResult.skipReason === "shopify_discount_failed"
+  ) {
+    if (customerResult.skipReason === "already_sent") {
+      console.log(
+        `${LOG} Admin loyalty email skipped for order ${orderNumber} — voucher already sent for this order`,
+      );
+    }
     return;
   }
 
+  const adminCtx = customerResult.tier
+    ? { ...ctx, tier: customerResult.tier }
+    : ctx;
+
   try {
-    await notifyAdminLoyaltyCoupon(order, ctx);
+    await notifyAdminLoyaltyCoupon(order, adminCtx);
+    const code = adminCtx.tier.code;
     console.log(
-      `${LOG} Admin loyalty email sent for order ${orderNumber} — ${ctx.tier.code}`,
+      `${LOG} Admin loyalty email sent for order ${orderNumber} — ${code}`,
     );
   } catch (err) {
     console.error(`${LOG} Admin loyalty email failed:`, err);

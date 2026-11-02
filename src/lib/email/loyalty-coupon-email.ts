@@ -11,44 +11,24 @@ import {
 } from "@/lib/loyalty/segments";
 import { siteBaseUrl } from "@/lib/whatsapp/delivery-issue-draft";
 
-const TIER_VOUCHER_PATH: Record<number, string> = {
-  150: "loyalty-voucher/150.webp",
-  300: "loyalty-voucher/300.webp",
-  500: "loyalty-voucher/500.webp",
-};
-
-/** Public URL for the tier voucher image in customer loyalty emails. */
-export function loyaltyVoucherImageUrl(tier: LoyaltyTier): string {
-  const override = process.env.LOYALTY_VOUCHER_IMAGE_URL?.trim();
-  if (override) return override.replace(/\/+$/, "");
-  const path =
-    TIER_VOUCHER_PATH[tier.amount] ?? TIER_VOUCHER_PATH[150];
-  const base = siteBaseUrl().replace(/\/+$/, "");
-  return `${base}/images/${path}`;
-}
-
-function loyaltyVoucherImageHtml(
-  imageUrl: string,
-  code: string,
-  amountLabel: string,
-): string {
-  const alt = `Loyalty voucher — ${code}, ${amountLabel} off your next order`;
-  return (
-    `<div style="margin:0 0 16px;text-align:center;">` +
-    `<img src="${escapeEmailHtml(imageUrl)}" alt="${escapeEmailHtml(alt)}" width="520" ` +
-    `style="display:block;margin:0 auto;max-width:100%;height:auto;border:0;border-radius:8px;" />` +
-    `</div>`
-  );
-}
-
 export type LoyaltyCouponEmailContent = {
   subject: string;
   html: string;
   text: string;
 };
 
+function loyaltyCodeBlockHtml(code: string, amountLabel: string): string {
+  return (
+    `<div style="margin:0 0 16px;padding:16px 20px;text-align:center;background:${EMAIL_BRAND.cream};border:1px solid ${EMAIL_BRAND.border};border-radius:8px;">` +
+    `<p style="margin:0 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${EMAIL_BRAND.muted};">Your coupon code</p>` +
+    `<p style="margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:0.1em;color:${EMAIL_BRAND.ink};">${escapeEmailHtml(code)}</p>` +
+    `<p style="margin:0;font-size:14px;color:${EMAIL_BRAND.brown};">${escapeEmailHtml(amountLabel)} off your next order</p>` +
+    `</div>`
+  );
+}
+
 /**
- * Shared loyalty coupon email (paid-order webhook + future bulk campaign).
+ * Shared loyalty coupon email (paid-order webhook).
  * Tier from current order total (see segments.ts); one send per order in Firestore.
  */
 export function buildLoyaltyCouponEmailContent(params: {
@@ -56,17 +36,17 @@ export function buildLoyaltyCouponEmailContent(params: {
   tier: LoyaltyTier;
 }): LoyaltyCouponEmailContent {
   const name = params.greetingName.trim() || "Customer";
-  const { code, amount } = params.tier;
+  const { code, amount, minimumPurchasePkr } = params.tier;
   const amountLabel = formatLoyaltyAmount(amount);
+  const minLabel = formatLoyaltyAmount(minimumPurchasePkr);
   const shopUrl = siteBaseUrl();
-  const imageUrl = loyaltyVoucherImageUrl(params.tier);
 
   const subject = `${amountLabel} off your next order — code ${code}`;
 
   const bodyHtml =
-    loyaltyVoucherImageHtml(imageUrl, code, amountLabel) +
+    loyaltyCodeBlockHtml(code, amountLabel) +
     `<p style="margin:0 0 10px;font-size:14px;line-height:1.55;color:${EMAIL_BRAND.ink};">` +
-    `Enter the code <strong style="letter-spacing:0.06em;">${escapeEmailHtml(code)}</strong> at checkout on your <strong>next</strong> order. One use per customer.` +
+    `Enter this code at checkout on your <strong>next</strong> order (minimum purchase ${escapeEmailHtml(minLabel)}). This code is unique to your account and can be used <strong>once</strong>. It cannot be combined with other discounts.` +
     `</p>` +
     `<p style="margin:0;font-size:13px;line-height:1.55;color:${EMAIL_BRAND.muted};">` +
     `This offer is for customers who have ordered with us before.` +
@@ -76,7 +56,7 @@ export function buildLoyaltyCouponEmailContent(params: {
     eyebrow: "Loyalty coupon",
     greetingName: name,
     introHtml:
-      "Thank you for your order. As a returning customer, you can save on your next purchase with the voucher below.",
+      "Thank you for your order. As a returning customer, you can save on your next purchase with the code below.",
     bodyHtml,
     ctaHtml: brandedCtaButtonHtml({
       href: shopUrl,
@@ -91,7 +71,9 @@ export function buildLoyaltyCouponEmailContent(params: {
     `Thank you for your order. Save on your next purchase with this coupon:\n\n` +
     `Coupon code: ${code}\n` +
     `Discount: ${amountLabel} off your next order\n\n` +
-    `Enter the code at checkout. One use per customer. For customers who have ordered with us before.\n\n` +
+    `Minimum purchase on your next order: ${minLabel}\n` +
+    `This code is unique to your account, single use, and cannot be combined with other discounts.\n\n` +
+    `For customers who have ordered with us before.\n\n` +
     `Shop again: ${shopUrl}\n`;
 
   return { subject, html, text };
