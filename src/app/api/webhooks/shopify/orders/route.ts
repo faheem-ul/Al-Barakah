@@ -61,6 +61,19 @@ function claimNewOrderLoyaltyEmail_(orderNumber: string): boolean {
   return true;
 }
 
+function releaseLoyaltyEmailClaim(orderNumber: string): void {
+  loyaltyEmailedOrderKeys.delete(String(orderNumber).trim());
+}
+
+/** Allow Shopify webhook retry when loyalty did not actually complete. */
+function shouldReleaseLoyaltyClaimOnSkip(
+  skipReason: string | undefined,
+): boolean {
+  if (!skipReason) return true;
+  if (skipReason === "already_sent") return false;
+  return true;
+}
+
 async function readRawBody(request: NextRequest): Promise<Buffer> {
   try {
     const text = await request.text();
@@ -168,9 +181,15 @@ async function sendPaidLoyaltyEmailsSafe(
       );
     }
   } catch (err) {
-    loyaltyEmailedOrderKeys.delete(String(orderNumber).trim());
+    releaseLoyaltyEmailClaim(orderNumber);
     console.error(`${LOG} Customer loyalty email failed:`, err);
     return;
+  }
+
+  if (customerResult.skipped) {
+    if (shouldReleaseLoyaltyClaimOnSkip(customerResult.skipReason)) {
+      releaseLoyaltyEmailClaim(orderNumber);
+    }
   }
 
   if (
@@ -272,8 +291,9 @@ export async function POST(request: NextRequest) {
     topic,
   });
 
-  try {
-    if (CREATE_TOPICS.has(topic)) {
+  if (CREATE_TOPICS.has(topic)) {
+    let createBody: Record<string, unknown> = { ok: true, action: "create" };
+    try {
       const productDetails = await resolveOrderProductDetails(order.line_items);
       const rows = buildOrderSheetRows(order, productDetails);
       console.log(`${LOG} CREATE — writing ${rows.length} row(s)...`);
@@ -287,6 +307,7 @@ export async function POST(request: NextRequest) {
       );
       const result = await appendOrderRows(rows, orderNumber);
       console.log(`${LOG} CREATE result:`, result);
+      createBody = { ok: true, action: "create", ...result };
       if (result.written) {
         await sendNewOrderEmailsSafe(
           order,
@@ -300,17 +321,41 @@ export async function POST(request: NextRequest) {
           result.reason || result,
         );
       }
-      return NextResponse.json({ ok: true, action: "create", ...result });
+    } catch (error) {
+      console.error(`${LOG} FAILED sheet sync on create:`, error);
+      createBody = {
+        ok: false,
+        action: "create",
+        sheetError:
+          error instanceof Error ? error.message : "Sheet sync failed",
+      };
     }
 
+    try {
+      await sendPaidLoyaltyEmailsSafe(order, orderNumber, topic);
+    } catch (error) {
+      console.error(`${LOG} Loyalty failed on create (sheet independent):`, error);
+      createBody.loyaltyError =
+        error instanceof Error ? error.message : "Loyalty failed";
+    }
+
+    const createFailed =
+      Boolean(createBody.sheetError) && Boolean(createBody.loyaltyError);
+    return NextResponse.json(createBody, { status: createFailed ? 500 : 200 });
+  }
+
+  let responseBody: Record<string, unknown> = {
+    ok: true,
+    action: "update",
+  };
+
+  try {
     const orderStatus = initialOrderStatus(order);
     console.log(
       `${LOG} UPDATE — syncing Order Status for order ${orderNumber}:`,
       orderStatus,
     );
     const updated = await updateOrderStatuses(orderNumber, orderStatus);
-
-    let responseBody: Record<string, unknown>;
 
     if (updated.updated) {
       console.log(`${LOG} UPDATE SUCCESS:`, updated);
@@ -338,15 +383,25 @@ export async function POST(request: NextRequest) {
       console.log(`${LOG} UPDATE skipped:`, updated);
       responseBody = { ok: true, action: "update", ...updated };
     }
-
-    await sendPaidLoyaltyEmailsSafe(order, orderNumber, topic);
-
-    return NextResponse.json(responseBody);
   } catch (error) {
-    console.error(`${LOG} FAILED sheet sync:`, error);
-    return NextResponse.json(
-      { error: "Failed to write to Google Sheets" },
-      { status: 500 },
-    );
+    console.error(`${LOG} FAILED sheet sync on update:`, error);
+    responseBody = {
+      ok: false,
+      action: "update",
+      sheetError:
+        error instanceof Error ? error.message : "Sheet sync failed",
+    };
   }
+
+  try {
+    await sendPaidLoyaltyEmailsSafe(order, orderNumber, topic);
+  } catch (error) {
+    console.error(`${LOG} Loyalty failed on update (sheet independent):`, error);
+    responseBody.loyaltyError =
+      error instanceof Error ? error.message : "Loyalty failed";
+  }
+
+  const updateFailed =
+    Boolean(responseBody.sheetError) && Boolean(responseBody.loyaltyError);
+  return NextResponse.json(responseBody, { status: updateFailed ? 500 : 200 });
 }
