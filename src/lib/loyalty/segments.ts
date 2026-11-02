@@ -7,16 +7,46 @@ export const LOYALTY_MIN_ORDERS = 1;
 /** Fallback customer search when segment GID lookup is unavailable (Phase 2 bulk). */
 export const LOYALTY_CUSTOMERS_SEARCH_QUERY = "orders_count:>=1";
 
+export type LoyaltyTierAmount = 150 | 300 | 500;
+
 export type LoyaltyTier = {
   code: string;
-  amount: number;
+  amount: LoyaltyTierAmount;
+  minimumPurchasePkr: number;
 };
 
+/** Legacy static codes (pre–unique-code flow); not used when Shopify auto-create is on. */
 export const LOYALTY_TIERS = {
-  t1: { code: "ABHLOYAL150", amount: 150 },
-  t2: { code: "ABHLOYAL300", amount: 300 },
-  t3: { code: "ABHLOYAL500", amount: 500 },
+  t1: { code: "ABHLOYAL150", amount: 150 as const },
+  t2: { code: "ABHLOYAL300", amount: 300 as const },
+  t3: { code: "ABHLOYAL500", amount: 500 as const },
 } as const;
+
+export function minimumPurchasePkrForTier(
+  amount: LoyaltyTierAmount,
+): number {
+  switch (amount) {
+    case 150:
+      return LOYALTY_ORDER_TIER_LOW_PKR;
+    case 300:
+      return LOYALTY_ORDER_TIER_MID_PKR;
+    case 500:
+      return LOYALTY_ORDER_TIER_HIGH_PKR;
+    default:
+      return LOYALTY_ORDER_TIER_LOW_PKR;
+  }
+}
+
+export function loyaltyTierWithCode(
+  amount: LoyaltyTierAmount,
+  code: string,
+): LoyaltyTier {
+  return {
+    code,
+    amount,
+    minimumPurchasePkr: minimumPurchasePkrForTier(amount),
+  };
+}
 
 export function parseCustomerSpent(
   raw: string | number | null | undefined,
@@ -37,12 +67,27 @@ export function resolveLoyaltyTierFromOrderTotalPkr(
     return null;
   }
   if (orderTotalPkr >= LOYALTY_ORDER_TIER_HIGH_PKR) {
-    return { ...LOYALTY_TIERS.t3 };
+    return loyaltyTierWithCode(LOYALTY_TIERS.t3.amount, LOYALTY_TIERS.t3.code);
   }
   if (orderTotalPkr >= LOYALTY_ORDER_TIER_MID_PKR) {
-    return { ...LOYALTY_TIERS.t2 };
+    return loyaltyTierWithCode(LOYALTY_TIERS.t2.amount, LOYALTY_TIERS.t2.code);
   }
-  return { ...LOYALTY_TIERS.t1 };
+  return loyaltyTierWithCode(LOYALTY_TIERS.t1.amount, LOYALTY_TIERS.t1.code);
+}
+
+export function resolveLoyaltyTierAmountFromOrderTotalPkr(
+  orderTotalPkr: number,
+): LoyaltyTierAmount | null {
+  const tier = resolveLoyaltyTierFromOrderTotalPkr(orderTotalPkr);
+  return tier?.amount ?? null;
+}
+
+/** On by default in production; set LOYALTY_SHOPIFY_AUTO_CREATE=false to disable. */
+export function isLoyaltyShopifyAutoCreateEnabled(): boolean {
+  const raw = process.env.LOYALTY_SHOPIFY_AUTO_CREATE?.trim().toLowerCase();
+  if (raw === "false") return false;
+  if (raw === "true") return true;
+  return process.env.NODE_ENV === "production";
 }
 
 export function isLoyaltyEligible(numberOfOrders: number): boolean {

@@ -1,7 +1,10 @@
 import {
   formatLoyaltyAmount,
   LOYALTY_TIERS,
+  loyaltyTierWithCode,
+  minimumPurchasePkrForTier,
   type LoyaltyTier,
+  type LoyaltyTierAmount,
 } from "@/lib/loyalty/segments";
 import {
   buildTrackingStatusWhatsAppDraft,
@@ -70,19 +73,28 @@ function resolveLoyaltyTierFromParams(params: {
   const code = params.code?.trim();
   if (code) {
     const match = Object.values(LOYALTY_TIERS).find((t) => t.code === code);
-    if (match) return { ...match };
+    if (match) {
+      return loyaltyTierWithCode(match.amount, match.code);
+    }
     if (typeof params.amount === "number" && params.amount > 0) {
-      return { code, amount: params.amount };
+      const amount = params.amount as LoyaltyTierAmount;
+      return loyaltyTierWithCode(amount, code);
     }
   }
   if (typeof params.amount === "number" && params.amount > 0) {
     const byAmount = Object.values(LOYALTY_TIERS).find(
       (t) => t.amount === params.amount,
     );
-    if (byAmount) return { ...byAmount };
-    return { code: LOYALTY_TIERS.t1.code, amount: params.amount };
+    if (byAmount) {
+      return loyaltyTierWithCode(byAmount.amount, byAmount.code);
+    }
+    const amount = params.amount as LoyaltyTierAmount;
+    return loyaltyTierWithCode(amount, LOYALTY_TIERS.t1.code);
   }
-  return { ...LOYALTY_TIERS.t1 };
+  return loyaltyTierWithCode(
+    LOYALTY_TIERS.t1.amount,
+    LOYALTY_TIERS.t1.code,
+  );
 }
 
 export function buildLoyaltyCouponWhatsAppDraft(params: {
@@ -92,15 +104,18 @@ export function buildLoyaltyCouponWhatsAppDraft(params: {
 }): string {
   const name = cleanLine(params.name) || "Customer";
   const tier = resolveLoyaltyTierFromParams(params);
-  const { code, amount } = tier;
+  const { code, amount, minimumPurchasePkr } = tier;
   const amountLabel = formatLoyaltyAmount(amount);
+  const minLabel = formatLoyaltyAmount(
+    minimumPurchasePkr ?? minimumPurchasePkrForTier(amount as LoyaltyTierAmount),
+  );
 
   return (
     `Assalamualaikum ${name},\n\n` +
     `Thank you for your order at Al Barakah Honey.\n\n` +
     `Save ${amountLabel} on your next purchase with coupon code:\n` +
     `${code}\n\n` +
-    `Enter the code at checkout on your next order. One use per customer. ` +
+    `Minimum purchase ${minLabel} on your next order. This code is for your account only, single use, and cannot be combined with other discounts. ` +
     `This offer is for customers who have ordered with us before.\n\n` +
     `Shop again: ${siteBaseUrl()}\n\n` +
     `Thank you for choosing Al Barakah Honey`
