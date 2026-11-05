@@ -173,11 +173,18 @@ async function sendPaidLoyaltyEmailsSafe(
             ? ` (${customerResult.skipReason})`
             : ""),
       );
-    } else {
+    } else if (customerResult.sent) {
       const code =
         customerResult.tier?.code ?? ctx.tier.code;
       console.log(
         `${LOG} Customer loyalty email sent for order ${orderNumber} — ${code}`,
+      );
+    } else if (customerResult.skipReason === "email_failed") {
+      console.warn(
+        `${LOG} Customer loyalty email failed for order ${orderNumber}` +
+          (customerResult.emailError
+            ? ` — ${customerResult.emailError}`
+            : ""),
       );
     }
   } catch (err) {
@@ -190,6 +197,8 @@ async function sendPaidLoyaltyEmailsSafe(
     if (shouldReleaseLoyaltyClaimOnSkip(customerResult.skipReason)) {
       releaseLoyaltyEmailClaim(orderNumber);
     }
+  } else if (customerResult.skipReason === "email_failed") {
+    releaseLoyaltyEmailClaim(orderNumber);
   }
 
   if (

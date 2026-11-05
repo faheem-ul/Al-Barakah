@@ -121,7 +121,10 @@ export async function sendMpComplaintEmail(
   }
 
   if (!result.sent) {
-    return { sent: false, error: "Failed to send email." };
+    return {
+      sent: false,
+      error: result.error || "Failed to send email.",
+    };
   }
 
   return { sent: true };

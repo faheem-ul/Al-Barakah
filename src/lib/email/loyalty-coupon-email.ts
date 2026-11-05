@@ -4,7 +4,7 @@ import {
   EMAIL_BRAND,
   escapeEmailHtml,
 } from "@/lib/email/branded-layout";
-import { sendAdminEmail } from "@/lib/email/send";
+import { sendAdminEmail, type SendEmailResult } from "@/lib/email/send";
 import {
   formatLoyaltyAmount,
   type LoyaltyTier,
@@ -83,7 +83,7 @@ export async function sendLoyaltyCouponEmail(params: {
   to: string;
   greetingName: string;
   tier: LoyaltyTier;
-}): Promise<{ sent: boolean; skipped?: boolean }> {
+}): Promise<SendEmailResult> {
   const { subject, html, text } = buildLoyaltyCouponEmailContent({
     greetingName: params.greetingName,
     tier: params.tier,

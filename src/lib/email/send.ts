@@ -19,9 +19,18 @@ function fromAddress(): string {
   );
 }
 
-async function sendViaResend(input: SendEmailInput): Promise<boolean> {
+export type SendEmailResult = {
+  sent: boolean;
+  skipped?: boolean;
+  error?: string;
+  emailProvider?: "resend" | "smtp";
+};
+
+async function sendViaResend(
+  input: SendEmailInput,
+): Promise<SendEmailResult | null> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) return false;
+  if (!apiKey) return null;
 
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
@@ -35,17 +44,23 @@ async function sendViaResend(input: SendEmailInput): Promise<boolean> {
 
   if (error) {
     console.error(`${LOG} Resend failed:`, error);
-    throw new Error(error.message || "Resend send failed");
+    return {
+      sent: false,
+      error: error.message || "Resend send failed",
+      emailProvider: "resend",
+    };
   }
   console.log(`${LOG} Sent via Resend to`, input.to);
-  return true;
+  return { sent: true, emailProvider: "resend" };
 }
 
-async function sendViaSmtp(input: SendEmailInput): Promise<boolean> {
+async function sendViaSmtp(
+  input: SendEmailInput,
+): Promise<SendEmailResult | null> {
   const host = process.env.SMTP_HOST?.trim();
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
-  if (!host || !user || !pass) return false;
+  if (!host || !user || !pass) return null;
 
   const port = Number(process.env.SMTP_PORT || 465);
   const transporter = nodemailer.createTransport({
@@ -55,16 +70,22 @@ async function sendViaSmtp(input: SendEmailInput): Promise<boolean> {
     auth: { user, pass },
   });
 
-  await transporter.sendMail({
-    from: fromAddress(),
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-    text: input.text,
-    ...(input.replyTo ? { replyTo: input.replyTo } : {}),
-  });
+  try {
+    await transporter.sendMail({
+      from: fromAddress(),
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`${LOG} SMTP failed:`, err);
+    return { sent: false, error: message, emailProvider: "smtp" };
+  }
   console.log(`${LOG} Sent via SMTP to`, input.to);
-  return true;
+  return { sent: true, emailProvider: "smtp" };
 }
 
 /**
@@ -73,18 +94,17 @@ async function sendViaSmtp(input: SendEmailInput): Promise<boolean> {
  */
 export async function sendAdminEmail(
   input: SendEmailInput,
-): Promise<{ sent: boolean; skipped?: boolean }> {
-  try {
-    if (await sendViaResend(input)) return { sent: true };
-    if (await sendViaSmtp(input)) return { sent: true };
-    console.warn(
-      `${LOG} Skipped — set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS`,
-    );
-    return { sent: false, skipped: true };
-  } catch (err) {
-    console.error(`${LOG} FAILED:`, err);
-    return { sent: false };
-  }
+): Promise<SendEmailResult> {
+  const resendResult = await sendViaResend(input);
+  if (resendResult) return resendResult;
+
+  const smtpResult = await sendViaSmtp(input);
+  if (smtpResult) return smtpResult;
+
+  console.warn(
+    `${LOG} Skipped — set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS`,
+  );
+  return { sent: false, skipped: true };
 }
 
 export function adminNotifyEmail(): string {

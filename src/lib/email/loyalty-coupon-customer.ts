@@ -10,6 +10,7 @@ import {
   claimLoyaltyVoucherSendSlot,
   finalizeLoyaltyVoucherSend,
   getLoyaltyVoucherSend,
+  markLoyaltyVoucherEmailFailed,
   normalizeLoyaltyCustomerEmail,
   persistLoyaltyVoucherDiscountCode,
   releaseLoyaltyVoucherSendSlot,
@@ -26,8 +27,10 @@ export type LoyaltyCouponCustomerNotifyResult = {
     | "mailer_not_configured"
     | "shopify_auto_create_disabled"
     | "no_shopify_customer"
-    | "shopify_discount_failed";
+    | "shopify_discount_failed"
+    | "email_failed";
   tier?: LoyaltyTier;
+  emailError?: string;
 };
 
 function str(value: string | number | null | undefined): string {
@@ -195,18 +198,39 @@ export async function notifyCustomerLoyaltyCoupon(
       return { ...result, tier: tierForEmail };
     }
 
-    await releaseLoyaltyVoucherSendSlot(orderNumber);
-    if (result.skipped) {
+    const mailerNotConfigured = Boolean(result.skipped);
+    const failureMessage =
+      result.error ||
+      (mailerNotConfigured
+        ? "Email is not configured. Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS."
+        : "Email send failed.");
+
+    await markLoyaltyVoucherEmailFailed(orderNumber, {
+      emailError: failureMessage,
+      emailProvider: result.emailProvider,
+    });
+
+    if (mailerNotConfigured) {
       return {
         sent: false,
         skipped: true,
         skipReason: "mailer_not_configured",
         tier: tierForEmail,
+        emailError: failureMessage,
       };
     }
-    return { ...result, tier: tierForEmail };
+
+    return {
+      sent: false,
+      skipReason: "email_failed",
+      tier: tierForEmail,
+      emailError: failureMessage,
+    };
   } catch (err) {
-    await releaseLoyaltyVoucherSendSlot(orderNumber);
+    const message = err instanceof Error ? err.message : String(err);
+    await markLoyaltyVoucherEmailFailed(orderNumber, {
+      emailError: message,
+    }).catch(() => undefined);
     throw err;
   }
 }
