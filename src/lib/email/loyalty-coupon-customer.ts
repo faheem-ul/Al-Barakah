@@ -1,3 +1,5 @@
+import { humanizeEmailDeliveryError } from "@/lib/email/delivery-error-message";
+import { notifyAdminLoyaltyCoupon } from "@/lib/email/loyalty-coupon-admin";
 import { sendLoyaltyCouponEmail } from "@/lib/email/loyalty-coupon-email";
 import type { OrderLoyaltyContext } from "@/lib/loyalty/order-loyalty-context";
 import { resolveShopifyCustomerIdForOrder } from "@/lib/loyalty/resolve-shopify-customer-id";
@@ -10,9 +12,12 @@ import {
   claimLoyaltyVoucherSendSlot,
   finalizeLoyaltyVoucherSend,
   getLoyaltyVoucherSend,
+  markLoyaltyVoucherEmailFailed,
   normalizeLoyaltyCustomerEmail,
+  normalizeLoyaltyOrderKey,
   persistLoyaltyVoucherDiscountCode,
   releaseLoyaltyVoucherSendSlot,
+  syncLoyaltyVoucherRecipientEmail,
 } from "@/lib/loyalty/voucher-email-registry";
 import { createLoyaltyDiscountCodeForCustomer } from "@/lib/shopify/admin/create-loyalty-discount-code";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
@@ -26,8 +31,10 @@ export type LoyaltyCouponCustomerNotifyResult = {
     | "mailer_not_configured"
     | "shopify_auto_create_disabled"
     | "no_shopify_customer"
-    | "shopify_discount_failed";
+    | "shopify_discount_failed"
+    | "email_failed";
   tier?: LoyaltyTier;
+  emailError?: string;
 };
 
 function str(value: string | number | null | undefined): string {
@@ -76,12 +83,16 @@ async function ensureUniqueDiscountCode(
   ctx: OrderLoyaltyContext,
   orderNumber: string,
   existingDiscountCode?: string,
+  options?: { allowCustomerEmailSearch?: boolean },
 ): Promise<LoyaltyTier> {
   if (existingDiscountCode?.trim()) {
     return loyaltyTierWithCode(ctx.tier.amount, existingDiscountCode.trim());
   }
 
-  const shopifyCustomerId = await resolveShopifyCustomerIdForOrder(order);
+  const shopifyCustomerId = await resolveShopifyCustomerIdForOrder(
+    order,
+    options,
+  );
   if (!shopifyCustomerId) {
     throw new Error("NO_SHOPIFY_CUSTOMER");
   }
@@ -105,6 +116,7 @@ async function ensureUniqueDiscountCode(
 export async function notifyCustomerLoyaltyCoupon(
   order: ShopifyWebhookOrder,
   ctx: OrderLoyaltyContext,
+  options?: { allowCustomerEmailSearch?: boolean },
 ): Promise<LoyaltyCouponCustomerNotifyResult> {
   if (!isLoyaltyShopifyAutoCreateEnabled()) {
     console.warn(
@@ -134,6 +146,11 @@ export async function notifyCustomerLoyaltyCoupon(
     return { sent: false, skipped: true, skipReason: "already_sent" };
   }
 
+  if (existing) {
+    await syncLoyaltyVoucherRecipientEmail(orderNumber, to);
+    existing = await getLoyaltyVoucherSend(orderNumber);
+  }
+
   if (!existing) {
     const claim = await claimLoyaltyVoucherSendSlot({
       orderNumber,
@@ -142,6 +159,7 @@ export async function notifyCustomerLoyaltyCoupon(
       tierAmount: ctx.tier.amount,
       orderTotalPkr: ctx.orderTotalPkr,
       shopifyOrderId: order.id,
+      shopifyCustomerId: order.customer?.id,
     });
     if (claim === "already_sent") {
       existing = await getLoyaltyVoucherSend(orderNumber);
@@ -160,6 +178,7 @@ export async function notifyCustomerLoyaltyCoupon(
       ctx,
       orderNumber,
       existing?.discountCode ?? (await getLoyaltyVoucherSend(orderNumber))?.discountCode,
+      options,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -188,25 +207,79 @@ export async function notifyCustomerLoyaltyCoupon(
       to,
       greetingName: name,
       tier: tierForEmail,
+      loyaltyOrderKey: normalizeLoyaltyOrderKey(orderNumber) || undefined,
     });
 
     if (result.sent) {
-      await finalizeLoyaltyVoucherSend(orderNumber);
+      await finalizeLoyaltyVoucherSend(orderNumber, {
+        resendEmailId: result.providerMessageId,
+        emailProvider: result.emailProvider,
+      });
       return { ...result, tier: tierForEmail };
     }
 
-    await releaseLoyaltyVoucherSendSlot(orderNumber);
-    if (result.skipped) {
+    const mailerNotConfigured = Boolean(result.skipped);
+    const failureMessage = humanizeEmailDeliveryError(
+      result.error ||
+        (mailerNotConfigured
+          ? "Email is not configured. Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS."
+          : "Email send failed."),
+    );
+
+    await markLoyaltyVoucherEmailFailed(orderNumber, {
+      emailError: failureMessage,
+      emailProvider: result.emailProvider,
+    });
+
+    if (mailerNotConfigured) {
       return {
         sent: false,
         skipped: true,
         skipReason: "mailer_not_configured",
         tier: tierForEmail,
+        emailError: failureMessage,
       };
     }
-    return { ...result, tier: tierForEmail };
+
+    return {
+      sent: false,
+      skipReason: "email_failed",
+      tier: tierForEmail,
+      emailError: failureMessage,
+    };
   } catch (err) {
-    await releaseLoyaltyVoucherSendSlot(orderNumber);
+    const message = err instanceof Error ? err.message : String(err);
+    await markLoyaltyVoucherEmailFailed(orderNumber, {
+      emailError: message,
+    }).catch(() => undefined);
     throw err;
   }
+}
+
+export function shouldSkipAdminLoyaltyAfterCustomer(
+  skipReason: LoyaltyCouponCustomerNotifyResult["skipReason"],
+): boolean {
+  return (
+    skipReason === "already_sent" ||
+    skipReason === "shopify_auto_create_disabled" ||
+    skipReason === "no_shopify_customer" ||
+    skipReason === "shopify_discount_failed"
+  );
+}
+
+/** Same admin notice as paid-order webhook (ops email + WhatsApp link). */
+export async function notifyAdminLoyaltyCouponAfterCustomer(
+  order: ShopifyWebhookOrder,
+  ctx: OrderLoyaltyContext,
+  customerResult: LoyaltyCouponCustomerNotifyResult,
+): Promise<void> {
+  if (shouldSkipAdminLoyaltyAfterCustomer(customerResult.skipReason)) {
+    return;
+  }
+
+  const adminCtx = customerResult.tier
+    ? { ...ctx, tier: customerResult.tier }
+    : ctx;
+
+  await notifyAdminLoyaltyCoupon(order, adminCtx);
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Share2, Star } from "lucide-react";
+import { LayoutDashboard, Mail, Share2, Star } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ import { AdminSidebarLink } from "./AdminSidebarItem";
 
 const NAV_ITEMS = [
   { href: "/admin/sales", label: "Sales Dashboard", icon: LayoutDashboard },
+  { href: "/admin/loyalty-vouchers", label: "Voucher emails", icon: Mail },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
   { href: "/admin/social", label: "Social", icon: Share2 },
 ] as const;

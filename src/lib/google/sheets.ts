@@ -1028,3 +1028,109 @@ export async function updateOrderStatuses(
 
   return { updated: true, rowsUpdated: totalUpdated };
 }
+
+const EMAIL_COL_INDEX = ORDER_SHEET_HEADERS.indexOf("Email");
+const NAME_COL_INDEX = ORDER_SHEET_HEADERS.indexOf("Name");
+const CONTACT_COL_INDEX = ORDER_SHEET_HEADERS.indexOf("Contact");
+
+export type OrderSheetContact = {
+  email?: string;
+  name?: string;
+  phone?: string;
+};
+
+/**
+ * Name, phone, and email from ops sheet rows (webhook-written PII).
+ */
+export async function lookupOrderSheetContactByOrderNumbers(
+  orderNumbers: Array<string | number>,
+): Promise<Map<string, OrderSheetContact>> {
+  const wanted = new Set<string>();
+  for (const raw of orderNumbers) {
+    const key = normalizeOrderKey(raw);
+    if (key) wanted.add(key);
+  }
+
+  const found = new Map<string, OrderSheetContact>();
+  if (!wanted.size) return found;
+
+  try {
+    const sheets = getSheetsClient();
+    const { spreadsheetId } = getSpreadsheetConfig();
+    const { tabs } = await listTabs(sheets, spreadsheetId);
+    const orderTabs = ordersTabsFromList(tabs);
+
+    for (const tab of orderTabs) {
+      if (found.size >= wanted.size) break;
+
+      const result = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: sheetRange(tab.title, "A:R"),
+        majorDimension: "ROWS",
+      });
+
+      const rows = result.data.values ?? [];
+      let emailCol = EMAIL_COL_INDEX;
+      let nameCol = NAME_COL_INDEX;
+      let contactCol = CONTACT_COL_INDEX;
+      let startRow = 0;
+
+      if (rows[0]?.[0] === "Order Number") {
+        startRow = 1;
+        const header = rows[0];
+        const headerEmail = header.indexOf("Email");
+        const headerName = header.indexOf("Name");
+        const headerContact = header.indexOf("Contact");
+        if (headerEmail >= 0) emailCol = headerEmail;
+        if (headerName >= 0) nameCol = headerName;
+        if (headerContact >= 0) contactCol = headerContact;
+      }
+
+      for (let i = startRow; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row?.length) continue;
+
+        const key = normalizeOrderKey(String(row[0] ?? ""));
+        if (!key || !wanted.has(key) || found.has(key)) continue;
+
+        const contact: OrderSheetContact = {};
+        const email = String(row[emailCol] ?? "")
+          .trim()
+          .toLowerCase();
+        if (email.includes("@")) contact.email = email;
+
+        const name = String(row[nameCol] ?? "").trim();
+        if (name) contact.name = name;
+
+        const phone = String(row[contactCol] ?? "").trim();
+        if (phone) contact.phone = phone;
+
+        if (contact.email || contact.name || contact.phone) {
+          found.set(key, contact);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `${LOG} lookupOrderSheetContactByOrderNumbers failed:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  return found;
+}
+
+/**
+ * Emails written by Shopify webhooks (Admin API cannot return PII on Basic).
+ * Looks up order numbers on Sheet1 + month tabs.
+ */
+export async function lookupOrderEmailsByOrderNumbers(
+  orderNumbers: Array<string | number>,
+): Promise<Map<string, string>> {
+  const contacts = await lookupOrderSheetContactByOrderNumbers(orderNumbers);
+  const found = new Map<string, string>();
+  for (const [key, contact] of contacts) {
+    if (contact.email) found.set(key, contact.email);
+  }
+  return found;
+}

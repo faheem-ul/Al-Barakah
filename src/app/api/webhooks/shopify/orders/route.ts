@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notifyAdminLoyaltyCoupon } from "@/lib/email/loyalty-coupon-admin";
 import { notifyAdminNewOrder } from "@/lib/email/new-order-admin";
-import { notifyCustomerLoyaltyCoupon } from "@/lib/email/loyalty-coupon-customer";
+import {
+  notifyAdminLoyaltyCouponAfterCustomer,
+  notifyCustomerLoyaltyCoupon,
+} from "@/lib/email/loyalty-coupon-customer";
 import { notifyCustomerNewOrder } from "@/lib/email/new-order-customer";
 import { appendOrderRows, updateOrderStatuses } from "@/lib/google/sheets";
 import {
@@ -173,11 +175,18 @@ async function sendPaidLoyaltyEmailsSafe(
             ? ` (${customerResult.skipReason})`
             : ""),
       );
-    } else {
+    } else if (customerResult.sent) {
       const code =
         customerResult.tier?.code ?? ctx.tier.code;
       console.log(
         `${LOG} Customer loyalty email sent for order ${orderNumber} — ${code}`,
+      );
+    } else if (customerResult.skipReason === "email_failed") {
+      console.warn(
+        `${LOG} Customer loyalty email failed for order ${orderNumber}` +
+          (customerResult.emailError
+            ? ` — ${customerResult.emailError}`
+            : ""),
       );
     }
   } catch (err) {
@@ -190,29 +199,20 @@ async function sendPaidLoyaltyEmailsSafe(
     if (shouldReleaseLoyaltyClaimOnSkip(customerResult.skipReason)) {
       releaseLoyaltyEmailClaim(orderNumber);
     }
+  } else if (customerResult.skipReason === "email_failed") {
+    releaseLoyaltyEmailClaim(orderNumber);
   }
 
-  if (
-    customerResult.skipReason === "already_sent" ||
-    customerResult.skipReason === "shopify_auto_create_disabled" ||
-    customerResult.skipReason === "no_shopify_customer" ||
-    customerResult.skipReason === "shopify_discount_failed"
-  ) {
-    if (customerResult.skipReason === "already_sent") {
-      console.log(
-        `${LOG} Admin loyalty email skipped for order ${orderNumber} — voucher already sent for this order`,
-      );
-    }
+  if (customerResult.skipReason === "already_sent") {
+    console.log(
+      `${LOG} Admin loyalty email skipped for order ${orderNumber} — voucher already sent for this order`,
+    );
     return;
   }
 
-  const adminCtx = customerResult.tier
-    ? { ...ctx, tier: customerResult.tier }
-    : ctx;
-
   try {
-    await notifyAdminLoyaltyCoupon(order, adminCtx);
-    const code = adminCtx.tier.code;
+    await notifyAdminLoyaltyCouponAfterCustomer(order, ctx, customerResult);
+    const code = (customerResult.tier ?? ctx.tier).code;
     console.log(
       `${LOG} Admin loyalty email sent for order ${orderNumber} — ${code}`,
     );
