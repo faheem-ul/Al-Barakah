@@ -61,6 +61,12 @@ const Footer = () => {
                 </h4>
               </Link>
 
+              <Link href="/food-license" className="hidden md:block">
+                <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
+                  Food License
+                </h4>
+              </Link>
+
               {/* Mobile */}
               <Link href="/terms-and-conditions" className="block md:hidden">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
@@ -83,6 +89,12 @@ const Footer = () => {
               <Link href="/ownership-statement" className="block md:hidden">
                 <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
                   Ownership
+                </h4>
+              </Link>
+
+              <Link href="/food-license" className="block md:hidden">
+                <h4 className="text-[18px] leading-6 font-semibold md:text-[20px]">
+                  License
                 </h4>
               </Link>
             </div>

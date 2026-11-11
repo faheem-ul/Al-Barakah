@@ -37,6 +37,7 @@ export const SITEMAP_STATIC_PATHS = [
   "/privacy-policy",
   "/refund-policy",
   "/ownership-statement",
+  "/food-license",
 ] as const;
 
 export function productPublicPath(product: Pick<Product, "handle" | "title">): string {
