@@ -3,6 +3,7 @@ export const NAV_ITEMS = [
   { title: "About Us", path: "/about-us" },
   { title: "Blog", path: "/blog" },
   { title: "Shop", path: "/" },
+  { title: "Food License", path: "/food-license" },
   { title: "Contact Us", path: "/contact-us" },
   // { title: "Azadi Sale", path: "/azadi-sale", blink: true },
 ];

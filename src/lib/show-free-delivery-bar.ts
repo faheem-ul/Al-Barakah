@@ -7,6 +7,7 @@ const FREE_DELIVERY_BAR_HIDDEN_PATHS = new Set([
   "/terms-and-conditions",
   "/refund-policy",
   "/ownership-statement",
+  "/food-license",
   "/blog",
 ]);
 

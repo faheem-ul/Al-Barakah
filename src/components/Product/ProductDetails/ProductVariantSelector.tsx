@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 
 import { BagIcon, MinusIcon, PlusIcon } from "@/ui/Icons";
@@ -141,6 +142,24 @@ const ProductVariantSelector = (props: PropTypes) => {
           <BagIcon /> Add to cart
         </Button>
       </div>
+
+      {/* food license certificate */}
+      <a
+        href="/images/Food License Certificate.webp"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-6 block w-full max-w-[320px] overflow-hidden rounded-[16px] border border-[#EDE4D3] bg-[#F2EEE6] p-1.5 transition hover:opacity-90 md:max-w-[340px] md:p-2"
+        aria-label="View Food License Certificate"
+      >
+        <Image
+          src="/images/Food License Certificate.webp"
+          alt="Al-Barakah Honey Food License Certificate"
+          width={1754}
+          height={1240}
+          sizes="340px"
+          className="h-auto w-full rounded-[10px] bg-white object-contain"
+        />
+      </a>
     </>
   );
 };

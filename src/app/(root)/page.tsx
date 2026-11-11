@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 
 // import Services from "@/components/Home/Services";
 import ComboDeals from "@/components/Home/ComboDeals";
+import FoodLicensePopup from "@/components/FoodLicensePopup";
 import GoogleReviews from "@/components/GoogleReviews";
 import Shop from "@/components/Home/Shop";
 import { pageCanonicalAlternates } from "@/lib/seo/metadata-canonical";
@@ -66,6 +67,8 @@ const HomePage = async () => {
       />
       <GoogleReviews />
       {/* <Services /> */}
+      <FoodLicensePopup />
+
     </div>
   );
 };
