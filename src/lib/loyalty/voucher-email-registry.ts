@@ -23,6 +23,10 @@ export type LoyaltyVoucherSendRecord = {
   orderTotalPkr: number;
   discountCode?: string;
   shopifyDiscountId?: string;
+  shopifyCustomerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  resendEmailId?: string;
   emailError?: string;
   emailProvider?: "resend" | "smtp";
   createdAt?: string;
@@ -114,6 +118,12 @@ function mapVoucherSendDoc(
     shopifyDiscountId: data.shopifyDiscountId
       ? String(data.shopifyDiscountId)
       : undefined,
+    shopifyCustomerId: data.shopifyCustomerId
+      ? String(data.shopifyCustomerId)
+      : undefined,
+    customerName: data.customerName ? String(data.customerName) : undefined,
+    customerPhone: data.customerPhone ? String(data.customerPhone) : undefined,
+    resendEmailId: data.resendEmailId ? String(data.resendEmailId) : undefined,
     emailError: data.emailError ? String(data.emailError) : undefined,
     emailProvider,
     createdAt: timestampToIso(data.createdAt),
@@ -138,6 +148,36 @@ export async function getLoyaltyVoucherSend(
   if (!data) return null;
 
   return mapVoucherSendDoc(key, data);
+}
+
+/** Batch read voucher rows by order keys (doc id = bare order number). */
+export async function getLoyaltyVoucherSendsByOrderKeys(
+  orderNumbers: Array<string | number>,
+): Promise<Map<string, LoyaltyVoucherSendRecord>> {
+  const keys = orderNumbers
+    .map((n) => normalizeLoyaltyOrderKey(n))
+    .filter((k): k is string => Boolean(k));
+  const unique = [...new Set(keys)];
+  const result = new Map<string, LoyaltyVoucherSendRecord>();
+  if (!unique.length) return result;
+
+  try {
+    const db = getAdminDb();
+    const refs = unique.map((key) =>
+      db.collection(LOYALTY_VOUCHER_SENDS_COLLECTION).doc(key),
+    );
+    const snaps = await db.getAll(...refs);
+    for (const snap of snaps) {
+      if (!snap.exists) continue;
+      const data = snap.data();
+      if (!data) continue;
+      result.set(snap.id, mapVoucherSendDoc(snap.id, data));
+    }
+  } catch (err) {
+    console.error(`${LOG} batch get failed`, err);
+  }
+
+  return result;
 }
 
 export async function listLoyaltyVoucherSends(params: {
@@ -186,6 +226,7 @@ export async function claimLoyaltyVoucherSendSlot(params: {
   tierAmount: number;
   orderTotalPkr: number;
   shopifyOrderId?: string | number;
+  shopifyCustomerId?: string | number;
 }): Promise<"claimed" | "already_sent"> {
   const email = normalizeLoyaltyCustomerEmail(params.email);
   if (!email) {
@@ -200,6 +241,9 @@ export async function claimLoyaltyVoucherSendSlot(params: {
       shopifyOrderId: params.shopifyOrderId
         ? String(params.shopifyOrderId)
         : "",
+      ...(params.shopifyCustomerId
+        ? { shopifyCustomerId: String(params.shopifyCustomerId) }
+        : {}),
       tierCode: params.tierCode,
       tierAmount: params.tierAmount,
       orderTotalPkr: params.orderTotalPkr,
@@ -217,6 +261,10 @@ export async function claimLoyaltyVoucherSendSlot(params: {
 
 export async function finalizeLoyaltyVoucherSend(
   orderNumber: string | number,
+  extra?: {
+    resendEmailId?: string;
+    emailProvider?: "resend" | "smtp";
+  },
 ): Promise<void> {
   const ref = docRefForOrder(orderNumber);
   await ref.update({
@@ -224,6 +272,64 @@ export async function finalizeLoyaltyVoucherSend(
     sentAt: FieldValue.serverTimestamp(),
     emailError: FieldValue.delete(),
     failedAt: FieldValue.delete(),
+    ...(extra?.resendEmailId
+      ? { resendEmailId: extra.resendEmailId.slice(0, 128) }
+      : {}),
+    ...(extra?.emailProvider ? { emailProvider: extra.emailProvider } : {}),
+  });
+}
+
+/** Late delivery failure (e.g. Resend bounce webhook). Overwrites sent → failed. */
+export async function markLoyaltyVoucherDeliveryBounced(
+  orderNumber: string | number,
+  params: {
+    emailError: string;
+    emailProvider?: "resend" | "smtp";
+  },
+): Promise<void> {
+  const ref = docRefForOrder(orderNumber);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    console.warn(
+      `${LOG} bounce skipped — no doc for order ${normalizeLoyaltyOrderKey(orderNumber)}`,
+    );
+    return;
+  }
+
+  const errorText = params.emailError.trim().slice(0, 2000);
+  await ref.update({
+    status: "failed" satisfies LoyaltyVoucherSendStatus,
+    failedAt: FieldValue.serverTimestamp(),
+    emailError: errorText || "Email bounced — address undeliverable.",
+    ...(params.emailProvider ? { emailProvider: params.emailProvider } : {}),
+    sentAt: FieldValue.delete(),
+  });
+}
+
+/** Reset failed row and update recipient before resend (keeps discount code). */
+export async function syncLoyaltyVoucherRecipientEmail(
+  orderNumber: string | number,
+  email: string,
+): Promise<void> {
+  const normalized = normalizeLoyaltyCustomerEmail(email);
+  if (!normalized) return;
+
+  const ref = docRefForOrder(orderNumber);
+  const snap = await ref.get();
+  if (!snap.exists) return;
+
+  const status = snap.get("status") as LoyaltyVoucherSendStatus | undefined;
+  if (status === "sent") return;
+
+  await ref.update({
+    email: normalized,
+    ...(status === "failed"
+      ? {
+          status: "pending" satisfies LoyaltyVoucherSendStatus,
+          emailError: FieldValue.delete(),
+          failedAt: FieldValue.delete(),
+        }
+      : {}),
   });
 }
 

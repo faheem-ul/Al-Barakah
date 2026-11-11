@@ -63,3 +63,39 @@ export async function resolveOrderLoyaltyContext(
     orderTotalPkr,
   };
 }
+
+/**
+ * Admin manual send: paid order + tier from total only (no returning-customer check).
+ */
+export function resolveManualLoyaltyContext(
+  order: ShopifyWebhookOrder,
+): OrderLoyaltyContext | null {
+  if (!isOrderFinanciallyPaid(order)) {
+    return null;
+  }
+
+  const orderTotalPkr = parseCustomerSpent(order.total_price);
+  const tier = resolveLoyaltyTierFromOrderTotalPkr(orderTotalPkr);
+  if (!tier) {
+    return null;
+  }
+
+  return {
+    tier,
+    ordersCount: order.customer?.orders_count ?? 0,
+    orderTotalPkr,
+  };
+}
+
+export function manualLoyaltyIneligibleReason(
+  order: ShopifyWebhookOrder,
+): string | null {
+  if (!isOrderFinanciallyPaid(order)) {
+    return "Order is not paid";
+  }
+  const orderTotalPkr = parseCustomerSpent(order.total_price);
+  if (!resolveLoyaltyTierFromOrderTotalPkr(orderTotalPkr)) {
+    return "Order total below minimum for a loyalty tier (Rs 2,000)";
+  }
+  return null;
+}
