@@ -58,7 +58,7 @@ function formatMoney(pkr: number): string {
 
 function formatOrderDate(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleDateString();
 }
 
 type SendVouchersTabProps = {
@@ -110,6 +110,7 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
 
         const params = new URLSearchParams({
           limit: String(ORDERS_PAGE_SIZE),
+          filter: viewFilter,
         });
         if (cursor) params.set("cursor", cursor);
 
@@ -149,7 +150,7 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
         setLoading(false);
       }
     },
-    [getToken],
+    [getToken, viewFilter],
   );
 
   const reload = useCallback(async () => {
@@ -177,14 +178,10 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
   const rangeStart = items.length ? (page - 1) * ORDERS_PAGE_SIZE + 1 : 0;
   const rangeEnd = (page - 1) * ORDERS_PAGE_SIZE + items.length;
 
+  // Filtering happens server-side; this only drops rows just sent on this page.
   const filteredItems = useMemo(() => {
-    return items.filter((row) => {
-      if (viewFilter === "eligible") return row.eligible;
-      if (viewFilter === "not_sent") {
-        return row.eligible && row.voucherStatus !== "sent";
-      }
-      return true;
-    });
+    if (viewFilter !== "not_sent") return items;
+    return items.filter((row) => row.voucherStatus !== "sent");
   }, [items, viewFilter]);
 
   const sendVoucher = async (row: ManualSendRow) => {
@@ -326,8 +323,10 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
         ) : filteredItems.length === 0 ? (
           <Text className="text-[13px] text-[#6B6B6B]">
             {items.length === 0
-              ? "No paid orders loaded."
-              : "No orders match this filter on this page. Try another page or change filter."}
+              ? viewFilter === "all"
+                ? "No paid orders loaded."
+                : "No orders match this filter."
+              : "No orders match this filter on this page."}
           </Text>
         ) : (
           <div className="overflow-x-auto">
@@ -457,11 +456,7 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
                         {formatMoney(row.orderTotalPkr)}
                       </td>
                       <td className="py-2.5 pr-3 text-black whitespace-nowrap">
-                        {row.tierAmount
-                          ? formatMoney(row.tierAmount)
-                          : row.ineligibleReason
-                            ? "—"
-                            : "—"}
+                        {row.tierAmount ? formatMoney(row.tierAmount) : "—"}
                       </td>
                       <td className="py-2.5 pr-3">
                         {row.voucherStatus === "none" ? (
@@ -476,10 +471,10 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
                       <td className="py-2.5">
                         {!row.eligible ? (
                           <span
-                            className="text-[12px] text-[#6B6B6B] max-w-[140px] inline-block"
+                            className="text-[12px] text-[#6B6B6B] whitespace-nowrap cursor-help"
                             title={row.ineligibleReason || undefined}
                           >
-                            {row.ineligibleReason || "Not eligible"}
+                            Not eligible
                           </span>
                         ) : row.voucherStatus === "sent" ? (
                           <span className="text-[12px] text-[#6B6B6B]">
@@ -510,7 +505,13 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
               {loading && items.length === 0
                 ? "Loading paid orders from Shopify…"
                 : rangeStart > 0
-                  ? `Showing ${rangeStart}–${rangeEnd} paid orders from Shopify`
+                  ? `Showing ${rangeStart}–${rangeEnd} ${
+                      viewFilter === "all"
+                        ? "paid"
+                        : viewFilter === "eligible"
+                          ? "eligible"
+                          : "not-sent"
+                    } orders from Shopify`
                   : "No orders on this page"}
             </p>
 
