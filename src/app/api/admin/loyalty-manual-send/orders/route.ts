@@ -10,6 +10,7 @@ import { lookupOrderSheetContactByOrderNumbers } from "@/lib/google/sheets";
 import { getShopifyCustomerIdsByEmails } from "@/lib/loyalty/shopify-customer-directory";
 import { getLoyaltyVoucherSendsByOrderKeys } from "@/lib/loyalty/voucher-email-registry";
 import { fetchPaidOrdersForManualLoyalty } from "@/lib/shopify/admin/loyalty-manual-send-orders";
+import { resolveVoucherCodeUsage } from "@/lib/shopify/admin/loyalty-discount-usage";
 import type { ShopifyWebhookOrder } from "@/lib/shopify/types/webhook-order";
 
 export const runtime = "nodejs";
@@ -139,12 +140,24 @@ export async function GET(request: NextRequest) {
       voucherByKey.get(key)?.email?.trim() ||
       sheetContacts.get(key)?.email?.trim() ||
       "";
-    const directoryIds = await getShopifyCustomerIdsByEmails(
-      orderKeys.map(emailForKey).filter(Boolean),
-    ).catch((error) => {
-      console.error("[loyalty-manual-send/orders] customer directory failed", error);
-      return new Map<string, string>();
-    });
+    const [directoryIds, codeUsage] = await Promise.all([
+      getShopifyCustomerIdsByEmails(
+        orderKeys.map(emailForKey).filter(Boolean),
+      ).catch((error) => {
+        console.error("[loyalty-manual-send/orders] customer directory failed", error);
+        return new Map<string, string>();
+      }),
+      resolveVoucherCodeUsage(
+        orderKeys.map((key) => {
+          const voucher = voucherByKey.get(key);
+          return {
+            key,
+            discountCode: voucher?.discountCode,
+            shopifyDiscountId: voucher?.shopifyDiscountId,
+          };
+        }),
+      ),
+    ]);
 
     const items = page.orders.map((order) => {
       const ctx = resolveManualLoyaltyContext(order);
@@ -188,6 +201,7 @@ export async function GET(request: NextRequest) {
         ineligibleReason,
         voucherStatus,
         discountCode: voucher?.discountCode ?? null,
+        codeUsed: codeUsage.get(orderKey) ?? null,
         emailError: voucher?.emailError ?? null,
       };
     });

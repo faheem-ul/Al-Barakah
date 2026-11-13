@@ -9,6 +9,7 @@ import Text from "@/components/ui/Text";
 import { type VoucherEmailFilterTab } from "./constants";
 import VoucherEmailFilterSheet from "./VoucherEmailFilterSheet";
 import VoucherEmailFilters from "./VoucherEmailFilters";
+import CodeUsageBadge from "./CodeUsageBadge";
 import VoucherEmailStatusBadge from "./VoucherEmailStatusBadge";
 
 type VoucherEmailRow = {
@@ -17,6 +18,7 @@ type VoucherEmailRow = {
   email: string;
   orderNumber: string;
   discountCode?: string;
+  codeUsed?: boolean | null;
   emailError?: string;
   createdAt?: string;
   sentAt?: string;
@@ -246,6 +248,7 @@ const VoucherEmailHistoryTab: React.FC<VoucherEmailHistoryTabProps> = ({
                   <th className="py-2 pr-3 font-semibold">Email</th>
                   <th className="py-2 pr-3 font-semibold">Status</th>
                   <th className="py-2 pr-3 font-semibold">Code</th>
+                  <th className="py-2 pr-3 font-semibold">Code status</th>
                   <th className="py-2 font-semibold">Error</th>
                 </tr>
               </thead>
@@ -266,6 +269,13 @@ const VoucherEmailHistoryTab: React.FC<VoucherEmailHistoryTabProps> = ({
                     </td>
                     <td className="py-2.5 pr-3 font-mono text-[12px] text-black">
                       {row.discountCode || "—"}
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      {row.codeUsed == null ? (
+                        <span className="text-[#6B6B6B]">—</span>
+                      ) : (
+                        <CodeUsageBadge used={row.codeUsed} />
+                      )}
                     </td>
                     <td
                       className="py-2.5 text-[#b42318] max-w-[280px]"
