@@ -164,10 +164,12 @@ export async function fetchPaidOrdersForManualLoyalty(params: {
   cursor?: string | null;
 }): Promise<{
   orders: ShopifyWebhookOrder[];
+  /** Edge cursor per order (same index as `orders`) — resume after any order. */
+  cursors: string[];
   nextCursor: string | null;
   hasMore: boolean;
 }> {
-  const limit = Math.min(Math.max(params.limit, 1), 50);
+  const limit = Math.min(Math.max(params.limit, 1), 250);
 
   const cursor = params.cursor?.trim();
   const variables: Record<string, unknown> = {
@@ -186,6 +188,7 @@ export async function fetchPaidOrdersForManualLoyalty(params: {
           endCursor
         }
         edges {
+          cursor
           node {
             ${ORDER_FIELDS}
           }
@@ -199,6 +202,7 @@ export async function fetchPaidOrdersForManualLoyalty(params: {
           endCursor
         }
         edges {
+          cursor
           node {
             ${ORDER_FIELDS}
           }
@@ -209,19 +213,24 @@ export async function fetchPaidOrdersForManualLoyalty(params: {
   const data = await adminGraphql<{
     orders: {
       pageInfo: { hasNextPage: boolean; endCursor: string | null };
-      edges: Array<{ node: GraphqlOrderNode }>;
+      edges: Array<{ cursor: string; node: GraphqlOrderNode }>;
     };
   }>(queryDoc, variables);
 
   const connection = data.orders;
   const orders: ShopifyWebhookOrder[] = [];
+  const cursors: string[] = [];
   for (const edge of connection?.edges ?? []) {
     const mapped = mapGraphqlOrderToWebhook(edge.node);
-    if (mapped) orders.push(mapped);
+    if (mapped) {
+      orders.push(mapped);
+      cursors.push(edge.cursor);
+    }
   }
 
   return {
     orders,
+    cursors,
     nextCursor: connection?.pageInfo?.endCursor ?? null,
     hasMore: Boolean(connection?.pageInfo?.hasNextPage),
   };
