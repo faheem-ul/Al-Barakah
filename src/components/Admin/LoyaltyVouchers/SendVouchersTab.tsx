@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import Text from "@/components/ui/Text";
 import { cn } from "@/lib/utils";
 
+import CodeUsageBadge from "./CodeUsageBadge";
 import VoucherEmailStatusBadge from "./VoucherEmailStatusBadge";
 
 type ManualSendRow = {
@@ -24,6 +25,7 @@ type ManualSendRow = {
   ineligibleReason: string | null;
   voucherStatus: "none" | "pending" | "sent" | "failed";
   discountCode: string | null;
+  codeUsed: boolean | null;
   emailError: string | null;
 };
 
@@ -466,7 +468,12 @@ const SendVouchersTab: React.FC<SendVouchersTabProps> = ({ getToken }) => {
                         )}
                       </td>
                       <td className="py-2.5 pr-3 font-mono text-[12px]">
-                        {row.discountCode || "—"}
+                        <div>{row.discountCode || "—"}</div>
+                        {row.discountCode && row.codeUsed != null ? (
+                          <div className="mt-1 font-sans">
+                            <CodeUsageBadge used={row.codeUsed} />
+                          </div>
+                        ) : null}
                       </td>
                       <td className="py-2.5">
                         {!row.eligible ? (

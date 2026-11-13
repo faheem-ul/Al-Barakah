@@ -5,6 +5,7 @@ import {
   listLoyaltyVoucherSends,
   type LoyaltyVoucherSendStatus,
 } from "@/lib/loyalty/voucher-email-registry";
+import { resolveVoucherCodeUsage } from "@/lib/shopify/admin/loyalty-discount-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +35,18 @@ export async function GET(request: NextRequest) {
   const status = parseStatus(request.nextUrl.searchParams.get("status"));
 
   try {
-    const items = await listLoyaltyVoucherSends({ limit, status });
+    const records = await listLoyaltyVoucherSends({ limit, status });
+    const usage = await resolveVoucherCodeUsage(
+      records.map((r) => ({
+        key: r.id,
+        discountCode: r.discountCode,
+        shopifyDiscountId: r.shopifyDiscountId,
+      })),
+    );
+    const items = records.map((r) => ({
+      ...r,
+      codeUsed: usage.get(r.id) ?? null,
+    }));
     return NextResponse.json({ items });
   } catch (error) {
     console.error("[loyalty-voucher-sends] list failed", error);
